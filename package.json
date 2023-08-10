@@ -6,6 +6,7 @@
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "dev": "ts-node src/test.ts",
     "build": "tsup-node src/index.ts --format cjs,esm --minify --dts-resolve --clean --sourcemap --legacy-output",
     "lint": "tsc",
     "test": "vitest run",
@@ -14,11 +15,13 @@
   "devDependencies": {
     "@changesets/cli": "^2.26.1",
     "@types/node": "^20.2.1",
+    "ts-node": "^10.9.1",
     "tsup": "^6.7.0",
     "typescript": "^5.0.4",
     "vitest": "^0.31.1"
   },
   "dependencies": {
+    "dotenv": "^16.3.1",
     "openai": "^3.2.1"
   }
 }
