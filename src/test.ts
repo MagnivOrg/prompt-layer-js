@@ -1,4 +1,3 @@
-// import { openai } from "./index";
 import { openai } from "./index";
 
 (async () => {    

@@ -1,5 +1,6 @@
 import { Configuration, OpenAIApi } from "openai";
 import { TrackRequestAudit } from "./interfaces/TrackRequestAudit";
+import http from "https";
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -9,8 +10,10 @@ const configuration = new Configuration({
 });
 const target = new OpenAIApi(configuration);
 
-const logs: TrackRequestAudit[] = [];
+// const logs: TrackRequestAudit[] = [];
 
+// TODO: Refactor to export configuration from here
+const api_key = '';
 export const openai = new Proxy(target, {
   get: (target, prop, receiver) => {
     const value = target[prop as keyof OpenAIApi];
@@ -39,18 +42,19 @@ export const openai = new Proxy(target, {
             const entry: TrackRequestAudit = {
               timestamp: new Date(),
               function_name: functionName,
-              kwargs: {},
+              kwargs: '',
               request_response: response.data,
               request_start_time: requestStartTime,
               request_end_time: requestEndTime,
               tags: [],
-              prompt_id: "",
-              prompt_input_variables: {},
-              prompt_version: 0,
-              api_key: "",
+              prompt_id: '14037',
+              prompt_input_variables: ``,
+              prompt_version: 1,
+              api_key: api_key,
             };
-            logs.push(entry);
-            console.log(JSON.stringify(entry, null, 4));
+            // logs.push(entry);
+            trackRequest(entry);
+            // console.log(JSON.stringify(entry, null, 4));
           });
         } else {
           const requestEndTime = new Date();
@@ -59,18 +63,19 @@ export const openai = new Proxy(target, {
           const entry: TrackRequestAudit = {
             timestamp: new Date(),
             function_name: functionName,
-            kwargs: {},
+            kwargs: '',
             request_response: result,
             request_start_time: requestStartTime,
             request_end_time: requestEndTime,
             tags: [],
-            prompt_id: "",
-            prompt_input_variables: {},
-            prompt_version: 0,
-            api_key: "",
+            prompt_id: '14037',
+            prompt_input_variables: ``,
+            prompt_version: 1,
+            api_key: api_key,
           };
-          logs.push(entry);
-          console.log(JSON.stringify(entry, null, 4));
+          // logs.push(entry);
+          trackRequest(entry);
+          // console.log(JSON.stringify(entry, null, 4));
         }
         return result;
       };
@@ -78,3 +83,31 @@ export const openai = new Proxy(target, {
     return Reflect.get(target, prop, receiver);
   },
 });
+
+
+function trackRequest(data:TrackRequestAudit) {
+  
+const options = {
+  "method": "POST",
+  "hostname": "api.promptlayer.com",
+  "port": null,
+  "path": "/rest/track-request",
+  "headers": {'Content-Type': 'application/json'}
+};
+
+const req = http.request(options, function (res) {
+  const chunks:any = [];
+
+  res.on("data", function (chunk) {
+    chunks.push(chunk);
+  });
+
+  res.on("end", function () {
+    const body = Buffer.concat(chunks);
+    console.log(body.toString());
+  });
+});
+
+req.write(JSON.stringify(data));
+req.end();
+}
