@@ -1,82 +1,80 @@
 import { Configuration, OpenAIApi } from "openai";
+import { TrackRequestAudit } from "./interfaces/TrackRequestAudit";
 const dotenv = require("dotenv");
-dotenv.config()
+dotenv.config();
+
+
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 });
 const target = new OpenAIApi(configuration);
 
-
-
-
-interface AuditLogEntry {
-  timestamp: Date;
-  method: string;
-  arguments: any[];
-  response?: any;
-  requestStart?: Date;
-  requestEnd?: Date;
-}
-
-
-const logs: AuditLogEntry[] = [];
-
-
+const logs: TrackRequestAudit[] = [];
 
 export const openai = new Proxy(target, {
   get: (target, prop, receiver) => {
     const value = target[prop as keyof OpenAIApi];
     if (typeof value === "function") {
-      const methodName = prop.toString();
+      const functionName = prop.toString();
       return (...args: any[]) => {
-        let return_pl_id = false;
-        const newArgs = args.map((arg) => {
-          if (arg["return_pl_id"] !== undefined) {
-            return_pl_id = arg["return_pl_id"];
-            delete arg["return_pl_id"];
-          }
-          return arg;
-        });
 
-        const requestStart = new Date(); // Capture request start time
+        //TODO: Need to know about return_pl_id
+        // let return_pl_id = false;
+        // const newArgs = args.map((arg) => {
+        //   if (arg["return_pl_id"] !== undefined) {
+        //     return_pl_id = arg["return_pl_id"];
+        //     delete arg["return_pl_id"];
+        //   }
+        //   return arg;
+        // });
+
+        const requestStartTime = new Date();
         const result = (value as any).apply(target, args);
 
         if (result instanceof Promise) {
-          result.then(res => {
-            const requestEnd = new Date(); // Capture request end time
-            const entry: AuditLogEntry = {
+          result.then((response) => {
+            const requestEndTime = new Date();
+
+            //TODO: Figure out how to get the prompt_id, prompt_input_variables, prompt_version, and api_key
+            const entry: TrackRequestAudit = {
               timestamp: new Date(),
-              method: methodName,
-              arguments: newArgs,
-              response: res,
-              requestStart,
-              requestEnd,
+              function_name: functionName,
+              kwargs: {},
+              request_response: response.data,
+              request_start_time: requestStartTime,
+              request_end_time: requestEndTime,
+              tags: [],
+              prompt_id: "",
+              prompt_input_variables: {},
+              prompt_version: 0,
+              api_key: "",
             };
             logs.push(entry);
-            console.log(entry);
-          })
+            console.log(JSON.stringify(entry, null, 4));
+          });
         } else {
-          const requestEnd = new Date(); // Capture request end time
-          const entry: AuditLogEntry = {
+          const requestEndTime = new Date();
+          
+          //TODO: Figure out how to get the prompt_id, prompt_input_variables, prompt_version, and api_key
+          const entry: TrackRequestAudit = {
             timestamp: new Date(),
-            method: methodName,
-            arguments: newArgs,
-            response: result,
-            requestStart,
-            requestEnd,
+            function_name: functionName,
+            kwargs: {},
+            request_response: result,
+            request_start_time: requestStartTime,
+            request_end_time: requestEndTime,
+            tags: [],
+            prompt_id: "",
+            prompt_input_variables: {},
+            prompt_version: 0,
+            api_key: "",
           };
           logs.push(entry);
-          console.log(entry);
+          console.log(JSON.stringify(entry, null, 4));
         }
         return result;
       };
     }
-    const result = Reflect.get(target, prop, receiver);
-
-    console.log({
-      returnValue: JSON.stringify(result),
-    })
-    return result;
+    return Reflect.get(target, prop, receiver);
   },
-  
 });
