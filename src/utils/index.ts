@@ -1,9 +1,8 @@
 import { TrackRequest } from "@/types";
 
-const URL_API_PROMPTLAYER =
-  process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
+const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
-const promptlayerApiRequest = async (body: TrackRequest) => {
+const promptLayerApiRequest = async (body: TrackRequest) => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/track-request`, {
       method: "POST",
@@ -30,4 +29,4 @@ const promptlayerApiRequest = async (body: TrackRequest) => {
   }
 };
 
-export { promptlayerApiRequest };
+export { promptLayerApiRequest };
