@@ -1,6 +1,6 @@
 export interface TrackRequest {
   api_key: string;
-  provider_type?: "openai" | "anthropic" | "langchain";
+  provider_type?: string;
   function_name: string;
   args?: unknown[];
   kwargs?: Record<string, unknown>;
