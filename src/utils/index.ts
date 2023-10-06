@@ -1,6 +1,17 @@
+import * as promptlayer from "@/promptlayer";
 import { TrackRequest } from "@/types";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
+
+const getApiKey = () => {
+  if (promptlayer.api_key === undefined) {
+    throw new Error(
+      "Please set your PROMPTLAYER_API_KEY environment variable or set API KEY in code using 'promptlayer.api_key = <your_api_key>' "
+    );
+  } else {
+    return promptlayer.api_key;
+  }
+};
 
 const promptLayerApiRequest = async (body: TrackRequest) => {
   try {
@@ -29,4 +40,4 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
   }
 };
 
-export { promptLayerApiRequest };
+export { getApiKey, promptLayerApiRequest };
