@@ -37,9 +37,9 @@ const handler: ProxyHandler<typeof BaseOpenAI> = {
     const function_name = Reflect.get(target, "function_name");
     const provider_type = Reflect.get(target, "provider");
     const response = Reflect.apply(target, thisArg, argArray);
-    const request_end_time = new Date().toISOString();
     if (response instanceof Promise) {
       response.then((request_response) => {
+        const request_end_time = new Date().toISOString();
         promptLayerApiRequest({
           api_key: getApiKey(),
           provider_type,
