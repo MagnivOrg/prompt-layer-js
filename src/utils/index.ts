@@ -1,4 +1,4 @@
-import * as promptlayer from "@/promptlayer";
+import promptlayer from "@/promptlayer";
 import { TrackRequest } from "@/types";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
