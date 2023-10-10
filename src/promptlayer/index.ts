@@ -20,7 +20,7 @@ const promptLayerBase = (
       return new Proxy(newTarget, handler);
     },
     get: (target, prop, receiver) => {
-      const value = target[prop as keyof typeof target];
+      const value = target[prop];
       if (prop === "post") return value;
       const function_name = Reflect.get(target, "function_name");
       Object.defineProperties(value, {
