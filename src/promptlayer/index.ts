@@ -38,20 +38,28 @@ const promptLayerBase = (
       const request_start_time = new Date().toISOString();
       const function_name = Reflect.get(target, "function_name");
       const provider_type = Reflect.get(target, "provider");
+      const return_pl_id = argArray[0]?.return_pl_id;
+      delete argArray[0]?.return_pl_id;
       const response = Reflect.apply(target, thisArg, argArray);
       if (response instanceof Promise) {
-        response.then((request_response) => {
-          const request_end_time = new Date().toISOString();
-          promptLayerApiRequest({
-            api_key: getApiKey(),
-            provider_type,
-            function_name,
-            request_start_time,
-            request_end_time,
-            request_response,
-            kwargs: argArray[0],
-          });
-          return request_response;
+        return new Promise((resolve, reject) => {
+          response
+            .then(async (request_response) => {
+              const response = await promptLayerApiRequest({
+                api_key: getApiKey(),
+                provider_type,
+                function_name,
+                request_start_time,
+                request_end_time: new Date().toISOString(),
+                request_response,
+                kwargs: argArray[0],
+                return_pl_id,
+              });
+              resolve(response);
+            })
+            .catch((error) => {
+              reject(error);
+            });
         });
       }
       return response;
