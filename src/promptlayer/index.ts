@@ -39,7 +39,9 @@ const promptLayerBase = (
       const function_name = Reflect.get(target, "function_name");
       const provider_type = Reflect.get(target, "provider");
       const return_pl_id = argArray[0]?.return_pl_id;
+      const pl_tags = argArray[0]?.pl_tags;
       delete argArray[0]?.return_pl_id;
+      delete argArray[0]?.pl_tags;
       const response = Reflect.apply(target, thisArg, argArray);
       if (response instanceof Promise) {
         return new Promise((resolve, reject) => {
@@ -54,6 +56,7 @@ const promptLayerBase = (
                 request_response,
                 kwargs: argArray[0],
                 return_pl_id,
+                tags: pl_tags,
               });
               resolve(response);
             })
