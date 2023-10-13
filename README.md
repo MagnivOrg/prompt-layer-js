@@ -68,51 +68,29 @@ _Tags are not required but we recommend them!_
 openai.chat.completions.create({
   messages: [{ role: "user", content: "Say this is a test" }],
   model: "gpt-3.5-turbo",
+  // @ts-ignore
+  pl_tags: ["test"],
 });
 ```
 
-After making your first few requests, you should be able to see them in the PromptLayer dashboard!
+### Returning request id: `return_pl_id`
 
-## Using the REST API
-
-This JavaScript library is a wrapper over PromptLayer's REST API. If you use another language, just interact directly with the API.
-
-Here is an example request below:
+PromptLayer allows you to return the request id through the `return_pl_id` argument. When you set this to `true`, a tuple is returned with the request id as the second element.
 
 ```js
-fetch("https://api.promptlayer.com/track-request", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    function_name: "openai.completions.create",
-    args: [],
-    kwargs: {
-      model: "text-ada-001",
-      prompt: "My name is",
-    },
-    tags: ["hello", "world"],
-    request_response: {
-      id: "cmpl-6TEeJCRVlqQSQqhD8CYKd1HdCcFxM",
-      object: "text_completion",
-      created: 1672425843,
-      model: "text-ada-001",
-      choices: [
-        {
-          text: ' advocacy"\n\nMy name is advocacy.',
-          index: 0,
-          logprobs: null,
-          finish_reason: "stop",
-        },
-      ],
-    },
-    request_start_time: 1673987077.463504,
-    request_end_time: 1673987077.463504,
-    api_key: "pl_<YOUR API KEY>",
-  }),
+openai.chat.completions.create({
+  messages: [{ role: "user", content: "Say this is a test" }],
+  model: "gpt-3.5-turbo",
+  // @ts-ignore
+  return_pl_id: true,
 });
 ```
+
+<aside>
+  Notice the `ts-ignore` comment. This is because the `pl_tags` and `return_pl_id` arguments are not part of the OpenAI API. We are working on a way to make this more seamless.
+</aside>
+
+After making your first few requests, you should be able to see them in the PromptLayer dashboard!
 
 ## Contributing
 
