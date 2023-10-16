@@ -1,11 +1,11 @@
-name: CI
+name: Publish NPM Package
 on:
   push:
     branches:
-      - "**"
+      - master
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -15,4 +15,4 @@ jobs:
           cache: "npm"
 
       - run: npm ci
-      - run: npm run lint && npm run build
+      - run: npm run lint && npm run release
