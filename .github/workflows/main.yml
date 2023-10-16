@@ -14,5 +14,6 @@ jobs:
           node-version: lts/*
           cache: "npm"
 
-      - run: npm ci
-      - run: npm run lint && npm run release
+      - run: |
+          npm ci
+          npm run lint && npm run release
