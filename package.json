@@ -1,7 +1,7 @@
 {
   "name": "promptlayer",
   "license": "MIT",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
@@ -9,10 +9,9 @@
   "scripts": {
     "build": "tsup-node src/index.ts --format cjs,esm --minify --dts-resolve --clean --sourcemap --legacy-output",
     "lint": "tsc",
-    "release": "npm run build && changeset publish"
+    "release": "npm run build && npm publish"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.26.2",
     "@types/node": "^20.8.0",
     "tsup": "^7.2.0",
     "typescript": "^5.2.2"
