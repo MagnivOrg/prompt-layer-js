@@ -41,4 +41,45 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
   }
 };
 
-export { getApiKey, promptLayerApiRequest };
+/**
+ * Get a prompt from the PromptLayer library
+ * @param prompt_name name of the prompt to get
+ * @param api_key your api key
+ * @param version version of the prompt to get, None for latest
+ * @param label The specific label of a prompt you want to get. Setting this will supercede version
+ */
+const promptLayerGetPrompt = (
+  prompt_name: string,
+  api_key: string,
+  version?: number,
+  label?: string
+) => {
+  const params: Record<string, string> = {
+    prompt_name,
+    version: version?.toString() ?? "",
+    label: label ?? "",
+  };
+  const url = new URL(`${URL_API_PROMPTLAYER}/library-get-prompt-template`);
+  url.search = new URLSearchParams(params).toString();
+  return fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      "X-API-KEY": api_key,
+    },
+  })
+    .then((response) => {
+      if (response.status !== 200) {
+        throw new Error(
+          `PromptLayer had the following error while getting your prompt: ${response}`
+        );
+      }
+      return response.json();
+    })
+    .catch((e) => {
+      throw new Error(
+        `PromptLayer had the following error while getting your prompt: ${e}`
+      );
+    });
+};
+
+export { getApiKey, promptLayerApiRequest, promptLayerGetPrompt };
