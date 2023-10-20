@@ -1,4 +1,4 @@
-import { getApiKey, promptLayerApiRequest } from "@/utils";
+import { getApiKey, promptlayerApiHandler } from "@/utils";
 
 const promptLayerBase = (
   llm: object,
@@ -47,7 +47,7 @@ const promptLayerBase = (
         return new Promise((resolve, reject) => {
           response
             .then(async (request_response) => {
-              const response = await promptLayerApiRequest({
+              const response = await promptlayerApiHandler({
                 api_key: getApiKey(),
                 provider_type,
                 function_name,

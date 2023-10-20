@@ -13,6 +13,18 @@ const getApiKey = () => {
   }
 };
 
+const promptlayerApiHandler = async <Item>(
+  body: TrackRequest & {
+    request_response: AsyncIterable<Item> | any;
+  }
+) => {
+  const isGenerator = body.request_response[Symbol.asyncIterator] !== undefined;
+  if (isGenerator) {
+    return proxyGenerator(body.request_response, body);
+  }
+  return await promptLayerApiRequest(body);
+};
+
 const promptLayerApiRequest = async (body: TrackRequest) => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/track-request`, {
@@ -41,4 +53,48 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
   }
 };
 
-export { getApiKey, promptLayerApiRequest };
+const cleaned_result = (results: any[]) => {
+  if ("text" in results[0].choices[0]) {
+    let response = "";
+    for (const result of results) {
+      response = `${response}${result.choices[0].text}`;
+    }
+    const final_result = structuredClone(results.at(-1));
+    final_result.choices[0].text = response;
+    return final_result;
+  } else if ("delta" in results[0].choices[0]) {
+    let response = { role: "", content: "" };
+    for (const result of results) {
+      if ("role" in result.choices[0].delta) {
+        response.role = result.choices[0].delta.role;
+      }
+      if ("content" in result.choices[0].delta) {
+        response.content = `${response["content"]}${result.choices[0].delta.content}`;
+      }
+    }
+    const final_result = structuredClone(results.at(-1));
+    final_result.choices[0] = response;
+    return final_result;
+  }
+  return "";
+};
+
+async function* proxyGenerator<Item>(
+  generator: AsyncIterable<Item>,
+  body: TrackRequest
+) {
+  const results = [];
+  for await (const value of generator) {
+    yield value;
+    results.push(value);
+  }
+  const request_response = cleaned_result(results);
+  const response = await promptLayerApiRequest({
+    ...body,
+    request_response,
+    request_end_time: new Date().toISOString(),
+  });
+  yield response;
+}
+
+export { getApiKey, promptLayerApiRequest, promptlayerApiHandler };
