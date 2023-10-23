@@ -60,7 +60,7 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
  * @param version version of the prompt to get, None for latest
  * @param label The release label of a prompt you want to get. Setting this will supercede version
  */
-const promptLayerGetPrompt = (
+const promptLayerGetPrompt = async (
   prompt_name: string,
   api_key: string,
   version?: number,
@@ -73,25 +73,27 @@ const promptLayerGetPrompt = (
   };
   const url = new URL(`${URL_API_PROMPTLAYER}/library-get-prompt-template`);
   url.search = new URLSearchParams(params).toString();
-  return fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      "X-API-KEY": api_key,
-    },
-  })
-    .then((response) => {
-      if (response.status !== 200) {
-        throw new Error(
-          `PromptLayer had the following error while getting your prompt: ${response}`
-        );
-      }
-      return response.json();
-    })
-    .catch((e) => {
-      throw new Error(
-        `PromptLayer had the following error while getting your prompt: ${e}`
-      );
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "X-API-KEY": api_key,
+      },
     });
+  } catch (e) {
+    throw new Error(
+      `PromptLayer had the following error while getting your prompt: ${e}`
+    );
+  }
+  const data = await response.json();
+  if (response.status !== 200) {
+    raiseOnBadResponse(
+      data,
+      `PromptLayer had the following error while getting your prompt `
+    );
+  }
+  return data;
 };
 
 const cleaned_result = (results: any[]) => {
@@ -137,6 +139,13 @@ async function* proxyGenerator<Item>(
   });
   yield response;
 }
+
+const raiseOnBadResponse = (request_response: any, main_message: string) => {
+  if ("message" in request_response) {
+    throw new Error(`${main_message}: ${request_response.message}`);
+  }
+  throw new Error(`${main_message}: ${request_response.message}`);
+};
 
 export {
   getApiKey,

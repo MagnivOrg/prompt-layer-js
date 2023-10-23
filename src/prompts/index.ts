@@ -18,4 +18,4 @@ const getPrompt = async (params: GetPrompt) => {
     : prompt_template;
 };
 
-export { getPrompt };
+export { getPrompt as get };
