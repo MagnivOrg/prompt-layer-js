@@ -1,5 +1,6 @@
 import promptlayer from "@/promptlayer";
-import { TrackRequest } from "@/types";
+import { TrackMetadata, TrackPrompt, TrackRequest, TrackScore } from "@/types";
+import { TrackGroup } from "@/types/track-group";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
@@ -36,10 +37,9 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
     });
     const data = await response.json();
     if (response.status !== 200) {
-      console.warn(
-        `WARNING: While logging your request PromptLayer had the following error: ${JSON.stringify(
-          data
-        )}`
+      warnOnBadResponse(
+        data,
+        "WARNING: While logging your request PromptLayer had the following error"
       );
     }
     if (data && body.return_pl_id) {
@@ -50,6 +50,156 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
     console.warn(
       `WARNING: While logging your request PromptLayer had the following error: ${e}`
     );
+  }
+};
+
+const promptLayerTrackMetadata = async (body: TrackMetadata) => {
+  try {
+    const response = await fetch(
+      `${URL_API_PROMPTLAYER}/library-track-metadata`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...body,
+          api_key: getApiKey(),
+        }),
+      }
+    );
+    const data = await response.json();
+    if (response.status !== 200) {
+      warnOnBadResponse(
+        data,
+        "WARNING: While tracking your metadata PromptLayer had the following error"
+      );
+      return false;
+    }
+  } catch (e) {
+    console.warn(
+      `WARNING: While tracking your metadata PromptLayer had the following error: ${e}`
+    );
+    return false;
+  }
+  return true;
+};
+
+const promptLayerTrackScore = async (body: TrackScore) => {
+  try {
+    const response = await fetch(`${URL_API_PROMPTLAYER}/library-track-score`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...body,
+        api_key: getApiKey(),
+      }),
+    });
+    const data = await response.json();
+    if (response.status !== 200) {
+      warnOnBadResponse(
+        data,
+        "WARNING: While tracking your score PromptLayer had the following error"
+      );
+      return false;
+    }
+  } catch (e) {
+    console.warn(
+      `WARNING: While tracking your score PromptLayer had the following error: ${e}`
+    );
+    return false;
+  }
+  return true;
+};
+
+const promptLayerTrackPrompt = async (body: TrackPrompt) => {
+  try {
+    const response = await fetch(
+      `${URL_API_PROMPTLAYER}/library-track-prompt`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...body,
+          api_key: getApiKey(),
+        }),
+      }
+    );
+    const data = await response.json();
+    if (response.status !== 200) {
+      warnOnBadResponse(
+        data,
+        "WARNING: While tracking your prompt PromptLayer had the following error"
+      );
+      return false;
+    }
+  } catch (e) {
+    console.warn(
+      `WARNING: While tracking your prompt PromptLayer had the following error: ${e}`
+    );
+    return false;
+  }
+  return true;
+};
+
+const promptLayerTrackGroup = async (body: TrackGroup) => {
+  try {
+    const response = await fetch(`${URL_API_PROMPTLAYER}/track-group`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...body,
+        api_key: getApiKey(),
+      }),
+    });
+    const data = await response.json();
+    if (response.status !== 200) {
+      warnOnBadResponse(
+        data,
+        "WARNING: While tracking your group PromptLayer had the following error"
+      );
+      return false;
+    }
+  } catch (e) {
+    console.warn(
+      `WARNING: While tracking your group PromptLayer had the following error: ${e}`
+    );
+    return false;
+  }
+  return true;
+};
+
+const promptLayerCreateGroup = async () => {
+  try {
+    const response = await fetch(`${URL_API_PROMPTLAYER}/create-group`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        api_key: getApiKey(),
+      }),
+    });
+    const data = await response.json();
+    if (response.status !== 200) {
+      warnOnBadResponse(
+        data,
+        "WARNING: While creating your group PromptLayer had the following error"
+      );
+      return false;
+    }
+    return data.id;
+  } catch (e) {
+    console.warn(
+      `WARNING: While creating your group PromptLayer had the following error: ${e}`
+    );
+    return false;
   }
 };
 
@@ -97,4 +247,21 @@ async function* proxyGenerator<Item>(
   yield response;
 }
 
-export { getApiKey, promptLayerApiRequest, promptlayerApiHandler };
+const warnOnBadResponse = (request_response: any, main_message: string) => {
+  try {
+    console.warn(`${main_message}: ${request_response.message}`);
+  } catch (e) {
+    console.warn(`${main_message}: ${request_response}`);
+  }
+};
+
+export {
+  getApiKey,
+  promptLayerApiRequest,
+  promptLayerCreateGroup,
+  promptLayerTrackGroup,
+  promptLayerTrackMetadata,
+  promptLayerTrackPrompt,
+  promptLayerTrackScore,
+  promptlayerApiHandler,
+};
