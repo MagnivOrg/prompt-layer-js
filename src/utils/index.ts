@@ -54,6 +54,14 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
 };
 
 const cleaned_result = (results: any[]) => {
+  if ("completion" in results[0])
+    return results.reduce(
+      (prev, current) => ({
+        ...current,
+        completion: `${prev.completion}${current.completion}`,
+      }),
+      {}
+    );
   if ("text" in results[0].choices[0]) {
     let response = "";
     for (const result of results) {
