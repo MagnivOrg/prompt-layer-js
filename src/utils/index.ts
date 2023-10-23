@@ -58,7 +58,7 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
  * @param prompt_name name of the prompt to get
  * @param api_key your api key
  * @param version version of the prompt to get, None for latest
- * @param label The specific label of a prompt you want to get. Setting this will supercede version
+ * @param label The release label of a prompt you want to get. Setting this will supercede version
  */
 const promptLayerGetPrompt = (
   prompt_name: string,
