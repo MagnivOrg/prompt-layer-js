@@ -138,4 +138,9 @@ async function* proxyGenerator<Item>(
   yield response;
 }
 
-export { getApiKey, promptLayerApiRequest, promptlayerApiHandler };
+export {
+  getApiKey,
+  promptLayerApiRequest,
+  promptLayerGetPrompt,
+  promptlayerApiHandler,
+};
