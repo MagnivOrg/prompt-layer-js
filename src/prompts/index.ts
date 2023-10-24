@@ -1,17 +1,10 @@
 import { prompt } from "@/types";
-import { getApiKey, promptLayerGetPrompt } from "@/utils";
+import { promptLayerGetPrompt, promptLayerPublishPrompt } from "@/utils";
 /**
  * Get a prompt template from PromptLayer.
  */
 const getPrompt = async (params: prompt.Retrieve): Promise<prompt.Response> => {
-  const api_key = getApiKey();
-  const { prompt_name, version, label } = params;
-  const prompt = await promptLayerGetPrompt(
-    prompt_name,
-    api_key,
-    version,
-    label
-  );
+  const prompt = await promptLayerGetPrompt(params);
   const prompt_template = prompt["prompt_template"];
   const metadata = prompt["metadata"];
   return {
@@ -20,4 +13,15 @@ const getPrompt = async (params: prompt.Retrieve): Promise<prompt.Response> => {
   };
 };
 
-export { getPrompt as get };
+const publishPrompt = (body: prompt.Publish): Promise<boolean> => {
+  const { prompt_template, commit_message } = body;
+  if (commit_message && commit_message.length > 72) {
+    throw new Error("Commit message must be less than 72 characters.");
+  }
+  if (!(prompt_template instanceof Object)) {
+    throw new Error("Please provide a JSON prompt template.");
+  }
+  return promptLayerPublishPrompt(body);
+};
+
+export { getPrompt as get, publishPrompt as publish };

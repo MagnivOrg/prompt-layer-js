@@ -1,5 +1,5 @@
 import promptlayer from "@/promptlayer";
-import { TrackRequest } from "@/types";
+import { TrackRequest, prompt } from "@/types";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
@@ -60,16 +60,11 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
  * @param version version of the prompt to get, None for latest
  * @param label The release label of a prompt you want to get. Setting this will supercede version
  */
-const promptLayerGetPrompt = async (
-  prompt_name: string,
-  api_key: string,
-  version?: number,
-  label?: string
-) => {
+const promptLayerGetPrompt = async (body: prompt.Retrieve) => {
   const params: Record<string, string> = {
-    prompt_name,
-    version: version?.toString() ?? "",
-    label: label ?? "",
+    prompt_name: body.prompt_name,
+    version: body.version?.toString() ?? "",
+    label: body.label ?? "",
   };
   const url = new URL(`${URL_API_PROMPTLAYER}/library-get-prompt-template`);
   url.search = new URLSearchParams(params).toString();
@@ -78,7 +73,7 @@ const promptLayerGetPrompt = async (
     response = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        "X-API-KEY": api_key,
+        "X-API-KEY": getApiKey(),
       },
     });
   } catch (e) {
@@ -94,6 +89,39 @@ const promptLayerGetPrompt = async (
     );
   }
   return data;
+};
+
+const promptLayerPublishPrompt = async (
+  body: prompt.Publish
+): Promise<boolean> => {
+  let response: Response;
+  try {
+    response = await fetch(
+      `${URL_API_PROMPTLAYER}/library-publish-prompt-template`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...body,
+          api_key: getApiKey(),
+        }),
+      }
+    );
+  } catch (e) {
+    throw new Error(
+      `PromptLayer had the following error while publishing your prompt: ${e}`
+    );
+  }
+  const data = await response.json();
+  if (response.status !== 200) {
+    raiseOnBadResponse(
+      data,
+      `PromptLayer had the following error while publishing your prompt`
+    );
+  }
+  return true;
 };
 
 const cleaned_result = (results: any[]) => {
@@ -151,5 +179,6 @@ export {
   getApiKey,
   promptLayerApiRequest,
   promptLayerGetPrompt,
+  promptLayerPublishPrompt,
   promptlayerApiHandler,
 };
