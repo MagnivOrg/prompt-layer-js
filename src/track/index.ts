@@ -6,7 +6,7 @@ import {
   promptLayerTrackScore,
 } from "@/utils";
 
-const metadata = async (body: track.Metadata) => {
+const metadata = async (body: track.Metadata): Promise<boolean> => {
   if (!(body.metadata instanceof Object)) {
     throw new Error("Please provide a dictionary of metadata.");
   }
@@ -20,7 +20,7 @@ const metadata = async (body: track.Metadata) => {
   return await promptLayerTrackMetadata(body);
 };
 
-const score = async (body: track.Score) => {
+const score = async (body: track.Score): Promise<boolean> => {
   if (typeof body.score !== "number") {
     throw new Error("Please provide a int score.");
   }
@@ -30,7 +30,7 @@ const score = async (body: track.Score) => {
   return await promptLayerTrackScore(body);
 };
 
-const prompt = async (body: track.Prompt) => {
+const prompt = async (body: track.Prompt): Promise<boolean> => {
   if (!(body.prompt_input_variables instanceof Object)) {
     throw new Error("Please provide a dictionary of input variables.");
   }
