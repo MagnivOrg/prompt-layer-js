@@ -1,6 +1,5 @@
 import promptlayer from "@/promptlayer";
-import { TrackMetadata, TrackPrompt, TrackRequest, TrackScore } from "@/types";
-import { TrackGroup } from "@/types/track-group";
+import { track } from "@/types";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
@@ -15,7 +14,7 @@ const getApiKey = () => {
 };
 
 const promptlayerApiHandler = async <Item>(
-  body: TrackRequest & {
+  body: track.Request & {
     request_response: AsyncIterable<Item> | any;
   }
 ) => {
@@ -26,7 +25,7 @@ const promptlayerApiHandler = async <Item>(
   return await promptLayerApiRequest(body);
 };
 
-const promptLayerApiRequest = async (body: TrackRequest) => {
+const promptLayerApiRequest = async (body: track.Request) => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/track-request`, {
       method: "POST",
@@ -53,7 +52,9 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
   }
 };
 
-const promptLayerTrackMetadata = async (body: TrackMetadata) => {
+const promptLayerTrackMetadata = async (
+  body: track.Metadata
+): Promise<boolean> => {
   try {
     const response = await fetch(
       `${URL_API_PROMPTLAYER}/library-track-metadata`,
@@ -85,7 +86,7 @@ const promptLayerTrackMetadata = async (body: TrackMetadata) => {
   return true;
 };
 
-const promptLayerTrackScore = async (body: TrackScore) => {
+const promptLayerTrackScore = async (body: track.Score): Promise<boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/library-track-score`, {
       method: "POST",
@@ -114,7 +115,7 @@ const promptLayerTrackScore = async (body: TrackScore) => {
   return true;
 };
 
-const promptLayerTrackPrompt = async (body: TrackPrompt) => {
+const promptLayerTrackPrompt = async (body: track.Prompt): Promise<boolean> => {
   try {
     const response = await fetch(
       `${URL_API_PROMPTLAYER}/library-track-prompt`,
@@ -146,7 +147,7 @@ const promptLayerTrackPrompt = async (body: TrackPrompt) => {
   return true;
 };
 
-const promptLayerTrackGroup = async (body: TrackGroup) => {
+const promptLayerTrackGroup = async (body: track.Group): Promise<boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/track-group`, {
       method: "POST",
@@ -175,7 +176,7 @@ const promptLayerTrackGroup = async (body: TrackGroup) => {
   return true;
 };
 
-const promptLayerCreateGroup = async () => {
+const promptLayerCreateGroup = async (): Promise<number | boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/create-group`, {
       method: "POST",
@@ -231,7 +232,7 @@ const cleaned_result = (results: any[]) => {
 
 async function* proxyGenerator<Item>(
   generator: AsyncIterable<Item>,
-  body: TrackRequest
+  body: track.Request
 ) {
   const results = [];
   for await (const value of generator) {

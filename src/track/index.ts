@@ -1,4 +1,4 @@
-import { TrackGroup, TrackMetadata, TrackPrompt, TrackScore } from "@/types";
+import { track } from "@/types";
 import {
   promptLayerTrackGroup,
   promptLayerTrackMetadata,
@@ -6,7 +6,7 @@ import {
   promptLayerTrackScore,
 } from "@/utils";
 
-const metadata = async (body: TrackMetadata) => {
+const metadata = async (body: track.Metadata) => {
   if (!(body.metadata instanceof Object)) {
     throw new Error("Please provide a dictionary of metadata.");
   }
@@ -20,7 +20,7 @@ const metadata = async (body: TrackMetadata) => {
   return await promptLayerTrackMetadata(body);
 };
 
-const score = async (body: TrackScore) => {
+const score = async (body: track.Score) => {
   if (typeof body.score !== "number") {
     throw new Error("Please provide a int score.");
   }
@@ -30,13 +30,13 @@ const score = async (body: TrackScore) => {
   return await promptLayerTrackScore(body);
 };
 
-const prompt = async (body: TrackPrompt) => {
+const prompt = async (body: track.Prompt) => {
   if (!(body.prompt_input_variables instanceof Object)) {
     throw new Error("Please provide a dictionary of input variables.");
   }
   return await promptLayerTrackPrompt(body);
 };
 
-const group = async (body: TrackGroup) => await promptLayerTrackGroup(body);
+const group = async (body: track.Group) => await promptLayerTrackGroup(body);
 
 export { group, metadata, prompt, score };
