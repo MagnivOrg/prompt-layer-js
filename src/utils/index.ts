@@ -83,7 +83,7 @@ const promptLayerGetPrompt = async (body: prompt.Retrieve) => {
   }
   const data = await response.json();
   if (response.status !== 200) {
-    raiseOnBadResponse(
+    throwOnBadResponse(
       data,
       `PromptLayer had the following error while getting your prompt `
     );
@@ -116,7 +116,7 @@ const promptLayerPublishPrompt = async (
   }
   const data = await response.json();
   if (response.status !== 200) {
-    raiseOnBadResponse(
+    throwOnBadResponse(
       data,
       `PromptLayer had the following error while publishing your prompt`
     );
@@ -168,7 +168,7 @@ async function* proxyGenerator<Item>(
   yield response;
 }
 
-const raiseOnBadResponse = (request_response: any, main_message: string) => {
+const throwOnBadResponse = (request_response: any, main_message: string) => {
   if ("message" in request_response) {
     throw new Error(`${main_message}: ${request_response.message}`);
   }
