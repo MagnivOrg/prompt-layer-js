@@ -1,2 +1,2 @@
-export { GetPrompt } from "@/types/get-prompt";
+export * as prompt from "@/types/prompt";
 export { TrackRequest } from "@/types/track-request";
