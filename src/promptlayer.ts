@@ -1,6 +1,6 @@
 import { getApiKey, promptlayerApiHandler } from "@/utils";
 
-const promptLayerBase = (
+export const promptLayerBase = (
   llm: object,
   function_name = "",
   provider = "openai"
@@ -72,31 +72,3 @@ const promptLayerBase = (
   };
   return new Proxy(llm, handler);
 };
-
-const dynamicExports = new Proxy<{
-  OpenAI: any;
-  Anthropic: any;
-  api_key: string | undefined;
-}>(
-  {
-    OpenAI: {},
-    Anthropic: {},
-    api_key: process.env.PROMPTLAYER_API_KEY,
-  },
-  {
-    get: (target, prop, receiver) => {
-      if (["OpenAI", "Anthropic"].includes(prop.toString())) {
-        const moduleName = prop === "OpenAI" ? "openai" : "@anthropic-ai/sdk";
-        const module = require(moduleName).default;
-        return promptLayerBase(
-          module,
-          prop.toString().toLowerCase(),
-          prop.toString().toLowerCase()
-        );
-      }
-      return Reflect.get(target, prop, receiver);
-    },
-  }
-);
-
-export default dynamicExports;
