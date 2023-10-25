@@ -1,4 +1,4 @@
-import { track } from "@/types";
+import { TrackGroup, TrackMetadata, TrackPrompt, TrackScore } from "@/types";
 import {
   promptLayerTrackGroup,
   promptLayerTrackMetadata,
@@ -6,7 +6,7 @@ import {
   promptLayerTrackScore,
 } from "@/utils";
 
-const metadata = (body: track.Metadata): Promise<boolean> => {
+const metadata = (body: TrackMetadata): Promise<boolean> => {
   if (!(body.metadata instanceof Object)) {
     throw new Error("Please provide a dictionary of metadata.");
   }
@@ -20,7 +20,7 @@ const metadata = (body: track.Metadata): Promise<boolean> => {
   return promptLayerTrackMetadata(body);
 };
 
-const score = (body: track.Score): Promise<boolean> => {
+const score = (body: TrackScore): Promise<boolean> => {
   if (typeof body.score !== "number") {
     throw new Error("Score must be a number");
   }
@@ -30,13 +30,13 @@ const score = (body: track.Score): Promise<boolean> => {
   return promptLayerTrackScore(body);
 };
 
-const prompt = (body: track.Prompt): Promise<boolean> => {
+const prompt = (body: TrackPrompt): Promise<boolean> => {
   if (!(body.prompt_input_variables instanceof Object)) {
     throw new Error("Prompt template input variable dictionary not provided.");
   }
   return promptLayerTrackPrompt(body);
 };
 
-const group = (body: track.Group) => promptLayerTrackGroup(body);
+const group = (body: TrackGroup) => promptLayerTrackGroup(body);
 
 export { group, metadata, prompt, score };
