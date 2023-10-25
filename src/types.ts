@@ -1,3 +1,22 @@
+export interface GetPromptTemplate {
+  prompt_name: string;
+  version?: number;
+  label?: string;
+}
+
+export interface PromptTemplate {
+  prompt_template: any;
+  metadata: any;
+}
+
+export interface PublishPromptTemplate {
+  prompt_name: string;
+  prompt_template: any;
+  commit_message?: string;
+  tags?: string[];
+  metadata?: any;
+}
+
 export interface TrackRequest {
   api_key: string;
   provider_type?: string;

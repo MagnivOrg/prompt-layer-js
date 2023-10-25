@@ -1,5 +1,9 @@
 import promptlayer from "@/promptlayer";
-import { TrackRequest } from "@/types";
+import {
+  GetPromptTemplate,
+  PublishPromptTemplate,
+  TrackRequest,
+} from "@/types";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
@@ -51,6 +55,77 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
       `WARNING: While logging your request PromptLayer had the following error: ${e}`
     );
   }
+};
+
+/**
+ * Get a prompt from the PromptLayer library
+ * @param prompt_name name of the prompt to get
+ * @param api_key your api key
+ * @param version version of the prompt to get, None for latest
+ * @param label The release label of a prompt you want to get. Setting this will supercede version
+ */
+const promptLayerGetPrompt = async (body: GetPromptTemplate) => {
+  const params: Record<string, string> = {
+    prompt_name: body.prompt_name,
+    version: body.version?.toString() ?? "",
+    label: body.label ?? "",
+  };
+  const url = new URL(`${URL_API_PROMPTLAYER}/library-get-prompt-template`);
+  url.search = new URLSearchParams(params).toString();
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        "X-API-KEY": getApiKey(),
+      },
+    });
+  } catch (e) {
+    throw new Error(
+      `PromptLayer had the following error while getting your prompt: ${e}`
+    );
+  }
+  const data = await response.json();
+  if (response.status !== 200) {
+    throwOnBadResponse(
+      data,
+      `PromptLayer had the following error while retrieving your prompt template`
+    );
+  }
+  return data;
+};
+
+const promptLayerPublishPrompt = async (
+  body: PublishPromptTemplate
+): Promise<boolean> => {
+  let response: Response;
+  try {
+    response = await fetch(
+      `${URL_API_PROMPTLAYER}/library-publish-prompt-template`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...body,
+          api_key: getApiKey(),
+        }),
+      }
+    );
+  } catch (e) {
+    throw new Error(
+      `PromptLayer had the following error while publishing your prompt template: ${e}`
+    );
+  }
+  const data = await response.json();
+  if (response.status !== 200) {
+    throwOnBadResponse(
+      data,
+      `PromptLayer had the following error while publishing your prompt`
+    );
+  }
+  return true;
 };
 
 const cleaned_result = (results: any[]) => {
@@ -105,4 +180,17 @@ async function* proxyGenerator<Item>(
   yield response;
 }
 
-export { getApiKey, promptLayerApiRequest, promptlayerApiHandler };
+const throwOnBadResponse = (request_response: any, main_message: string) => {
+  if ("message" in request_response) {
+    throw new Error(`${main_message}: ${request_response.message}`);
+  }
+  throw new Error(`${main_message}: ${request_response.message}`);
+};
+
+export {
+  getApiKey,
+  promptLayerApiRequest,
+  promptLayerGetPrompt,
+  promptLayerPublishPrompt,
+  promptlayerApiHandler,
+};
