@@ -22,17 +22,17 @@ const metadata = (body: track.Metadata): Promise<boolean> => {
 
 const score = (body: track.Score): Promise<boolean> => {
   if (typeof body.score !== "number") {
-    throw new Error("Please provide a int score.");
+    throw new Error("Score must be a number");
   }
   if (body.score < 0 || body.score > 100) {
-    throw new Error("Please provide a score between 0 and 100.");
+    throw new Error("Score must be a number between 0 and 100.");
   }
   return promptLayerTrackScore(body);
 };
 
 const prompt = (body: track.Prompt): Promise<boolean> => {
   if (!(body.prompt_input_variables instanceof Object)) {
-    throw new Error("Please provide a dictionary of input variables.");
+    throw new Error("Prompt template input variable dictionary not provided.");
   }
   return promptLayerTrackPrompt(body);
 };
