@@ -33,3 +33,26 @@ export interface TrackRequest {
   prompt_input_variables?: Record<string, string> | string[];
   [k: string]: unknown;
 }
+
+export interface TrackMetadata {
+  request_id: number;
+  metadata: Record<string, string>;
+}
+
+export interface TrackScore {
+  request_id: number;
+  score: number;
+}
+
+export interface TrackPrompt {
+  request_id: number;
+  prompt_name: string;
+  prompt_input_variables: Record<string, unknown>;
+  version?: number;
+  label?: string;
+}
+
+export interface TrackGroup {
+  request_id: number;
+  group_id: number;
+}
