@@ -1,4 +1,4 @@
-import promptlayer from "@/promptlayer";
+import promptlayer from "@/index";
 import {
   GetPromptTemplate,
   Pagination,
