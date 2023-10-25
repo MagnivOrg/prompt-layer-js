@@ -1,4 +1,4 @@
-export interface Request {
+export interface TrackRequest {
   api_key: string;
   provider_type?: string;
   function_name: string;
@@ -15,17 +15,17 @@ export interface Request {
   [k: string]: unknown;
 }
 
-export interface Metadata {
+export interface TrackMetadata {
   request_id: number;
   metadata: Record<string, string>;
 }
 
-export interface Score {
+export interface TrackScore {
   request_id: number;
   score: number;
 }
 
-export interface Prompt {
+export interface TrackPrompt {
   request_id: number;
   prompt_name: string;
   prompt_input_variables: Record<string, unknown>;
@@ -33,7 +33,7 @@ export interface Prompt {
   label?: string;
 }
 
-export interface Group {
+export interface TrackGroup {
   request_id: number;
   group_id: number;
 }
