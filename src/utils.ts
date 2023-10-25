@@ -58,7 +58,6 @@ const promptLayerAllPrompts = async (params?: Pagination) => {
   Object.entries(params || {}).forEach(([key, value]) =>
     url.searchParams.append(key, value)
   );
-  console.log(url);
   try {
     const response = await fetch(url, {
       method: "GET",
