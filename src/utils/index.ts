@@ -1,5 +1,9 @@
 import promptlayer from "@/promptlayer";
-import { TrackRequest, prompt } from "@/types";
+import {
+  GetPromptTemplate,
+  PublishPromptTemplate,
+  TrackRequest,
+} from "@/types";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
@@ -60,7 +64,7 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
  * @param version version of the prompt to get, None for latest
  * @param label The release label of a prompt you want to get. Setting this will supercede version
  */
-const promptLayerGetPrompt = async (body: prompt.Retrieve) => {
+const promptLayerGetPrompt = async (body: GetPromptTemplate) => {
   const params: Record<string, string> = {
     prompt_name: body.prompt_name,
     version: body.version?.toString() ?? "",
@@ -85,14 +89,14 @@ const promptLayerGetPrompt = async (body: prompt.Retrieve) => {
   if (response.status !== 200) {
     throwOnBadResponse(
       data,
-      `PromptLayer had the following error while getting your prompt `
+      `PromptLayer had the following error while retrieving your prompt template`
     );
   }
   return data;
 };
 
 const promptLayerPublishPrompt = async (
-  body: prompt.Publish
+  body: PublishPromptTemplate
 ): Promise<boolean> => {
   let response: Response;
   try {
@@ -111,7 +115,7 @@ const promptLayerPublishPrompt = async (
     );
   } catch (e) {
     throw new Error(
-      `PromptLayer had the following error while publishing your prompt: ${e}`
+      `PromptLayer had the following error while publishing your prompt template: ${e}`
     );
   }
   const data = await response.json();
