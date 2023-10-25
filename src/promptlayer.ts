@@ -21,6 +21,8 @@ const promptLayerBase = (
     },
     get: (target, prop, receiver) => {
       const value = target[prop];
+      if (typeof value !== "function" && typeof value !== "object")
+        return Reflect.get(target, prop, receiver);
       if (prop === "post") return value;
       const function_name = Reflect.get(target, "function_name");
       Object.defineProperties(value, {
@@ -71,17 +73,26 @@ const promptLayerBase = (
   return new Proxy(llm, handler);
 };
 
-const dynamicExports = new Proxy<{ OpenAI: any; api_key: string | undefined }>(
+const dynamicExports = new Proxy<{
+  OpenAI: any;
+  Anthropic: any;
+  api_key: string | undefined;
+}>(
   {
     OpenAI: {},
+    Anthropic: {},
     api_key: process.env.PROMPTLAYER_API_KEY,
   },
   {
     get: (target, prop, receiver) => {
-      if (prop === "OpenAI") {
-        const moduleName = "openai";
+      if (["OpenAI", "Anthropic"].includes(prop.toString())) {
+        const moduleName = prop === "OpenAI" ? "openai" : "@anthropic-ai/sdk";
         const module = require(moduleName).default;
-        return promptLayerBase(module, moduleName, moduleName);
+        return promptLayerBase(
+          module,
+          prop.toString().toLowerCase(),
+          prop.toString().toLowerCase()
+        );
       }
       return Reflect.get(target, prop, receiver);
     },
