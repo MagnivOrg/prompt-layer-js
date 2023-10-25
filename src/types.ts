@@ -14,3 +14,8 @@ export interface TrackRequest {
   prompt_input_variables?: Record<string, string> | string[];
   [k: string]: unknown;
 }
+
+export interface Pagination {
+  page?: number;
+  per_page?: number;
+}
