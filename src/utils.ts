@@ -1,5 +1,11 @@
 import promptlayer from "@/promptlayer";
-import { track } from "@/types";
+import {
+  TrackGroup,
+  TrackMetadata,
+  TrackPrompt,
+  TrackRequest,
+  TrackScore,
+} from "@/types";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
@@ -14,7 +20,7 @@ const getApiKey = () => {
 };
 
 const promptlayerApiHandler = async <Item>(
-  body: track.Request & {
+  body: TrackRequest & {
     request_response: AsyncIterable<Item> | any;
   }
 ) => {
@@ -25,7 +31,7 @@ const promptlayerApiHandler = async <Item>(
   return await promptLayerApiRequest(body);
 };
 
-const promptLayerApiRequest = async (body: track.Request) => {
+const promptLayerApiRequest = async (body: TrackRequest) => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/track-request`, {
       method: "POST",
@@ -38,7 +44,7 @@ const promptLayerApiRequest = async (body: track.Request) => {
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While logging your request PromptLayer had the following error"
+        "WARNING: While logging your request, PromptLayer experienced the following error:"
       );
     }
     if (data && body.return_pl_id) {
@@ -53,7 +59,7 @@ const promptLayerApiRequest = async (body: track.Request) => {
 };
 
 const promptLayerTrackMetadata = async (
-  body: track.Metadata
+  body: TrackMetadata
 ): Promise<boolean> => {
   try {
     const response = await fetch(
@@ -73,20 +79,20 @@ const promptLayerTrackMetadata = async (
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While tracking your metadata PromptLayer had the following error"
+        "WARNING: While logging metadata to your request, PromptLayer experienced the following error"
       );
       return false;
     }
   } catch (e) {
     console.warn(
-      `WARNING: While tracking your metadata PromptLayer had the following error: ${e}`
+      `WARNING: While logging metadata to your request, PromptLayer experienced the following error: ${e}`
     );
     return false;
   }
   return true;
 };
 
-const promptLayerTrackScore = async (body: track.Score): Promise<boolean> => {
+const promptLayerTrackScore = async (body: TrackScore): Promise<boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/library-track-score`, {
       method: "POST",
@@ -102,20 +108,20 @@ const promptLayerTrackScore = async (body: track.Score): Promise<boolean> => {
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While tracking your score PromptLayer had the following error"
+        "WARNING: While scoring your request, PromptLayer experienced the following error"
       );
       return false;
     }
   } catch (e) {
     console.warn(
-      `WARNING: While tracking your score PromptLayer had the following error: ${e}`
+      `WARNING: While scoring your request, PromptLayer experienced the following error: ${e}`
     );
     return false;
   }
   return true;
 };
 
-const promptLayerTrackPrompt = async (body: track.Prompt): Promise<boolean> => {
+const promptLayerTrackPrompt = async (body: TrackPrompt): Promise<boolean> => {
   try {
     const response = await fetch(
       `${URL_API_PROMPTLAYER}/library-track-prompt`,
@@ -134,20 +140,20 @@ const promptLayerTrackPrompt = async (body: track.Prompt): Promise<boolean> => {
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While tracking your prompt PromptLayer had the following error"
+        "WARNING: While associating your request with a prompt template, PromptLayer experienced the following error"
       );
       return false;
     }
   } catch (e) {
     console.warn(
-      `WARNING: While tracking your prompt PromptLayer had the following error: ${e}`
+      `WARNING: While associating your request with a prompt template, PromptLayer experienced the following error: ${e}`
     );
     return false;
   }
   return true;
 };
 
-const promptLayerTrackGroup = async (body: track.Group): Promise<boolean> => {
+const promptLayerTrackGroup = async (body: TrackGroup): Promise<boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/track-group`, {
       method: "POST",
@@ -163,13 +169,13 @@ const promptLayerTrackGroup = async (body: track.Group): Promise<boolean> => {
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While tracking your group PromptLayer had the following error"
+        "WARNING: While associating your request with a group, PromptLayer experienced the following error"
       );
       return false;
     }
   } catch (e) {
     console.warn(
-      `WARNING: While tracking your group PromptLayer had the following error: ${e}`
+      `WARNING: While associating your request with a group, PromptLayer experienced the following error: ${e}`
     );
     return false;
   }
@@ -191,14 +197,14 @@ const promptLayerCreateGroup = async (): Promise<number | boolean> => {
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While creating your group PromptLayer had the following error"
+        "WARNING: While creating a group PromptLayer had the following error"
       );
       return false;
     }
     return data.id;
   } catch (e) {
     console.warn(
-      `WARNING: While creating your group PromptLayer had the following error: ${e}`
+      `WARNING: While creating a group PromptLayer had the following error: ${e}`
     );
     return false;
   }
@@ -232,7 +238,7 @@ const cleaned_result = (results: any[]) => {
 
 async function* proxyGenerator<Item>(
   generator: AsyncIterable<Item>,
-  body: track.Request
+  body: TrackRequest
 ) {
   const results = [];
   for await (const value of generator) {
