@@ -56,3 +56,8 @@ export interface TrackGroup {
   request_id: number;
   group_id: number;
 }
+
+export interface Pagination {
+  page?: number;
+  per_page?: number;
+}

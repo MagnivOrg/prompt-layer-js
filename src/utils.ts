@@ -1,6 +1,7 @@
 import promptlayer from "@/promptlayer";
 import {
   GetPromptTemplate,
+  Pagination,
   PublishPromptTemplate,
   TrackGroup,
   TrackMetadata,
@@ -56,6 +57,35 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
   } catch (e) {
     console.warn(
       `WARNING: While logging your request PromptLayer had the following error: ${e}`
+    );
+  }
+};
+
+const promptLayerAllPromptTemplates = async (params?: Pagination) => {
+  const url = new URL(`${URL_API_PROMPTLAYER}/rest/prompts`);
+  Object.entries(params || {}).forEach(([key, value]) =>
+    url.searchParams.append(key, value)
+  );
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": getApiKey(),
+      },
+    });
+    const data = await response.json();
+    if (response.status !== 200) {
+      console.warn(
+        `WARNING: While fetching all prompt templates, PromptLayer had the following error: ${JSON.stringify(
+          data
+        )}`
+      );
+    }
+    return data;
+  } catch (e) {
+    console.warn(
+      `WARNING: While fetching all prompt templates, PromptLayer had the following error: ${e}`
     );
   }
 };
@@ -352,6 +382,7 @@ const throwOnBadResponse = (request_response: any, main_message: string) => {
 
 export {
   getApiKey,
+  promptLayerAllPromptTemplates,
   promptLayerApiRequest,
   promptLayerCreateGroup,
   promptLayerGetPrompt,

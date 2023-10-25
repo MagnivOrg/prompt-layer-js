@@ -1,9 +1,21 @@
 import {
   GetPromptTemplate,
+  Pagination,
   PromptTemplate,
   PublishPromptTemplate,
 } from "@/types";
-import { promptLayerGetPrompt, promptLayerPublishPrompt } from "@/utils";
+import {
+  promptLayerAllPromptTemplates,
+  promptLayerGetPrompt,
+  promptLayerPublishPrompt,
+} from "@/utils";
+
+/**
+ * @description List all prompts on PromptLayer.
+ * @param params
+ */
+export const all = (params?: Pagination) =>
+  promptLayerAllPromptTemplates(params);
 /**
  * Get a prompt template from PromptLayer.
  */
