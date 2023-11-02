@@ -53,12 +53,12 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
     if (data && body.return_pl_id) {
       return [body.request_response, data.request_id];
     }
-    return body.request_response;
   } catch (e) {
     console.warn(
       `WARNING: While logging your request PromptLayer had the following error: ${e}`
     );
   }
+  return body.request_response;
 };
 
 const promptLayerAllPromptTemplates = async (params?: Pagination) => {
