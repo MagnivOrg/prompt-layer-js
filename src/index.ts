@@ -4,7 +4,7 @@ import * as prompts from "@/prompts";
 import * as track from "@/track";
 import * as utils from "@/utils";
 
-const dynamicExports = new Proxy<{
+export const promptlayer = new Proxy<{
   OpenAI: any;
   Anthropic: any;
   api_key: string | undefined;
@@ -37,5 +37,3 @@ const dynamicExports = new Proxy<{
     },
   }
 );
-
-export default dynamicExports;
