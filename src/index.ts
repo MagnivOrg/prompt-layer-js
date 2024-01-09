@@ -1,6 +1,7 @@
 import * as groups from "@/groups";
 import { promptLayerBase } from "@/promptlayer";
 import * as prompts from "@/prompts";
+import * as templates from "@/templates";
 import * as track from "@/track";
 import * as utils from "@/utils";
 
@@ -12,6 +13,7 @@ export const promptlayer = new Proxy<{
   track: typeof track;
   groups: typeof groups;
   prompts: typeof prompts;
+  templates: typeof templates;
 }>(
   {
     OpenAI: {},
@@ -21,6 +23,7 @@ export const promptlayer = new Proxy<{
     track,
     groups,
     prompts,
+    templates,
   },
   {
     get: (target, prop, receiver) => {

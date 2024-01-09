@@ -61,3 +61,8 @@ export interface Pagination {
   page?: number;
   per_page?: number;
 }
+
+export interface GetPromptTemplateParams {
+  provider: string;
+  input_variables: Record<string, string>;
+}
