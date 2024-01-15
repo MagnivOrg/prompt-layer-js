@@ -322,21 +322,13 @@ const getPromptTemplate = async (
     const url = new URL(
       `${URL_API_PROMPTLAYER}/prompt-templates/${promptName}`
     );
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (typeof value === "object") {
-          url.searchParams.append(key, JSON.stringify(value));
-        } else {
-          url.searchParams.append(key, value.toString());
-        }
-      });
-    }
     const response = await fetch(url, {
-      method: "GET",
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-API-KEY": getApiKey(),
       },
+      body: JSON.stringify({ ...params, api_key: getApiKey() }),
     });
     const data = await response.json();
     if (response.status !== 200) {
