@@ -63,6 +63,8 @@ export interface Pagination {
 }
 
 export interface GetPromptTemplateParams {
+  version?: number;
+  label?: string;
   provider: string;
   input_variables: Record<string, string>;
 }
