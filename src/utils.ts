@@ -1,6 +1,7 @@
 import { promptlayer } from "@/index";
 import {
   GetPromptTemplate,
+  GetPromptTemplateParams,
   Pagination,
   PublishPromptTemplate,
   TrackGroup,
@@ -313,6 +314,39 @@ const promptLayerCreateGroup = async (): Promise<number | boolean> => {
   }
 };
 
+const getPromptTemplate = async (
+  promptName: string,
+  params?: Partial<GetPromptTemplateParams>
+) => {
+  try {
+    const url = new URL(
+      `${URL_API_PROMPTLAYER}/prompt-templates/${promptName}`
+    );
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": getApiKey(),
+      },
+      body: JSON.stringify({ ...params, api_key: getApiKey() }),
+    });
+    const data = await response.json();
+    if (response.status !== 200) {
+      warnOnBadResponse(
+        data,
+        "WARNING: While fetching a prompt template PromptLayer had the following error"
+      );
+      return null;
+    }
+    return data;
+  } catch (e) {
+    console.warn(
+      `WARNING: While fetching a prompt template PromptLayer had the following error: ${e}`
+    );
+    return null;
+  }
+};
+
 const cleaned_result = (results: any[]) => {
   if ("completion" in results[0])
     return results.reduce(
@@ -382,6 +416,7 @@ const throwOnBadResponse = (request_response: any, main_message: string) => {
 
 export {
   getApiKey,
+  getPromptTemplate,
   promptLayerAllPromptTemplates,
   promptLayerApiRequest,
   promptLayerCreateGroup,
