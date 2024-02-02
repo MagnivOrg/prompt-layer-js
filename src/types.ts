@@ -4,12 +4,12 @@ export interface GetPromptTemplate {
   label?: string;
 }
 
-export interface PromptTemplate {
+export interface LegacyPromptTemplate {
   prompt_template: any;
   metadata: any;
 }
 
-export interface PublishPromptTemplate {
+export interface LegacyPublishPromptTemplate {
   prompt_name: string;
   prompt_template: any;
   commit_message?: string;
@@ -68,3 +68,97 @@ export interface GetPromptTemplateParams {
   provider: string;
   input_variables: Record<string, string>;
 }
+
+const templateFormat = ["f-string", "jinja2"] as const;
+
+export type TemplateFormat = (typeof templateFormat)[number];
+
+export type ImageUrl = {
+  url: string;
+};
+
+export type TextContent = {
+  type: "text";
+  text: string;
+};
+
+export type ImageContent = {
+  type: "image_url";
+  image_url: ImageUrl;
+};
+
+export type Content = TextContent | ImageContent;
+
+export type Function_ = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+};
+
+export type FunctionCall = {
+  name: string;
+  arguments: string;
+};
+
+export type SystemMessage = {
+  role: "system";
+  template_format?: TemplateFormat;
+  content: Content[];
+  name?: string;
+};
+
+export type UserMessage = {
+  role: "user";
+  template_format?: TemplateFormat;
+  content: Content[];
+  name?: string;
+};
+
+export type AssistantMessage = {
+  role: "assistant";
+  template_format?: TemplateFormat;
+  content?: Content[];
+  function_call?: FunctionCall;
+  name?: string;
+};
+
+export type FunctionMessage = {
+  role: "function";
+  template_format?: TemplateFormat;
+  content?: Content[];
+  name: string;
+};
+
+export type Message =
+  | SystemMessage
+  | UserMessage
+  | AssistantMessage
+  | FunctionMessage;
+
+export type ChatFunctionCall = {
+  name: string;
+};
+
+export type CompletionPromptTemplate = {
+  type: "completion";
+  template_format?: TemplateFormat;
+  content: Content[];
+};
+
+export type ChatPromptTemplate = {
+  type: "chat";
+  messages: Message[];
+  functions?: Function_[];
+  function_call?: "auto" | "none" | ChatFunctionCall;
+};
+
+export type PromptTemplate = CompletionPromptTemplate | ChatPromptTemplate;
+
+export type PublishPromptTemplate = {
+  prompt_name: string;
+  prompt_template: PromptTemplate;
+};
+
+export type PublishPromptTemplateResponse = PublishPromptTemplate & {
+  id: number;
+};

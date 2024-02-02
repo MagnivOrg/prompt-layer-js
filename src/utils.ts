@@ -2,8 +2,10 @@ import { promptlayer } from "@/index";
 import {
   GetPromptTemplate,
   GetPromptTemplateParams,
+  LegacyPublishPromptTemplate,
   Pagination,
   PublishPromptTemplate,
+  PublishPromptTemplateResponse,
   TrackGroup,
   TrackMetadata,
   TrackPrompt,
@@ -130,7 +132,7 @@ const promptLayerGetPrompt = async (body: GetPromptTemplate) => {
 };
 
 const promptLayerPublishPrompt = async (
-  body: PublishPromptTemplate
+  body: LegacyPublishPromptTemplate
 ): Promise<boolean> => {
   let response: Response;
   try {
@@ -347,6 +349,34 @@ const getPromptTemplate = async (
   }
 };
 
+const publishPromptTemplate = async (body: PublishPromptTemplate) => {
+  try {
+    const response = await fetch(
+      `${URL_API_PROMPTLAYER}/rest/prompt-templates`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-KEY": getApiKey(),
+        },
+        body: JSON.stringify(body),
+      }
+    );
+    const data = await response.json();
+    if (response.status === 400) {
+      warnOnBadResponse(
+        data,
+        "WARNING: While publishing a prompt template PromptLayer had the following error"
+      );
+    }
+    return data as Promise<PublishPromptTemplateResponse>;
+  } catch (e) {
+    console.warn(
+      `WARNING: While publishing a prompt template PromptLayer had the following error: ${e}`
+    );
+  }
+};
+
 const cleaned_result = (results: any[]) => {
   if ("completion" in results[0])
     return results.reduce(
@@ -427,4 +457,5 @@ export {
   promptLayerTrackPrompt,
   promptLayerTrackScore,
   promptlayerApiHandler,
+  publishPromptTemplate,
 };
