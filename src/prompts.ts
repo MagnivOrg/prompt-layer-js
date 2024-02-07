@@ -1,8 +1,8 @@
 import {
   GetPromptTemplate,
+  LegacyPromptTemplate,
+  LegacyPublishPromptTemplate,
   Pagination,
-  PromptTemplate,
-  PublishPromptTemplate,
 } from "@/types";
 import {
   promptLayerAllPromptTemplates,
@@ -21,7 +21,7 @@ export const all = (params?: Pagination) =>
  */
 const getPrompt = async (
   params: GetPromptTemplate
-): Promise<PromptTemplate> => {
+): Promise<LegacyPromptTemplate> => {
   const prompt = await promptLayerGetPrompt(params);
   const prompt_template = prompt["prompt_template"];
   const metadata = prompt["metadata"];
@@ -31,7 +31,7 @@ const getPrompt = async (
   };
 };
 
-const publishPrompt = (body: PublishPromptTemplate): Promise<boolean> => {
+const publishPrompt = (body: LegacyPublishPromptTemplate): Promise<boolean> => {
   const { prompt_template, commit_message } = body;
   if (commit_message && commit_message.length > 72) {
     throw new Error("Commit message must be less than 72 characters.");
