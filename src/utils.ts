@@ -359,7 +359,10 @@ const publishPromptTemplate = async (body: PublishPromptTemplate) => {
           "Content-Type": "application/json",
           "X-API-KEY": getApiKey(),
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          prompt_template: { ...body },
+          prompt_version: { ...body },
+        }),
       }
     );
     const data = await response.json();
