@@ -378,7 +378,7 @@ const publishPromptTemplate = async (body: PublishPromptTemplate) => {
 };
 
 const cleaned_result = (results: any[]) => {
-  if ("completion" in results[0])
+  if ("completion" in results[0]) {
     return results.reduce(
       (prev, current) => ({
         ...current,
@@ -386,6 +386,8 @@ const cleaned_result = (results: any[]) => {
       }),
       {}
     );
+  }
+
   if ("text" in results[0].choices[0]) {
     let response = "";
     for (const result of results) {
@@ -394,20 +396,45 @@ const cleaned_result = (results: any[]) => {
     const final_result = structuredClone(results.at(-1));
     final_result.choices[0].text = response;
     return final_result;
-  } else if ("delta" in results[0].choices[0]) {
-    let response = { role: "", content: "" };
+  }
+
+  if ("delta" in results[0].choices[0]) {
+    let function_name = '';
+    let function_arguments = '';
+    let response: any = { role: "", content: "" };
+
     for (const result of results) {
-      if ("role" in result.choices[0].delta) {
-        response.role = result.choices[0].delta.role;
+      const delta = result.choices[0].delta
+
+      if (Object.keys(delta).length !== 0) {
+        const _function = delta.tool_calls[0].function
+        if (_function.name) function_name = `${function_name}${_function.name}`;
+        function_arguments = `${function_arguments}${_function.arguments}`;
       }
-      if ("content" in result.choices[0].delta) {
-        response.content = `${response["content"]}${result.choices[0].delta.content}`;
+
+      if ("role" in delta) {
+        response.role = delta.role;
+      }
+
+      if ("content" in delta) {
+        response.content = `${response["content"]}${delta.content}`;
       }
     }
+
+    if (function_arguments || function_name) {
+      response.content = null;
+      response['function_call'] = {
+        'arguments': function_arguments,
+        'name': function_name,
+      }
+    }
+
     const final_result = structuredClone(results.at(-1));
     final_result.choices[0] = response;
+
     return final_result;
   }
+
   return "";
 };
 
