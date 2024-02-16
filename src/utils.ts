@@ -398,7 +398,9 @@ const cleaned_result = (results: any[]) => {
     return final_result;
   }
 
+  //  Response was streamed
   if ("delta" in results[0].choices[0]) {
+    let has_tool_calls = false;
     let function_name = '';
     let function_arguments = '';
     let response: any = {role: "", content: ""};
@@ -418,17 +420,9 @@ const cleaned_result = (results: any[]) => {
 
         // Tool call
         if ("tool_calls" in delta) {
+          has_tool_calls = true;
           const _function = delta.tool_calls[0].function
-          response['tool_calls'] = [
-            {
-              type: "function",
-              function: {
-                name: _function.name ? `${function_name}${_function.name}` : '',
-                arguments: `${function_arguments}${_function.arguments}`,
-              },
-            }
-          ]
-          if (_function.name) function_name = `${function_name}${_function.name}`;
+          if (_function.name) function_name = _function.name
           function_arguments = `${function_arguments}${_function.arguments}`;
         }
 
@@ -441,6 +435,18 @@ const cleaned_result = (results: any[]) => {
       if ("content" in delta) {
         response.content = `${response["content"]}${delta.content}`;
       }
+    }
+
+    if (has_tool_calls) {
+      response['tool_calls'] = [
+        {
+          type: "function",
+          function: {
+            name: function_name,
+            arguments: function_arguments,
+          },
+        }
+      ]
     }
 
     const final_result = structuredClone(results.at(-1));
