@@ -400,6 +400,7 @@ const cleaned_result = (results: any[]) => {
 
   //  Response was streamed
   if ("delta" in results[0].choices[0]) {
+    let has_function_call = false;
     let has_tool_calls = false;
     let function_name = '';
     let function_arguments = '';
@@ -412,10 +413,10 @@ const cleaned_result = (results: any[]) => {
 
         // Function call (deprecated)
         if ("function_call" in delta) {
-          response['function_call'] = {
-            'arguments': delta["function_call"].arguments,
-            'name': delta["function_call"].name,
-          }
+          has_function_call = true;
+          const _function = delta["function_call"]
+          if (_function.name) function_name = _function.name
+          function_arguments = `${function_arguments}${_function.arguments}`;
         }
 
         // Tool call
@@ -434,6 +435,13 @@ const cleaned_result = (results: any[]) => {
 
       if ("content" in delta) {
         response.content = `${response["content"]}${delta.content}`;
+      }
+    }
+
+    if (has_function_call) {
+      response['function_call'] = {
+        'name': function_name,
+        'arguments': function_arguments,
       }
     }
 
