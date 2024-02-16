@@ -381,7 +381,7 @@ const publishPromptTemplate = async (body: PublishPromptTemplate) => {
 };
 
 const cleaned_result = (results: any[]) => {
-  if ("completion" in results[0])
+  if ("completion" in results[0]) {
     return results.reduce(
       (prev, current) => ({
         ...current,
@@ -389,6 +389,8 @@ const cleaned_result = (results: any[]) => {
       }),
       {}
     );
+  }
+
   if ("text" in results[0].choices[0]) {
     let response = "";
     for (const result of results) {
@@ -397,20 +399,73 @@ const cleaned_result = (results: any[]) => {
     const final_result = structuredClone(results.at(-1));
     final_result.choices[0].text = response;
     return final_result;
-  } else if ("delta" in results[0].choices[0]) {
-    let response = { role: "", content: "" };
+  }
+
+  //  Response was streamed
+  if ("delta" in results[0].choices[0]) {
+    let has_function_call = false;
+    let has_tool_calls = false;
+    let function_name = '';
+    let function_arguments = '';
+    let response: any = {role: "", content: ""};
+
     for (const result of results) {
-      if ("role" in result.choices[0].delta) {
-        response.role = result.choices[0].delta.role;
+      const delta = result.choices[0].delta
+
+      if (Object.keys(delta).length !== 0) {
+
+        // Function call (deprecated)
+        if ("function_call" in delta) {
+          has_function_call = true;
+          const _function = delta["function_call"]
+          if (_function.name) function_name = _function.name
+          function_arguments = `${function_arguments}${_function.arguments}`;
+        }
+
+        // Tool call
+        if ("tool_calls" in delta) {
+          has_tool_calls = true;
+          const _function = delta.tool_calls[0].function
+          if (_function.name) function_name = _function.name
+          function_arguments = `${function_arguments}${_function.arguments}`;
+        }
+
       }
-      if ("content" in result.choices[0].delta) {
-        response.content = `${response["content"]}${result.choices[0].delta.content}`;
+
+      if ("role" in delta) {
+        response.role = delta.role;
+      }
+
+      if ("content" in delta) {
+        response.content = `${response["content"]}${delta.content}`;
       }
     }
+
+    if (has_function_call) {
+      response['function_call'] = {
+        'name': function_name,
+        'arguments': function_arguments,
+      }
+    }
+
+    if (has_tool_calls) {
+      response['tool_calls'] = [
+        {
+          type: "function",
+          function: {
+            name: function_name,
+            arguments: function_arguments,
+          },
+        }
+      ]
+    }
+
     const final_result = structuredClone(results.at(-1));
     final_result.choices[0] = response;
+
     return final_result;
   }
+
   return "";
 };
 
