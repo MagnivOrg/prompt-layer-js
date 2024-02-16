@@ -401,15 +401,37 @@ const cleaned_result = (results: any[]) => {
   if ("delta" in results[0].choices[0]) {
     let function_name = '';
     let function_arguments = '';
-    let response: any = { role: "", content: "" };
+    let response: any = {role: "", content: ""};
 
     for (const result of results) {
       const delta = result.choices[0].delta
 
       if (Object.keys(delta).length !== 0) {
-        const _function = delta.tool_calls[0].function
-        if (_function.name) function_name = `${function_name}${_function.name}`;
-        function_arguments = `${function_arguments}${_function.arguments}`;
+
+        // Function call (deprecated)
+        if ("function_call" in delta) {
+          response['function_call'] = {
+            'arguments': delta["function_call"].arguments,
+            'name': delta["function_call"].name,
+          }
+        }
+
+        // Tool call
+        if ("tool_calls" in delta) {
+          const _function = delta.tool_calls[0].function
+          response['tool_calls'] = [
+            {
+              type: "function",
+              function: {
+                name: _function.name ? `${function_name}${_function.name}` : '',
+                arguments: `${function_arguments}${_function.arguments}`,
+              },
+            }
+          ]
+          if (_function.name) function_name = `${function_name}${_function.name}`;
+          function_arguments = `${function_arguments}${_function.arguments}`;
+        }
+
       }
 
       if ("role" in delta) {
@@ -418,14 +440,6 @@ const cleaned_result = (results: any[]) => {
 
       if ("content" in delta) {
         response.content = `${response["content"]}${delta.content}`;
-      }
-    }
-
-    if (function_arguments || function_name) {
-      response.content = null;
-      response['function_call'] = {
-        'arguments': function_arguments,
-        'name': function_name,
       }
     }
 
