@@ -102,6 +102,7 @@ export type FunctionCall = {
 
 export type SystemMessage = {
   role: "system";
+  input_variables?: string[];
   template_format?: TemplateFormat;
   content: Content[];
   name?: string;
@@ -109,6 +110,7 @@ export type SystemMessage = {
 
 export type UserMessage = {
   role: "user";
+  input_variables?: string[];
   template_format?: TemplateFormat;
   content: Content[];
   name?: string;
@@ -116,6 +118,7 @@ export type UserMessage = {
 
 export type AssistantMessage = {
   role: "assistant";
+  input_variables?: string[];
   template_format?: TemplateFormat;
   content?: Content[];
   function_call?: FunctionCall;
@@ -124,6 +127,7 @@ export type AssistantMessage = {
 
 export type FunctionMessage = {
   role: "function";
+  input_variables?: string[];
   template_format?: TemplateFormat;
   content?: Content[];
   name: string;
@@ -143,6 +147,7 @@ export type CompletionPromptTemplate = {
   type: "completion";
   template_format?: TemplateFormat;
   content: Content[];
+  input_variables?: string[];
 };
 
 export type ChatPromptTemplate = {
@@ -150,15 +155,39 @@ export type ChatPromptTemplate = {
   messages: Message[];
   functions?: Function_[];
   function_call?: "auto" | "none" | ChatFunctionCall;
+  input_variables?: string[];
 };
 
 export type PromptTemplate = CompletionPromptTemplate | ChatPromptTemplate;
 
-export type PublishPromptTemplate = {
-  prompt_name: string;
-  prompt_template: PromptTemplate;
+export type Model = {
+  provider: string;
+  name: string;
+  parameters: Record<string, unknown>;
 };
 
-export type PublishPromptTemplateResponse = PublishPromptTemplate & {
+export type Metadata = {
+  model?: Model;
+};
+
+export type BasePromptTemplate = {
+  prompt_name: string;
+  tags?: string[];
+};
+
+export type PromptVersion = {
+  prompt_template: PromptTemplate;
+  commit_message?: string;
+  metadata?: Metadata;
+};
+
+export type PublishPromptTemplate = BasePromptTemplate & PromptVersion;
+
+export type PublishPromptTemplateResponse = {
   id: number;
+  prompt_name: string;
+  tags: string[];
+  prompt_template: PromptTemplate;
+  commit_message?: string;
+  metadata?: Metadata;
 };
