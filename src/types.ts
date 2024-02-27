@@ -95,6 +95,11 @@ export type Function_ = {
   parameters: Record<string, unknown>;
 };
 
+export type Tool = {
+  type: "function";
+  function: Function_;
+};
+
 export type FunctionCall = {
   name: string;
   arguments: string;
@@ -116,6 +121,12 @@ export type UserMessage = {
   name?: string;
 };
 
+export type ToolCall = {
+  id: string;
+  type: "function";
+  function: FunctionCall;
+};
+
 export type AssistantMessage = {
   role: "assistant";
   input_variables?: string[];
@@ -123,6 +134,7 @@ export type AssistantMessage = {
   content?: Content[];
   function_call?: FunctionCall;
   name?: string;
+  tool_calls?: ToolCall[];
 };
 
 export type FunctionMessage = {
@@ -133,11 +145,21 @@ export type FunctionMessage = {
   name: string;
 };
 
+export type ToolMessage = {
+  role: "tool";
+  input_variables?: string[];
+  template_format?: TemplateFormat;
+  content: Content[];
+  tool_call_id: string;
+  name?: string;
+};
+
 export type Message =
   | SystemMessage
   | UserMessage
   | AssistantMessage
-  | FunctionMessage;
+  | FunctionMessage
+  | ToolMessage;
 
 export type ChatFunctionCall = {
   name: string;
@@ -150,12 +172,21 @@ export type CompletionPromptTemplate = {
   input_variables?: string[];
 };
 
+export type ChatToolChoice = {
+  type: "function";
+  function: ChatFunctionCall;
+};
+
+export type ToolChoice = string | ChatToolChoice;
+
 export type ChatPromptTemplate = {
   type: "chat";
   messages: Message[];
   functions?: Function_[];
   function_call?: "auto" | "none" | ChatFunctionCall;
   input_variables?: string[];
+  tools?: Tool[];
+  tool_choice?: ToolChoice;
 };
 
 export type PromptTemplate = CompletionPromptTemplate | ChatPromptTemplate;
