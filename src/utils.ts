@@ -12,6 +12,7 @@ import {
   TrackRequest,
   TrackScore,
 } from "@/types";
+import { ChatCompletion, ChatCompletionChunk } from "openai/resources";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
@@ -380,6 +381,79 @@ const publishPromptTemplate = async (body: PublishPromptTemplate) => {
   }
 };
 
+const mapChatCompletionChunk = (
+  results: ChatCompletionChunk[]
+): ChatCompletion => {
+  let content: ChatCompletion.Choice["message"]["content"] = null;
+  let functionCall: ChatCompletion.Choice["message"]["function_call"] =
+    undefined;
+  const response: ChatCompletion = {
+    id: "",
+    choices: [],
+    created: Date.now(),
+    model: "",
+    object: "chat.completion",
+  };
+  const lastResult = results.at(-1);
+  if (!lastResult) return response;
+  let toolCalls: ChatCompletion.Choice["message"]["tool_calls"] = undefined;
+  for (const result of results) {
+    const delta = result.choices[0].delta;
+
+    if (delta.content) {
+      content = `${content || ""}${delta.content || ""}`;
+    }
+    if (delta.function_call) {
+      functionCall = {
+        name: `${functionCall ? functionCall.name : ""}${
+          delta.function_call.name || ""
+        }`,
+        arguments: `${functionCall ? functionCall.arguments : ""}${
+          delta.function_call.arguments || ""
+        }`,
+      };
+    }
+    const toolCall = delta.tool_calls?.[0];
+    if (toolCall) {
+      toolCalls = toolCalls || [];
+      const lastToolCall = toolCalls.at(-1);
+      if (!lastToolCall || toolCall.id) {
+        toolCalls.push({
+          id: toolCall.id || "",
+          type: toolCall.type || "function",
+          function: {
+            name: toolCall.function?.name || "",
+            arguments: toolCall.function?.arguments || "",
+          },
+        });
+        continue;
+      }
+      lastToolCall.function.name = `${lastToolCall.function.name}${
+        toolCall.function?.name || ""
+      }`;
+      lastToolCall.function.arguments = `${lastToolCall.function.arguments}${
+        toolCall.function?.arguments || ""
+      }`;
+    }
+  }
+  response.choices.push({
+    finish_reason: lastResult.choices[0].finish_reason || "stop",
+    index: lastResult.choices[0].index || 0,
+    logprobs: lastResult.choices[0].logprobs || null,
+    message: {
+      role: "assistant",
+      content,
+      function_call: functionCall ? functionCall : undefined,
+      tool_calls: toolCalls ? toolCalls : undefined,
+    },
+  });
+  response.id = lastResult.id;
+  response.model = lastResult.model;
+  response.created = lastResult.created;
+  response.system_fingerprint = lastResult.system_fingerprint;
+  return response;
+};
+
 const cleaned_result = (results: any[]) => {
   if ("completion" in results[0]) {
     return results.reduce(
@@ -401,69 +475,13 @@ const cleaned_result = (results: any[]) => {
     return final_result;
   }
 
-  //  Response was streamed
   if ("delta" in results[0].choices[0]) {
-    let has_function_call = false;
-    let has_tool_calls = false;
-    let function_name = '';
-    let function_arguments = '';
-    let response: any = {role: "", content: ""};
-
-    for (const result of results) {
-      const delta = result.choices[0].delta
-
-      if (Object.keys(delta).length !== 0) {
-
-        // Function call (deprecated)
-        if ("function_call" in delta) {
-          has_function_call = true;
-          const _function = delta["function_call"]
-          if (_function.name) function_name = _function.name
-          function_arguments = `${function_arguments}${_function.arguments}`;
-        }
-
-        // Tool call
-        if ("tool_calls" in delta) {
-          has_tool_calls = true;
-          const _function = delta.tool_calls[0].function
-          if (_function.name) function_name = _function.name
-          function_arguments = `${function_arguments}${_function.arguments}`;
-        }
-
-      }
-
-      if ("role" in delta) {
-        response.role = delta.role;
-      }
-
-      if ("content" in delta) {
-        response.content = `${response["content"]}${delta.content}`;
-      }
-    }
-
-    if (has_function_call) {
-      response['function_call'] = {
-        'name': function_name,
-        'arguments': function_arguments,
-      }
-    }
-
-    if (has_tool_calls) {
-      response['tool_calls'] = [
-        {
-          type: "function",
-          function: {
-            name: function_name,
-            arguments: function_arguments,
-          },
-        }
-      ]
-    }
-
-    const final_result = structuredClone(results.at(-1));
-    final_result.choices[0] = response;
-
-    return final_result;
+    const response = mapChatCompletionChunk(results);
+    response.choices[0] = {
+      ...response.choices[0],
+      ...response.choices[0].message,
+    };
+    return response;
   }
 
   return "";
