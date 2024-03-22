@@ -2,7 +2,9 @@ import { promptlayer } from "@/index";
 import {
   GetPromptTemplate,
   GetPromptTemplateParams,
+  GetPromptTemplateResponse,
   LegacyPublishPromptTemplate,
+  ListPromptTemplatesResponse,
   Pagination,
   PublishPromptTemplate,
   PublishPromptTemplateResponse,
@@ -341,7 +343,7 @@ const getPromptTemplate = async (
       );
       return null;
     }
-    return data;
+    return data as Promise<GetPromptTemplateResponse>;
   } catch (e) {
     console.warn(
       `WARNING: While fetching a prompt template PromptLayer had the following error: ${e}`
@@ -378,6 +380,35 @@ const publishPromptTemplate = async (body: PublishPromptTemplate) => {
     console.warn(
       `WARNING: While publishing a prompt template PromptLayer had the following error: ${e}`
     );
+  }
+};
+
+const getAllPromptTemplates = async (params?: Partial<Pagination>) => {
+  try {
+    const url = new URL(`${URL_API_PROMPTLAYER}/prompt-templates`);
+    Object.entries(params || {}).forEach(([key, value]) =>
+      url.searchParams.append(key, value.toString())
+    );
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": getApiKey(),
+      },
+    });
+    const data = await response.json();
+    if (response.status !== 200) {
+      warnOnBadResponse(
+        data,
+        "WARNING: While fetching all prompt templates PromptLayer had the following error"
+      );
+      return null;
+    }
+    return (data.items ?? []) as Promise<Array<ListPromptTemplatesResponse>>;
+  } catch (e) {
+    console.warn(
+      `WARNING: While fetching all prompt templates PromptLayer had the following error: ${e}`
+    );
+    return null;
   }
 };
 
@@ -521,6 +552,7 @@ const throwOnBadResponse = (request_response: any, main_message: string) => {
 };
 
 export {
+  getAllPromptTemplates,
   getApiKey,
   getPromptTemplate,
   promptLayerAllPromptTemplates,
