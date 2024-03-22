@@ -4,6 +4,7 @@ import {
   GetPromptTemplateParams,
   GetPromptTemplateResponse,
   LegacyPublishPromptTemplate,
+  ListPromptTemplatesResponse,
   Pagination,
   PublishPromptTemplate,
   PublishPromptTemplateResponse,
@@ -402,7 +403,7 @@ const getAllPromptTemplates = async (params?: Partial<Pagination>) => {
       );
       return null;
     }
-    return (data.items ?? []) as Promise<Array<GetPromptTemplateResponse>>;
+    return (data.items ?? []) as Promise<Array<ListPromptTemplatesResponse>>;
   } catch (e) {
     console.warn(
       `WARNING: While fetching all prompt templates PromptLayer had the following error: ${e}`

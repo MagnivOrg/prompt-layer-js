@@ -228,4 +228,10 @@ export interface PublishPromptTemplateResponse
 
 export interface GetPromptTemplateResponse extends BasePromptTemplateResponse {
   version: number;
+  llm_kwargs: Record<string, unknown> | null;
+}
+
+export interface ListPromptTemplatesResponse
+  extends BasePromptTemplateResponse {
+  version: number;
 }
