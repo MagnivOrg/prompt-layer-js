@@ -214,11 +214,18 @@ export type PromptVersion = {
 
 export type PublishPromptTemplate = BasePromptTemplate & PromptVersion;
 
-export type PublishPromptTemplateResponse = {
+export interface BasePromptTemplateResponse {
   id: number;
   prompt_name: string;
   tags: string[];
   prompt_template: PromptTemplate;
   commit_message?: string;
   metadata?: Metadata;
-};
+}
+
+export interface PublishPromptTemplateResponse
+  extends BasePromptTemplateResponse {}
+
+export interface GetPromptTemplateResponse extends BasePromptTemplateResponse {
+  version: number;
+}
