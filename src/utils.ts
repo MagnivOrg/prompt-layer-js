@@ -365,7 +365,7 @@ const publishPromptTemplate = async (body: PublishPromptTemplate) => {
         body: JSON.stringify({
           prompt_template: { ...body },
           prompt_version: { ...body },
-          release_label: body.release_label ? body.release_label : undefined,
+          release_labels: body.release_labels ? body.release_labels : undefined,
         }),
       }
     );
