@@ -212,7 +212,7 @@ export type PromptVersion = {
   metadata?: Metadata;
 };
 
-export type PublishPromptTemplate = BasePromptTemplate & PromptVersion;
+export type PublishPromptTemplate = BasePromptTemplate & PromptVersion & { release_label?: string };
 
 export interface BasePromptTemplateResponse {
   id: number;
