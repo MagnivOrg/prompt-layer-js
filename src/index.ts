@@ -29,7 +29,8 @@ export const promptlayer = new Proxy<{
     get: (target, prop, receiver) => {
       if (["OpenAI", "Anthropic"].includes(prop.toString())) {
         const moduleName = prop === "OpenAI" ? "openai" : "@anthropic-ai/sdk";
-        const module = require(moduleName).default;
+        const requireDynamically = eval(`require('${moduleName}')`);
+        const module = requireDynamically.default;
         return promptLayerBase(
           module,
           prop.toString().toLowerCase(),
