@@ -27,15 +27,25 @@ export const promptlayer = new Proxy<{
   },
   {
     get: (target, prop, receiver) => {
-      if (["OpenAI", "Anthropic"].includes(prop.toString())) {
-        const moduleName = prop === "OpenAI" ? "openai" : "@anthropic-ai/sdk";
-        const requireDynamically = eval(`require('${moduleName}')`);
-        const module = requireDynamically.default;
-        return promptLayerBase(
-          module,
-          prop.toString().toLowerCase(),
-          prop.toString().toLowerCase()
-        );
+      if (prop === "Anthropic") {
+        try {
+          const module = require("@anthropic-ai/sdk").default;
+          return promptLayerBase(module, "anthropic", "anthropic");
+        } catch (e) {
+          console.error(
+            "To use the Anthropic module, you must install the @anthropic-ai/sdk package."
+          );
+        }
+      }
+      if (prop === "OpenAI") {
+        try {
+          const module = require("openai").default;
+          return promptLayerBase(module, "openai", "openai");
+        } catch (e) {
+          console.error(
+            "To use the OpenAI module, you must install the @openai/api package."
+          );
+        }
       }
       return Reflect.get(target, prop, receiver);
     },
