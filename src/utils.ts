@@ -14,6 +14,7 @@ import {
   TrackRequest,
   TrackScore,
 } from "@/types";
+import { Message, MessageStreamEvent } from "@anthropic-ai/sdk/resources";
 import { ChatCompletion, ChatCompletionChunk } from "openai/resources";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
@@ -486,7 +487,57 @@ const mapChatCompletionChunk = (
   return response;
 };
 
-const cleaned_result = (results: any[]) => {
+const mapMessageStreamEvent = (results: MessageStreamEvent[]): Message => {
+  let response: Message = {
+    id: "",
+    model: "",
+    content: [],
+    role: "assistant",
+    type: "message",
+    stop_reason: "stop_sequence",
+    stop_sequence: null,
+    usage: {
+      input_tokens: 0,
+      output_tokens: 0,
+    },
+  };
+  const lastResult = results.at(-1);
+  if (!lastResult) return response;
+  let content = "";
+  for (const result of results) {
+    switch (result.type) {
+      case "message_start": {
+        response = {
+          ...result.message,
+        };
+        break;
+      }
+      case "content_block_delta": {
+        if (result.delta.type === "text_delta")
+          content = `${content}${result.delta.text}`;
+      }
+      case "message_delta": {
+        if ("usage" in result)
+          response.usage.output_tokens = result.usage.output_tokens;
+        if ("stop_reason" in result.delta)
+          response.stop_reason = result.delta.stop_reason;
+      }
+      default: {
+        break;
+      }
+    }
+  }
+  response.content.push({
+    type: "text",
+    text: content,
+  });
+  return response;
+};
+
+const cleaned_result = (
+  results: any[],
+  function_name = "openai.chat.completions.create"
+) => {
   if ("completion" in results[0]) {
     return results.reduce(
       (prev, current) => ({
@@ -496,6 +547,9 @@ const cleaned_result = (results: any[]) => {
       {}
     );
   }
+
+  if (function_name === "anthropic.messages.create")
+    return mapMessageStreamEvent(results);
 
   if ("text" in results[0].choices[0]) {
     let response = "";
@@ -528,7 +582,7 @@ async function* proxyGenerator<Item>(
     yield value;
     results.push(value);
   }
-  const request_response = cleaned_result(results);
+  const request_response = cleaned_result(results, body.function_name);
   const response = await promptLayerApiRequest({
     ...body,
     request_response,
