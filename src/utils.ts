@@ -583,12 +583,11 @@ async function* proxyGenerator<Item>(
     results.push(value);
   }
   const request_response = cleaned_result(results, body.function_name);
-  const response = await promptLayerApiRequest({
+  await promptLayerApiRequest({
     ...body,
     request_response,
     request_end_time: new Date().toISOString(),
   });
-  yield response;
 }
 
 const warnOnBadResponse = (request_response: any, main_message: string) => {
