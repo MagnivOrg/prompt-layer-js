@@ -579,15 +579,22 @@ async function* proxyGenerator<Item>(
 ) {
   const results = [];
   for await (const value of generator) {
-    yield value;
+    yield body.return_pl_id ? [value, null] : value;
     results.push(value);
   }
   const request_response = cleaned_result(results, body.function_name);
-  await promptLayerApiRequest({
+  const response = await promptLayerApiRequest({
     ...body,
     request_response,
     request_end_time: new Date().toISOString(),
   });
+  if (response) {
+    if (body.return_pl_id) {
+      const request_id = (response as any)[1];
+      const lastResult = results.at(-1);
+      yield [lastResult, request_id];
+    }
+  }
 }
 
 const warnOnBadResponse = (request_response: any, main_message: string) => {
