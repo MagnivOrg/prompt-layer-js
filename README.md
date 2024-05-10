@@ -45,8 +45,11 @@ In the JavaScript file where you use OpenAI APIs, add the following. This allows
 
 ```js
 import BaseOpenAI from "openai";
-import promptlayer from "promptlayer";
+import { PromptLayer } from "promptlayer";
 
+const promptlayer = new PromptLayer({
+  apiKey: process.env.PROMPTLAYER_API_KEY,
+});
 // Typescript
 const OpenAI: typeof BaseOpenAI = promptlayer.OpenAI;
 const openai = new OpenAI();
