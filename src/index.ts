@@ -1,53 +1,51 @@
-import * as groups from "@/groups";
+import { GroupManager } from "@/groups";
 import { promptLayerBase } from "@/promptlayer";
-import * as prompts from "@/prompts";
-import * as templates from "@/templates";
-import * as track from "@/track";
-import * as utils from "@/utils";
+import { TemplateManager } from "@/templates";
+import { TrackManager } from "@/track";
 
-export const promptlayer = new Proxy<{
-  OpenAI: any;
-  Anthropic: any;
-  api_key: string | undefined;
-  utils: typeof utils;
-  track: typeof track;
-  groups: typeof groups;
-  prompts: typeof prompts;
-  templates: typeof templates;
-}>(
-  {
-    OpenAI: {},
-    Anthropic: {},
-    api_key: process.env.PROMPTLAYER_API_KEY,
-    utils,
-    track,
-    groups,
-    prompts,
-    templates,
-  },
-  {
-    get: (target, prop, receiver) => {
-      if (prop === "Anthropic") {
-        try {
-          const module = require("@anthropic-ai/sdk").default;
-          return promptLayerBase(module, "anthropic", "anthropic");
-        } catch (e) {
-          console.error(
-            "To use the Anthropic module, you must install the @anthropic-ai/sdk package."
-          );
-        }
-      }
-      if (prop === "OpenAI") {
-        try {
-          const module = require("openai").default;
-          return promptLayerBase(module, "openai", "openai");
-        } catch (e) {
-          console.error(
-            "To use the OpenAI module, you must install the @openai/api package."
-          );
-        }
-      }
-      return Reflect.get(target, prop, receiver);
-    },
+export interface ClientOptions {
+  apiKey?: string;
+}
+
+export class PromptLayer {
+  apiKey: string;
+  templates: TemplateManager;
+  group: GroupManager;
+  track: TrackManager;
+
+  constructor({
+    apiKey = process.env.PROMPTLAYER_API_KEY,
+  }: ClientOptions = {}) {
+    if (apiKey === undefined) {
+      throw new Error(
+        "PromptLayer API key not provided. Please set the PROMPTLAYER_API_KEY environment variable or pass the api_key parameter."
+      );
+    }
+    this.apiKey = apiKey;
+    this.templates = new TemplateManager(apiKey);
+    this.group = new GroupManager(apiKey);
+    this.track = new TrackManager(apiKey);
   }
-);
+
+  get OpenAI() {
+    try {
+      const module = require("openai").default;
+      return promptLayerBase(this.apiKey, module, "openai", "openai");
+    } catch (e) {
+      console.error(
+        "To use the OpenAI module, you must install the @openai/api package."
+      );
+    }
+  }
+
+  get Anthropic() {
+    try {
+      const module = require("@anthropic-ai/sdk").default;
+      return promptLayerBase(this.apiKey, module, "anthropic", "anthropic");
+    } catch (e) {
+      console.error(
+        "To use the Anthropic module, you must install the @anthropic-ai/sdk package."
+      );
+    }
+  }
+}

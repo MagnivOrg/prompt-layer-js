@@ -1,6 +1,7 @@
-import { getApiKey, promptlayerApiHandler } from "@/utils";
+import { promptlayerApiHandler } from "@/utils";
 
 export const promptLayerBase = (
+  apiKey: string,
   llm: object,
   function_name = "",
   provider = "openai"
@@ -50,8 +51,8 @@ export const promptLayerBase = (
             return new Promise((resolve, reject) => {
               response
                 .then(async (request_response) => {
-                  const response = await promptlayerApiHandler({
-                    api_key: getApiKey(),
+                  const response = await promptlayerApiHandler(apiKey, {
+                    api_key: apiKey,
                     provider_type,
                     function_name,
                     request_start_time,

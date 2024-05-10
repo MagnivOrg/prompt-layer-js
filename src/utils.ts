@@ -1,9 +1,6 @@
-import { promptlayer } from "@/index";
 import {
-  GetPromptTemplate,
   GetPromptTemplateParams,
   GetPromptTemplateResponse,
-  LegacyPublishPromptTemplate,
   ListPromptTemplatesResponse,
   Pagination,
   PublishPromptTemplate,
@@ -19,29 +16,20 @@ import { ChatCompletion, ChatCompletionChunk } from "openai/resources";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
-const getApiKey = () => {
-  if (promptlayer.api_key === undefined) {
-    throw new Error(
-      "Please set your PROMPTLAYER_API_KEY environment variable or set API KEY in code using 'promptlayer.api_key = <your_api_key>' "
-    );
-  } else {
-    return promptlayer.api_key;
-  }
-};
-
 const promptlayerApiHandler = async <Item>(
+  apiKey: string,
   body: TrackRequest & {
     request_response: AsyncIterable<Item> | any;
   }
 ) => {
   const isGenerator = body.request_response[Symbol.asyncIterator] !== undefined;
   if (isGenerator) {
-    return proxyGenerator(body.request_response, body);
+    return proxyGenerator(apiKey, body.request_response, body);
   }
-  return await promptLayerApiRequest(body);
+  return await promptLayerApiRequest(apiKey, body);
 };
 
-const promptLayerApiRequest = async (body: TrackRequest) => {
+const promptLayerApiRequest = async (apiKey: string, body: TrackRequest) => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/track-request`, {
       method: "POST",
@@ -68,107 +56,8 @@ const promptLayerApiRequest = async (body: TrackRequest) => {
   return body.request_response;
 };
 
-const promptLayerAllPromptTemplates = async (params?: Pagination) => {
-  const url = new URL(`${URL_API_PROMPTLAYER}/rest/prompts`);
-  Object.entries(params || {}).forEach(([key, value]) =>
-    url.searchParams.append(key, value)
-  );
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-KEY": getApiKey(),
-      },
-    });
-    const data = await response.json();
-    if (response.status !== 200) {
-      console.warn(
-        `WARNING: While fetching all prompt templates, PromptLayer had the following error: ${JSON.stringify(
-          data
-        )}`
-      );
-    }
-    return data;
-  } catch (e) {
-    console.warn(
-      `WARNING: While fetching all prompt templates, PromptLayer had the following error: ${e}`
-    );
-  }
-};
-
-/**
- * Get a prompt from the PromptLayer library
- * @param prompt_name name of the prompt to get
- * @param api_key your api key
- * @param version version of the prompt to get, None for latest
- * @param label The release label of a prompt you want to get. Setting this will supercede version
- */
-const promptLayerGetPrompt = async (body: GetPromptTemplate) => {
-  const params: Record<string, string> = {
-    prompt_name: body.prompt_name,
-    version: body.version?.toString() ?? "",
-    label: body.label ?? "",
-  };
-  const url = new URL(`${URL_API_PROMPTLAYER}/library-get-prompt-template`);
-  url.search = new URLSearchParams(params).toString();
-  let response: Response;
-  try {
-    response = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        "X-API-KEY": getApiKey(),
-      },
-    });
-  } catch (e) {
-    throw new Error(
-      `PromptLayer had the following error while getting your prompt: ${e}`
-    );
-  }
-  const data = await response.json();
-  if (response.status !== 200) {
-    throwOnBadResponse(
-      data,
-      `PromptLayer had the following error while retrieving your prompt template`
-    );
-  }
-  return data;
-};
-
-const promptLayerPublishPrompt = async (
-  body: LegacyPublishPromptTemplate
-): Promise<boolean> => {
-  let response: Response;
-  try {
-    response = await fetch(
-      `${URL_API_PROMPTLAYER}/library-publish-prompt-template`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...body,
-          api_key: getApiKey(),
-        }),
-      }
-    );
-  } catch (e) {
-    throw new Error(
-      `PromptLayer had the following error while publishing your prompt template: ${e}`
-    );
-  }
-  const data = await response.json();
-  if (response.status !== 200) {
-    throwOnBadResponse(
-      data,
-      `PromptLayer had the following error while publishing your prompt`
-    );
-  }
-  return true;
-};
-
 const promptLayerTrackMetadata = async (
+  apiKey: string,
   body: TrackMetadata
 ): Promise<boolean> => {
   try {
@@ -181,7 +70,7 @@ const promptLayerTrackMetadata = async (
         },
         body: JSON.stringify({
           ...body,
-          api_key: getApiKey(),
+          api_key: apiKey,
         }),
       }
     );
@@ -202,7 +91,10 @@ const promptLayerTrackMetadata = async (
   return true;
 };
 
-const promptLayerTrackScore = async (body: TrackScore): Promise<boolean> => {
+const promptLayerTrackScore = async (
+  apiKey: string,
+  body: TrackScore
+): Promise<boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/library-track-score`, {
       method: "POST",
@@ -211,7 +103,7 @@ const promptLayerTrackScore = async (body: TrackScore): Promise<boolean> => {
       },
       body: JSON.stringify({
         ...body,
-        api_key: getApiKey(),
+        api_key: apiKey,
       }),
     });
     const data = await response.json();
@@ -231,7 +123,10 @@ const promptLayerTrackScore = async (body: TrackScore): Promise<boolean> => {
   return true;
 };
 
-const promptLayerTrackPrompt = async (body: TrackPrompt): Promise<boolean> => {
+const promptLayerTrackPrompt = async (
+  apiKey: string,
+  body: TrackPrompt
+): Promise<boolean> => {
   try {
     const response = await fetch(
       `${URL_API_PROMPTLAYER}/library-track-prompt`,
@@ -242,7 +137,7 @@ const promptLayerTrackPrompt = async (body: TrackPrompt): Promise<boolean> => {
         },
         body: JSON.stringify({
           ...body,
-          api_key: getApiKey(),
+          api_key: apiKey,
         }),
       }
     );
@@ -263,7 +158,10 @@ const promptLayerTrackPrompt = async (body: TrackPrompt): Promise<boolean> => {
   return true;
 };
 
-const promptLayerTrackGroup = async (body: TrackGroup): Promise<boolean> => {
+const promptLayerTrackGroup = async (
+  apiKey: string,
+  body: TrackGroup
+): Promise<boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/track-group`, {
       method: "POST",
@@ -272,7 +170,7 @@ const promptLayerTrackGroup = async (body: TrackGroup): Promise<boolean> => {
       },
       body: JSON.stringify({
         ...body,
-        api_key: getApiKey(),
+        api_key: apiKey,
       }),
     });
     const data = await response.json();
@@ -292,7 +190,9 @@ const promptLayerTrackGroup = async (body: TrackGroup): Promise<boolean> => {
   return true;
 };
 
-const promptLayerCreateGroup = async (): Promise<number | boolean> => {
+const promptLayerCreateGroup = async (
+  apiKey: string
+): Promise<number | boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/create-group`, {
       method: "POST",
@@ -300,7 +200,7 @@ const promptLayerCreateGroup = async (): Promise<number | boolean> => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        api_key: getApiKey(),
+        api_key: apiKey,
       }),
     });
     const data = await response.json();
@@ -321,6 +221,7 @@ const promptLayerCreateGroup = async (): Promise<number | boolean> => {
 };
 
 const getPromptTemplate = async (
+  apiKey: string,
   promptName: string,
   params?: Partial<GetPromptTemplateParams>
 ) => {
@@ -332,9 +233,9 @@ const getPromptTemplate = async (
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-KEY": getApiKey(),
+        "X-API-KEY": apiKey,
       },
-      body: JSON.stringify({ ...params, api_key: getApiKey() }),
+      body: JSON.stringify(params),
     });
     const data = await response.json();
     if (response.status !== 200) {
@@ -353,7 +254,10 @@ const getPromptTemplate = async (
   }
 };
 
-const publishPromptTemplate = async (body: PublishPromptTemplate) => {
+const publishPromptTemplate = async (
+  apiKey: string,
+  body: PublishPromptTemplate
+) => {
   try {
     const response = await fetch(
       `${URL_API_PROMPTLAYER}/rest/prompt-templates`,
@@ -361,7 +265,7 @@ const publishPromptTemplate = async (body: PublishPromptTemplate) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-KEY": getApiKey(),
+          "X-API-KEY": apiKey,
         },
         body: JSON.stringify({
           prompt_template: { ...body },
@@ -385,7 +289,10 @@ const publishPromptTemplate = async (body: PublishPromptTemplate) => {
   }
 };
 
-const getAllPromptTemplates = async (params?: Partial<Pagination>) => {
+const getAllPromptTemplates = async (
+  apiKey: string,
+  params?: Partial<Pagination>
+) => {
   try {
     const url = new URL(`${URL_API_PROMPTLAYER}/prompt-templates`);
     Object.entries(params || {}).forEach(([key, value]) =>
@@ -394,7 +301,7 @@ const getAllPromptTemplates = async (params?: Partial<Pagination>) => {
     const response = await fetch(url, {
       headers: {
         "Content-Type": "application/json",
-        "X-API-KEY": getApiKey(),
+        "X-API-KEY": apiKey,
       },
     });
     const data = await response.json();
@@ -574,6 +481,7 @@ const cleaned_result = (
 };
 
 async function* proxyGenerator<Item>(
+  apiKey: string,
   generator: AsyncIterable<Item>,
   body: TrackRequest
 ) {
@@ -583,7 +491,7 @@ async function* proxyGenerator<Item>(
     results.push(value);
   }
   const request_response = cleaned_result(results, body.function_name);
-  const response = await promptLayerApiRequest({
+  const response = await promptLayerApiRequest(apiKey, {
     ...body,
     request_response,
     request_end_time: new Date().toISOString(),
@@ -605,22 +513,11 @@ const warnOnBadResponse = (request_response: any, main_message: string) => {
   }
 };
 
-const throwOnBadResponse = (request_response: any, main_message: string) => {
-  if ("message" in request_response) {
-    throw new Error(`${main_message}: ${request_response.message}`);
-  }
-  throw new Error(`${main_message}: ${request_response.message}`);
-};
-
 export {
   getAllPromptTemplates,
-  getApiKey,
   getPromptTemplate,
-  promptLayerAllPromptTemplates,
   promptLayerApiRequest,
   promptLayerCreateGroup,
-  promptLayerGetPrompt,
-  promptLayerPublishPrompt,
   promptLayerTrackGroup,
   promptLayerTrackMetadata,
   promptLayerTrackPrompt,
