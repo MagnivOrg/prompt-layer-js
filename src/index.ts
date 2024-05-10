@@ -3,7 +3,7 @@ import { promptLayerBase } from "@/promptlayer";
 import { TemplateManager } from "@/templates";
 import { TrackManager } from "@/track";
 
-export class BasePromptLayer {
+export class PromptLayer {
   apiKey: string;
   templates: TemplateManager;
   group: GroupManager;
