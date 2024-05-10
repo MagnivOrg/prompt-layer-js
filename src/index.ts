@@ -13,7 +13,9 @@ export class PromptLayer {
   group: GroupManager;
   track: TrackManager;
 
-  constructor({ apiKey }: ClientOptions = {}) {
+  constructor({
+    apiKey = process.env.PROMPTLAYER_API_KEY,
+  }: ClientOptions = {}) {
     if (apiKey === undefined) {
       throw new Error(
         "PromptLayer API key not provided. Please set the PROMPTLAYER_API_KEY environment variable or pass the api_key parameter."
