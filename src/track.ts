@@ -42,6 +42,7 @@ const group = (apiKey: string, body: TrackGroup) =>
 
 export class TrackManager {
   apiKey: string;
+
   constructor(apiKey: string) {
     this.apiKey = apiKey;
   }

@@ -11,6 +11,7 @@ import {
 
 export class TemplateManager {
   apiKey: string;
+
   constructor(apiKey: string) {
     this.apiKey = apiKey;
   }
