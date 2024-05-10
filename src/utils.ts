@@ -14,7 +14,7 @@ import {
 import { Message, MessageStreamEvent } from "@anthropic-ai/sdk/resources";
 import { ChatCompletion, ChatCompletionChunk } from "openai/resources";
 
-const URL_API_PROMPTLAYER = "http://127.0.0.1:8000";
+const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
 const promptlayerApiHandler = async <Item>(
   apiKey: string,
