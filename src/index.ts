@@ -3,13 +3,17 @@ import { promptLayerBase } from "@/promptlayer";
 import { TemplateManager } from "@/templates";
 import { TrackManager } from "@/track";
 
+export interface ClientOptions {
+  apiKey?: string;
+}
+
 export class PromptLayer {
   apiKey: string;
   templates: TemplateManager;
   group: GroupManager;
   track: TrackManager;
 
-  constructor(apiKey = process.env.PROMPTLAYER_API_KEY) {
+  constructor({ apiKey }: ClientOptions = {}) {
     if (apiKey === undefined) {
       throw new Error(
         "PromptLayer API key not provided. Please set the PROMPTLAYER_API_KEY environment variable or pass the api_key parameter."
