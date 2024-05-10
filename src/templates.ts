@@ -9,12 +9,17 @@ import {
   publishPromptTemplate,
 } from "@/utils";
 
-export const get = (
-  promptName: string,
-  params?: Partial<GetPromptTemplateParams>
-) => getPromptTemplate(promptName, params);
+export class TemplateManager {
+  apiKey: string;
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
 
-export const publish = (body: PublishPromptTemplate) =>
-  publishPromptTemplate(body);
+  get = (promptName: string, params?: Partial<GetPromptTemplateParams>) =>
+    getPromptTemplate(this.apiKey, promptName, params);
 
-export const all = (params?: Pagination) => getAllPromptTemplates(params);
+  publish = (body: PublishPromptTemplate) =>
+    publishPromptTemplate(this.apiKey, body);
+
+  all = (params?: Pagination) => getAllPromptTemplates(this.apiKey, params);
+}

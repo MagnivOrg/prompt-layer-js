@@ -1,6 +1,10 @@
 import { promptLayerCreateGroup } from "@/utils";
 
-const create = async (): Promise<number | boolean> =>
-  await promptLayerCreateGroup();
+export class GroupManager {
+  apiKey: string;
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
 
-export { create };
+  create = () => promptLayerCreateGroup(this.apiKey);
+}
