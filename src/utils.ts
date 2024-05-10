@@ -513,13 +513,6 @@ const warnOnBadResponse = (request_response: any, main_message: string) => {
   }
 };
 
-const throwOnBadResponse = (request_response: any, main_message: string) => {
-  if ("message" in request_response) {
-    throw new Error(`${main_message}: ${request_response.message}`);
-  }
-  throw new Error(`${main_message}: ${request_response.message}`);
-};
-
 export {
   getAllPromptTemplates,
   getPromptTemplate,
