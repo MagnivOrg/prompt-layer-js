@@ -31,6 +31,8 @@ export interface TrackRequest {
   tags?: string[];
   request_response?: Record<string, unknown>;
   prompt_input_variables?: Record<string, string> | string[];
+  return_data?: boolean;
+  group_id?: number;
   [k: string]: unknown;
 }
 
@@ -212,7 +214,8 @@ export type PromptVersion = {
   metadata?: Metadata;
 };
 
-export type PublishPromptTemplate = BasePromptTemplate & PromptVersion & { release_labels?: string[] };
+export type PublishPromptTemplate = BasePromptTemplate &
+  PromptVersion & { release_labels?: string[] };
 
 export interface BasePromptTemplateResponse {
   id: number;
@@ -234,4 +237,12 @@ export interface GetPromptTemplateResponse extends BasePromptTemplateResponse {
 export interface ListPromptTemplatesResponse
   extends BasePromptTemplateResponse {
   version: number;
+}
+
+export interface RunRequest {
+  prompt_name: string;
+  templateGetParams?: Partial<GetPromptTemplateParams>;
+  tags?: string[];
+  metadata?: Record<string, string>;
+  group_id?: number;
 }

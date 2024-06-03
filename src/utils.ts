@@ -11,7 +11,9 @@ import {
   TrackRequest,
   TrackScore,
 } from "@/types";
+import type TypeAnthropic from "@anthropic-ai/sdk";
 import { Message, MessageStreamEvent } from "@anthropic-ai/sdk/resources";
+import type TypeOpenAI from "openai";
 import { ChatCompletion, ChatCompletionChunk } from "openai/resources";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
@@ -513,9 +515,85 @@ const warnOnBadResponse = (request_response: any, main_message: string) => {
   }
 };
 
+const trackRequest = async (body: TrackRequest) => {
+  try {
+    const response = await fetch(`${URL_API_PROMPTLAYER}/track-request`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (response.status !== 200)
+      warnOnBadResponse(
+        response,
+        "WARNING: While logging your request, PromptLayer experienced the following error:"
+      );
+    return response.json();
+  } catch (e) {
+    console.warn(
+      `WARNING: While logging your request PromptLayer had the following error: ${e}`
+    );
+  }
+  return {};
+};
+
+const openaiChatRequest = async (client: TypeOpenAI, kwargs: any) => {
+  return client.chat.completions.create(kwargs);
+};
+
+const openaiCompletionsRequest = async (client: TypeOpenAI, kwargs: any) => {
+  return client.completions.create(kwargs);
+};
+
+const MAP_TYPE_TO_OPENAI_FUNCTION = {
+  chat: openaiChatRequest,
+  completion: openaiCompletionsRequest,
+};
+
+const openaiRequest = async (
+  promptBlueprint: GetPromptTemplateResponse,
+  kwargs: any
+) => {
+  const OpenAI = require("openai").default;
+  const client = new OpenAI();
+  const requestToMake =
+    MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
+  return requestToMake(client, kwargs);
+};
+
+const anthropicChatRequest = async (client: TypeAnthropic, kwargs: any) => {
+  return client.messages.create(kwargs);
+};
+
+const anthropicCompletionsRequest = async (
+  client: TypeAnthropic,
+  kwargs: any
+) => {
+  return client.completions.create(kwargs);
+};
+
+const MAP_TYPE_TO_ANTHROPIC_FUNCTION = {
+  chat: anthropicChatRequest,
+  completion: anthropicCompletionsRequest,
+};
+
+const anthropicRequest = async (
+  promptBlueprint: GetPromptTemplateResponse,
+  kwargs: any
+) => {
+  const Anthropic = require("@anthropic-ai/sdk").default;
+  const client = new Anthropic();
+  const requestToMake =
+    MAP_TYPE_TO_ANTHROPIC_FUNCTION[promptBlueprint.prompt_template.type];
+  return requestToMake(client, kwargs);
+};
+
 export {
+  anthropicRequest,
   getAllPromptTemplates,
   getPromptTemplate,
+  openaiRequest,
   promptLayerApiRequest,
   promptLayerCreateGroup,
   promptLayerTrackGroup,
@@ -524,4 +602,5 @@ export {
   promptLayerTrackScore,
   promptlayerApiHandler,
   publishPromptTemplate,
+  trackRequest,
 };
