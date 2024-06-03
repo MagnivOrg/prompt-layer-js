@@ -125,9 +125,13 @@ export class PromptLayer {
       prompt_version: promptBlueprint.version,
       prompt_input_variables,
       group_id,
-      return_data: true,
+      return_prompt_blueprint: true,
     });
-    requestLog["raw_response"] = request_response;
-    return requestLog;
+    const data = {
+      request_id: requestLog.request_id,
+      raw_response: request_response,
+      prompt_blueprint: requestLog.prompt_blueprint,
+    };
+    return data;
   }
 }
