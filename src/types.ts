@@ -67,8 +67,8 @@ export interface Pagination {
 export interface GetPromptTemplateParams {
   version?: number;
   label?: string;
-  provider: string;
-  input_variables: Record<string, string>;
+  provider?: string;
+  input_variables?: Record<string, string>;
 }
 
 const templateFormat = ["f-string", "jinja2"] as const;
@@ -249,9 +249,11 @@ export interface ListPromptTemplatesResponse
 
 export interface RunRequest {
   prompt_name: string;
-  templateGetParams?: Partial<GetPromptTemplateParams>;
   tags?: string[];
   metadata?: Record<string, string>;
   group_id?: number;
   stream?: boolean;
+  version?: number;
+  label?: string;
+  inputVariables?: Record<string, string>;
 }

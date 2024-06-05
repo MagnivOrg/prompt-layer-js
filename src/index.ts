@@ -2,7 +2,7 @@ import { GroupManager } from "@/groups";
 import { promptLayerBase } from "@/promptlayer";
 import { TemplateManager } from "@/templates";
 import { TrackManager } from "@/track";
-import { RunRequest } from "@/types";
+import { GetPromptTemplateParams, RunRequest } from "@/types";
 import {
   anthropicRequest,
   anthropicStreamCompletion,
@@ -90,15 +90,19 @@ export class PromptLayer {
 
   async run({
     prompt_name,
-    templateGetParams,
+    version,
+    label,
+    inputVariables,
     tags,
     metadata,
     group_id,
     stream = false,
   }: RunRequest) {
-    let prompt_input_variables = {};
-    if (templateGetParams?.input_variables)
-      prompt_input_variables = templateGetParams.input_variables;
+    const prompt_input_variables = inputVariables;
+    const templateGetParams: GetPromptTemplateParams = {};
+    if (version) templateGetParams.version = version;
+    if (label) templateGetParams.label = label;
+    if (inputVariables) templateGetParams.input_variables = inputVariables;
     const promptBlueprint = await this.templates.get(
       prompt_name,
       templateGetParams
