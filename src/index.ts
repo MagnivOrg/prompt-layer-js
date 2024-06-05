@@ -90,8 +90,8 @@ export class PromptLayer {
 
   async run({
     prompt_name,
-    version,
-    label,
+    prompt_version,
+    prompt_release_label,
     inputVariables,
     tags,
     metadata,
@@ -99,9 +99,10 @@ export class PromptLayer {
     stream = false,
   }: RunRequest) {
     const prompt_input_variables = inputVariables;
-    const templateGetParams: GetPromptTemplateParams = {};
-    if (version) templateGetParams.version = version;
-    if (label) templateGetParams.label = label;
+    const templateGetParams: GetPromptTemplateParams = {
+      label: prompt_release_label,
+      version: prompt_version,
+    };
     if (inputVariables) templateGetParams.input_variables = inputVariables;
     const promptBlueprint = await this.templates.get(
       prompt_name,

@@ -253,7 +253,7 @@ export interface RunRequest {
   metadata?: Record<string, string>;
   group_id?: number;
   stream?: boolean;
-  version?: number;
-  label?: string;
+  prompt_version?: number;
+  prompt_release_label?: string;
   inputVariables?: Record<string, string>;
 }
