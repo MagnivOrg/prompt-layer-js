@@ -3,16 +3,37 @@ import { promptLayerBase } from "@/promptlayer";
 import { TemplateManager } from "@/templates";
 import { TrackManager } from "@/track";
 import { RunRequest } from "@/types";
-import { anthropicRequest, openaiRequest, trackRequest } from "@/utils";
+import {
+  anthropicRequest,
+  anthropicStreamCompletion,
+  anthropicStreamMessage,
+  openaiRequest,
+  openaiStreamChat,
+  openaiStreamCompletion,
+  streamResponse,
+  trackRequest,
+} from "@/utils";
 
-const MAP_PROVIDER_TO_FUNCTION_NAME: Record<string, any> = {
+const MAP_PROVIDER_TO_FUNCTION_NAME = {
   openai: {
-    chat: "openai.chat.completions.create",
-    completion: "openai.completions.create",
+    chat: {
+      function_name: "openai.chat.completions.create",
+      stream_function: openaiStreamChat,
+    },
+    completion: {
+      function_name: "openai.completions.create",
+      stream_function: openaiStreamCompletion,
+    },
   },
   anthropic: {
-    chat: "anthropic.messages.create",
-    completion: "anthropic.completions.create",
+    chat: {
+      function_name: "anthropic.messages.create",
+      stream_function: anthropicStreamMessage,
+    },
+    completion: {
+      function_name: "anthropic.completions.create",
+      stream_function: anthropicStreamCompletion,
+    },
   },
 };
 
@@ -73,6 +94,7 @@ export class PromptLayer {
     tags,
     metadata,
     group_id,
+    stream = false,
   }: RunRequest) {
     let prompt_input_variables = {};
     if (templateGetParams?.input_variables)
@@ -101,35 +123,49 @@ export class PromptLayer {
       );
     }
     const provider_type = promptBlueprintModel.provider;
-    const requestStartTime = new Date().toISOString();
+    const request_start_time = new Date().toISOString();
     const kwargs = promptBlueprint.llm_kwargs;
-    const function_name =
-      MAP_PROVIDER_TO_FUNCTION_NAME[provider_type][promptTemplate.type];
-    const request_response = await MAP_PROVIDER_TO_FUNCTION[provider_type](
-      promptBlueprint,
-      kwargs
-    );
-    const requestEndTime = new Date().toISOString();
-    const requestLog = await trackRequest({
-      function_name,
-      provider_type,
-      args: [],
-      kwargs,
-      tags,
-      request_response,
-      request_start_time: requestStartTime,
-      request_end_time: requestEndTime,
-      api_key: this.apiKey,
-      metadata,
-      prompt_id: promptBlueprint.id,
-      prompt_version: promptBlueprint.version,
-      prompt_input_variables,
-      group_id,
-      return_prompt_blueprint: true,
-    });
+    const config =
+      MAP_PROVIDER_TO_FUNCTION_NAME[
+        provider_type as keyof typeof MAP_PROVIDER_TO_FUNCTION_NAME
+      ][promptTemplate.type];
+    const function_name = config.function_name;
+    const stream_function = config.stream_function;
+    const request_function = MAP_PROVIDER_TO_FUNCTION[provider_type];
+    const provider_base_url = promptBlueprint.provider_base_url;
+    if (provider_base_url) {
+      kwargs["base_url"] = provider_base_url.url;
+    }
+    kwargs["stream"] = stream;
+    if (stream && provider_type === "openai") {
+      kwargs["stream_options"] = { include_usage: true };
+    }
+    const response = await request_function(promptBlueprint, kwargs);
+    const _trackRequest = (body: object) => {
+      const request_end_time = new Date().toISOString();
+      return trackRequest({
+        function_name,
+        provider_type,
+        args: [],
+        kwargs,
+        tags,
+        request_start_time,
+        request_end_time,
+        api_key: this.apiKey,
+        metadata,
+        prompt_id: promptBlueprint.id,
+        prompt_version: promptBlueprint.version,
+        prompt_input_variables,
+        group_id,
+        return_prompt_blueprint: true,
+        ...body,
+      });
+    };
+    if (stream) return streamResponse(response, _trackRequest, stream_function);
+    const requestLog = await _trackRequest({ request_response: response });
     const data = {
       request_id: requestLog.request_id,
-      raw_response: request_response,
+      raw_response: response,
       prompt_blueprint: requestLog.prompt_blueprint,
     };
     return data;

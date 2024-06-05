@@ -12,9 +12,17 @@ import {
   TrackScore,
 } from "@/types";
 import type TypeAnthropic from "@anthropic-ai/sdk";
-import { Message, MessageStreamEvent } from "@anthropic-ai/sdk/resources";
+import {
+  Completion as AnthropicCompletion,
+  Message,
+  MessageStreamEvent,
+} from "@anthropic-ai/sdk/resources";
 import type TypeOpenAI from "openai";
-import { ChatCompletion, ChatCompletionChunk } from "openai/resources";
+import {
+  ChatCompletion,
+  ChatCompletionChunk,
+  Completion,
+} from "openai/resources";
 
 const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
@@ -323,9 +331,7 @@ const getAllPromptTemplates = async (
   }
 };
 
-const mapChatCompletionChunk = (
-  results: ChatCompletionChunk[]
-): ChatCompletion => {
+const openaiStreamChat = (results: ChatCompletionChunk[]): ChatCompletion => {
   let content: ChatCompletion.Choice["message"]["content"] = null;
   let functionCall: ChatCompletion.Choice["message"]["function_call"] =
     undefined;
@@ -340,6 +346,7 @@ const mapChatCompletionChunk = (
   if (!lastResult) return response;
   let toolCalls: ChatCompletion.Choice["message"]["tool_calls"] = undefined;
   for (const result of results) {
+    if (result.choices.length === 0) continue;
     const delta = result.choices[0].delta;
 
     if (delta.content) {
@@ -379,9 +386,9 @@ const mapChatCompletionChunk = (
     }
   }
   response.choices.push({
-    finish_reason: lastResult.choices[0].finish_reason || "stop",
-    index: lastResult.choices[0].index || 0,
-    logprobs: lastResult.choices[0].logprobs || null,
+    finish_reason: results[0].choices[0].finish_reason || "stop",
+    index: results[0].choices[0].index || 0,
+    logprobs: results[0].choices[0].logprobs || null,
     message: {
       role: "assistant",
       content,
@@ -393,10 +400,11 @@ const mapChatCompletionChunk = (
   response.model = lastResult.model;
   response.created = lastResult.created;
   response.system_fingerprint = lastResult.system_fingerprint;
+  response.usage = lastResult.usage;
   return response;
 };
 
-const mapMessageStreamEvent = (results: MessageStreamEvent[]): Message => {
+const anthropicStreamMessage = (results: MessageStreamEvent[]): Message => {
   let response: Message = {
     id: "",
     model: "",
@@ -458,7 +466,7 @@ const cleaned_result = (
   }
 
   if (function_name === "anthropic.messages.create")
-    return mapMessageStreamEvent(results);
+    return anthropicStreamMessage(results);
 
   if ("text" in results[0].choices[0]) {
     let response = "";
@@ -471,7 +479,7 @@ const cleaned_result = (
   }
 
   if ("delta" in results[0].choices[0]) {
-    const response = mapChatCompletionChunk(results);
+    const response = openaiStreamChat(results);
     response.choices[0] = {
       ...response.choices[0],
       ...response.choices[0].message,
@@ -538,6 +546,86 @@ const trackRequest = async (body: TrackRequest) => {
   return {};
 };
 
+const openaiStreamCompletion = (results: Completion[]) => {
+  const response: Completion = {
+    id: "",
+    choices: [
+      {
+        finish_reason: "stop",
+        index: 0,
+        text: "",
+        logprobs: null,
+      },
+    ],
+    created: Date.now(),
+    model: "",
+    object: "text_completion",
+  };
+  const lastResult = results.at(-1);
+  if (!lastResult) return response;
+  let text = "";
+  for (const result of results) {
+    if (result.choices.length > 0 && result.choices[0].text) {
+      text = `${text}${result.choices[0].text}`;
+    }
+  }
+  response.choices[0].text = text;
+  response.id = lastResult.id;
+  response.created = lastResult.created;
+  response.model = lastResult.model;
+  response.system_fingerprint = lastResult.system_fingerprint;
+  response.usage = lastResult.usage;
+  return response;
+};
+
+const anthropicStreamCompletion = (results: AnthropicCompletion[]) => {
+  const response: AnthropicCompletion = {
+    completion: "",
+    id: "",
+    model: "",
+    stop_reason: "",
+    type: "completion",
+  };
+  const lastResult = results.at(-1);
+  if (!lastResult) return response;
+  let completion = "";
+  for (const result of results) {
+    completion = `${completion}${result.completion}`;
+  }
+  response.completion = completion;
+  response.id = lastResult.id;
+  response.model = lastResult.model;
+  response.stop_reason = lastResult.stop_reason;
+  return response;
+};
+
+async function* streamResponse<Item>(
+  generator: AsyncIterable<Item>,
+  afterStream: (body: object) => any,
+  mapResults: any
+) {
+  const data: {
+    request_id: number | null;
+    raw_response: any;
+    prompt_blueprint: any;
+  } = {
+    request_id: null,
+    raw_response: null,
+    prompt_blueprint: null,
+  };
+  const results = [];
+  for await (const result of generator) {
+    results.push(result);
+    data.raw_response = result;
+    yield data;
+  }
+  const request_response = mapResults(results);
+  const response = await afterStream({ request_response });
+  data.request_id = response.request_id;
+  data.prompt_blueprint = response.prompt_blueprint;
+  yield data;
+}
+
 const openaiChatRequest = async (client: TypeOpenAI, kwargs: any) => {
   return client.chat.completions.create(kwargs);
 };
@@ -591,9 +679,13 @@ const anthropicRequest = async (
 
 export {
   anthropicRequest,
+  anthropicStreamCompletion,
+  anthropicStreamMessage,
   getAllPromptTemplates,
   getPromptTemplate,
   openaiRequest,
+  openaiStreamChat,
+  openaiStreamCompletion,
   promptLayerApiRequest,
   promptLayerCreateGroup,
   promptLayerTrackGroup,
@@ -602,5 +694,6 @@ export {
   promptLayerTrackScore,
   promptlayerApiHandler,
   publishPromptTemplate,
+  streamResponse,
   trackRequest,
 };

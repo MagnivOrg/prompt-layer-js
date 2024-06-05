@@ -217,6 +217,13 @@ export type PromptVersion = {
 export type PublishPromptTemplate = BasePromptTemplate &
   PromptVersion & { release_labels?: string[] };
 
+export interface ProviderBaseURL {
+  id: number;
+  name: string;
+  provider: string;
+  url: string;
+}
+
 export interface BasePromptTemplateResponse {
   id: number;
   prompt_name: string;
@@ -224,6 +231,7 @@ export interface BasePromptTemplateResponse {
   prompt_template: PromptTemplate;
   commit_message?: string;
   metadata?: Metadata;
+  provider_base_url?: ProviderBaseURL;
 }
 
 export interface PublishPromptTemplateResponse
@@ -245,4 +253,5 @@ export interface RunRequest {
   tags?: string[];
   metadata?: Record<string, string>;
   group_id?: number;
+  stream?: boolean;
 }
