@@ -248,12 +248,12 @@ export interface ListPromptTemplatesResponse
 }
 
 export interface RunRequest {
-  prompt_name: string;
+  promptName: string;
   tags?: string[];
   metadata?: Record<string, string>;
-  group_id?: number;
+  groupId?: number;
   stream?: boolean;
-  prompt_version?: number;
-  prompt_release_label?: string;
+  promptVersion?: number;
+  promptReleaseLabel?: string;
   inputVariables?: Record<string, string>;
 }

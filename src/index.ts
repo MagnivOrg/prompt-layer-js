@@ -89,42 +89,42 @@ export class PromptLayer {
   }
 
   async run({
-    prompt_name,
-    prompt_version,
-    prompt_release_label,
+    promptName,
+    promptVersion,
+    promptReleaseLabel,
     inputVariables,
     tags,
     metadata,
-    group_id,
+    groupId: group_id,
     stream = false,
   }: RunRequest) {
     const prompt_input_variables = inputVariables;
     const templateGetParams: GetPromptTemplateParams = {
-      label: prompt_release_label,
-      version: prompt_version,
+      label: promptReleaseLabel,
+      version: promptVersion,
     };
     if (inputVariables) templateGetParams.input_variables = inputVariables;
     const promptBlueprint = await this.templates.get(
-      prompt_name,
+      promptName,
       templateGetParams
     );
     if (!promptBlueprint) throw new Error("Prompt not found");
     const promptTemplate = promptBlueprint.prompt_template;
     if (!promptBlueprint.llm_kwargs) {
       throw new Error(
-        `Prompt '${prompt_name}' does not have any LLM kwargs associated with it.`
+        `Prompt '${promptName}' does not have any LLM kwargs associated with it.`
       );
     }
     const promptBlueprintMetadata = promptBlueprint.metadata;
     if (!promptBlueprintMetadata) {
       throw new Error(
-        `Prompt '${prompt_name}' does not have any metadata associated with it.`
+        `Prompt '${promptName}' does not have any metadata associated with it.`
       );
     }
     const promptBlueprintModel = promptBlueprintMetadata.model;
     if (!promptBlueprintModel) {
       throw new Error(
-        `Prompt '${prompt_name}' does not have a model parameters associated with it.`
+        `Prompt '${promptName}' does not have a model parameters associated with it.`
       );
     }
     const provider_type = promptBlueprintModel.provider;
