@@ -95,7 +95,7 @@ export class PromptLayer {
     inputVariables,
     tags,
     metadata,
-    groupId: group_id,
+    groupId,
     stream = false,
   }: RunRequest) {
     const prompt_input_variables = inputVariables;
@@ -161,7 +161,7 @@ export class PromptLayer {
         prompt_id: promptBlueprint.id,
         prompt_version: promptBlueprint.version,
         prompt_input_variables,
-        group_id,
+        group_id: groupId,
         return_prompt_blueprint: true,
         ...body,
       });
