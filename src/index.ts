@@ -139,7 +139,7 @@ export class PromptLayer {
     const request_function = MAP_PROVIDER_TO_FUNCTION[provider_type];
     const provider_base_url = promptBlueprint.provider_base_url;
     if (provider_base_url) {
-      kwargs["base_url"] = provider_base_url.url;
+      kwargs["baseURL"] = provider_base_url.url;
     }
     kwargs["stream"] = stream;
     if (stream && provider_type === "openai") {
