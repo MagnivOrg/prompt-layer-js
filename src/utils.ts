@@ -644,7 +644,9 @@ const openaiRequest = async (
   kwargs: any
 ) => {
   const OpenAI = require("openai").default;
-  const client = new OpenAI();
+  const client = new OpenAI({
+    baseURL: kwargs.baseURL,
+  });
   const requestToMake =
     MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
   return requestToMake(client, kwargs);
@@ -671,7 +673,9 @@ const anthropicRequest = async (
   kwargs: any
 ) => {
   const Anthropic = require("@anthropic-ai/sdk").default;
-  const client = new Anthropic();
+  const client = new Anthropic({
+    baseURL: kwargs.baseURL,
+  });
   const requestToMake =
     MAP_TYPE_TO_ANTHROPIC_FUNCTION[promptBlueprint.prompt_template.type];
   return requestToMake(client, kwargs);
