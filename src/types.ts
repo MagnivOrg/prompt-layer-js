@@ -31,6 +31,8 @@ export interface TrackRequest {
   tags?: string[];
   request_response?: Record<string, unknown>;
   prompt_input_variables?: Record<string, string> | string[];
+  return_data?: boolean;
+  group_id?: number;
   [k: string]: unknown;
 }
 
@@ -65,8 +67,8 @@ export interface Pagination {
 export interface GetPromptTemplateParams {
   version?: number;
   label?: string;
-  provider: string;
-  input_variables: Record<string, string>;
+  provider?: string;
+  input_variables?: Record<string, string>;
 }
 
 const templateFormat = ["f-string", "jinja2"] as const;
@@ -212,7 +214,15 @@ export type PromptVersion = {
   metadata?: Metadata;
 };
 
-export type PublishPromptTemplate = BasePromptTemplate & PromptVersion & { release_labels?: string[] };
+export type PublishPromptTemplate = BasePromptTemplate &
+  PromptVersion & { release_labels?: string[] };
+
+export interface ProviderBaseURL {
+  id: number;
+  name: string;
+  provider: string;
+  url: string;
+}
 
 export interface BasePromptTemplateResponse {
   id: number;
@@ -221,6 +231,7 @@ export interface BasePromptTemplateResponse {
   prompt_template: PromptTemplate;
   commit_message?: string;
   metadata?: Metadata;
+  provider_base_url?: ProviderBaseURL;
 }
 
 export interface PublishPromptTemplateResponse
@@ -234,4 +245,15 @@ export interface GetPromptTemplateResponse extends BasePromptTemplateResponse {
 export interface ListPromptTemplatesResponse
   extends BasePromptTemplateResponse {
   version: number;
+}
+
+export interface RunRequest {
+  promptName: string;
+  tags?: string[];
+  metadata?: Record<string, string>;
+  groupId?: number;
+  stream?: boolean;
+  promptVersion?: number;
+  promptReleaseLabel?: string;
+  inputVariables?: Record<string, string>;
 }
