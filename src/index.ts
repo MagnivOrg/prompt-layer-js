@@ -102,6 +102,7 @@ export class PromptLayer {
     const templateGetParams: GetPromptTemplateParams = {
       label: promptReleaseLabel,
       version: promptVersion,
+      metadata_filters: metadata,
     };
     if (inputVariables) templateGetParams.input_variables = inputVariables;
     const promptBlueprint = await this.templates.get(
