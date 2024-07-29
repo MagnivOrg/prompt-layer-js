@@ -30,7 +30,7 @@ export interface TrackRequest {
   metadata?: Record<string, string>;
   tags?: string[];
   request_response?: Record<string, unknown>;
-  prompt_input_variables?: Record<string, string> | string[];
+  prompt_input_variables?: Record<string, unknown> | string[];
   return_data?: boolean;
   group_id?: number;
   [k: string]: unknown;
@@ -68,7 +68,7 @@ export interface GetPromptTemplateParams {
   version?: number;
   label?: string;
   provider?: string;
-  input_variables?: Record<string, string>;
+  input_variables?: Record<string, unknown>;
   metadata_filters?: Record<string, string>;
 }
 
@@ -256,5 +256,5 @@ export interface RunRequest {
   stream?: boolean;
   promptVersion?: number;
   promptReleaseLabel?: string;
-  inputVariables?: Record<string, string>;
+  inputVariables?: Record<string, unknown>;
 }
