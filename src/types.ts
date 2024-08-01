@@ -157,12 +157,18 @@ export type ToolMessage = {
   name?: string;
 };
 
+export type PlaceholderMessage = {
+  role: "placeholder";
+  name: string;
+};
+
 export type Message =
   | SystemMessage
   | UserMessage
   | AssistantMessage
   | FunctionMessage
-  | ToolMessage;
+  | ToolMessage
+  | PlaceholderMessage;
 
 export type ChatFunctionCall = {
   name: string;
