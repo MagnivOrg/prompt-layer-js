@@ -18,10 +18,6 @@ class PromptLayerSpanExporter implements SpanExporter {
     return Object.fromEntries(Object.entries(attributes));
   }
 
-  private hrTimeToMilliseconds(time: [number, number]): number {
-    return Math.floor(time[0] * 1000 + time[1] / 1e6);
-  }
-
   private spanKindToString(kind: SpanKind): string {
     const kindMap: Record<SpanKind, string> = {
       [SpanKind.INTERNAL]: 'SpanKind.INTERNAL',
@@ -42,6 +38,10 @@ class PromptLayerSpanExporter implements SpanExporter {
     return statusMap[code] || 'StatusCode.UNSET';
   }
 
+  private toNanoseconds(time: [number, number]): string {
+    return (BigInt(time[0]) * BigInt(1e9) + BigInt(time[1])).toString();
+  };
+
   export(spans: ReadableSpan[]): Promise<ExportResultCode> {
     const requestData = spans.map(span => ({
       name: span.name,
@@ -52,8 +52,8 @@ class PromptLayerSpanExporter implements SpanExporter {
       },
       kind: this.spanKindToString(span.kind),
       parent_id: span.parentSpanId || null,
-      start_time: this.hrTimeToMilliseconds(span.startTime),
-      end_time: this.hrTimeToMilliseconds(span.endTime),
+      start_time: this.toNanoseconds(span.startTime),
+      end_time: this.toNanoseconds(span.endTime),
       status: {
         status_code: this.statusCodeToString(span.status.code),
         description: span.status.message,
@@ -61,7 +61,7 @@ class PromptLayerSpanExporter implements SpanExporter {
       attributes: this.attributesToObject(span.attributes),
       events: span.events.map(event => ({
         name: event.name,
-        timestamp: this.hrTimeToMilliseconds(event.time),
+        timestamp: this.toNanoseconds(event.time),
         attributes: this.attributesToObject(event.attributes),
       })),
       links: span.links.map(link => ({

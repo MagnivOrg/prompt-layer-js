@@ -195,23 +195,37 @@ export class PromptLayer {
         });
 
         const _trackRequest = (body: object) => {
-          const request_end_time = new Date().toISOString();
-          return trackRequest({
-            function_name,
-            provider_type,
-            args: [],
-            kwargs,
-            tags,
-            request_start_time,
-            request_end_time,
-            api_key: this.apiKey,
-            metadata,
-            prompt_id: promptBlueprint.id,
-            prompt_version: promptBlueprint.version,
-            prompt_input_variables,
-            group_id: groupId,
-            return_prompt_blueprint: true,
-            ...body,
+          return tracer.startActiveSpan('PromptLayer._trackRequest', async (trackSpan) => {
+            try {
+              const request_end_time = new Date().toISOString();
+              const result = await trackRequest({
+                function_name,
+                provider_type,
+                args: [],
+                kwargs,
+                tags,
+                request_start_time,
+                request_end_time,
+                api_key: this.apiKey,
+                metadata,
+                prompt_id: promptBlueprint.id,
+                prompt_version: promptBlueprint.version,
+                prompt_input_variables,
+                group_id: groupId,
+                return_prompt_blueprint: true,
+                ...body,
+              });
+              trackSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
+              return result;
+            } catch (error) {
+              trackSpan.setStatus({
+                code: opentelemetry.SpanStatusCode.ERROR,
+                message: error instanceof Error ? error.message : 'Unknown error',
+              });
+              throw error;
+            } finally {
+              trackSpan.end();
+            }
           });
         };
 
