@@ -1,18 +1,7 @@
-import * as opentelemetry from '@opentelemetry/api';
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
-import { SimpleSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
-
-// Set up the tracer provider
-const provider = new NodeTracerProvider();
-const consoleExporter = new ConsoleSpanExporter();
-const processor = new SimpleSpanProcessor(consoleExporter);
-provider.addSpanProcessor(processor);
-provider.register();
-
-// Get a tracer
-const tracer = opentelemetry.trace.getTracer('promptlayer-tracer');
-
+import {getTracer} from "@/tracing";
 import { promptlayerApiHandler } from "@/utils";
+
+const tracer = getTracer();
 
 export const promptLayerBase = (
   apiKey: string,
