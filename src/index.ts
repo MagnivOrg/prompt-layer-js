@@ -1,10 +1,10 @@
 import * as opentelemetry from '@opentelemetry/api';
-import { GroupManager } from "@/groups";
-import { promptLayerBase } from "@/promptlayer";
-import { TemplateManager } from "@/templates";
-import { getTracer, setupTracing } from '@/tracing';
-import { TrackManager } from "@/track";
-import { GetPromptTemplateParams, RunRequest } from "@/types";
+import {GroupManager} from "@/groups";
+import {promptLayerBase} from "@/promptlayer";
+import {TemplateManager} from "@/templates";
+import {getTracer, setupTracing} from '@/tracing';
+import {TrackManager} from "@/track";
+import {GetPromptTemplateParams, RunRequest} from "@/types";
 import {
   anthropicRequest,
   anthropicStreamCompletion,
@@ -57,8 +57,8 @@ export class PromptLayer {
   track: TrackManager;
 
   constructor({
-    apiKey = process.env.PROMPTLAYER_API_KEY,
-  }: ClientOptions = {}) {
+                apiKey = process.env.PROMPTLAYER_API_KEY,
+              }: ClientOptions = {}) {
     if (apiKey === undefined) {
       throw new Error(
         "PromptLayer API key not provided. Please set the PROMPTLAYER_API_KEY environment variable or pass the api_key parameter."
@@ -93,15 +93,15 @@ export class PromptLayer {
   }
 
   async run({
-    promptName,
-    promptVersion,
-    promptReleaseLabel,
-    inputVariables,
-    tags,
-    metadata,
-    groupId,
-    stream = false,
-  }: RunRequest) {
+              promptName,
+              promptVersion,
+              promptReleaseLabel,
+              inputVariables,
+              tags,
+              metadata,
+              groupId,
+              stream = false,
+            }: RunRequest) {
     const tracer = getTracer();
 
     return tracer.startActiveSpan('PromptLayer.run', async (span) => {
@@ -123,29 +123,29 @@ export class PromptLayer {
         if (inputVariables) templateGetParams.input_variables = inputVariables;
 
         const promptBlueprint = await this.templates.get(
-            promptName,
-            templateGetParams
+          promptName,
+          templateGetParams
         );
         if (!promptBlueprint) throw new Error("Prompt not found");
 
         const promptTemplate = promptBlueprint.prompt_template;
         if (!promptBlueprint.llm_kwargs) {
           throw new Error(
-              `Prompt '${promptName}' does not have any LLM kwargs associated with it.`
+            `Prompt '${promptName}' does not have any LLM kwargs associated with it.`
           );
         }
 
         const promptBlueprintMetadata = promptBlueprint.metadata;
         if (!promptBlueprintMetadata) {
           throw new Error(
-              `Prompt '${promptName}' does not have any metadata associated with it.`
+            `Prompt '${promptName}' does not have any metadata associated with it.`
           );
         }
 
         const promptBlueprintModel = promptBlueprintMetadata.model;
         if (!promptBlueprintModel) {
           throw new Error(
-              `Prompt '${promptName}' does not have a model parameters associated with it.`
+            `Prompt '${promptName}' does not have a model parameters associated with it.`
           );
         }
 
@@ -155,9 +155,9 @@ export class PromptLayer {
         const request_start_time = new Date().toISOString();
         const kwargs = promptBlueprint.llm_kwargs;
         const config =
-            MAP_PROVIDER_TO_FUNCTION_NAME[
-                provider_type as keyof typeof MAP_PROVIDER_TO_FUNCTION_NAME
-                ][promptTemplate.type];
+          MAP_PROVIDER_TO_FUNCTION_NAME[
+            provider_type as keyof typeof MAP_PROVIDER_TO_FUNCTION_NAME
+            ][promptTemplate.type];
         const function_name = config.function_name;
         span.setAttribute('function_name', function_name);
 
@@ -169,14 +169,14 @@ export class PromptLayer {
         }
         kwargs["stream"] = stream;
         if (stream && provider_type === "openai") {
-          kwargs["stream_options"] = { include_usage: true };
+          kwargs["stream_options"] = {include_usage: true};
         }
 
         // Create a new span for the request_function call
         const response = await tracer.startActiveSpan(`${provider_type}.request`, async (requestSpan) => {
           try {
             const result = await request_function(promptBlueprint, kwargs);
-            requestSpan.setStatus({ code: opentelemetry.SpanStatusCode.OK });
+            requestSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
             return result;
           } catch (error) {
             requestSpan.setStatus({
@@ -211,7 +211,7 @@ export class PromptLayer {
         };
 
         if (stream) return streamResponse(response, _trackRequest, stream_function);
-        const requestLog = await _trackRequest({ request_response: response });
+        const requestLog = await _trackRequest({request_response: response});
         const data = {
           request_id: requestLog.request_id,
           raw_response: response,

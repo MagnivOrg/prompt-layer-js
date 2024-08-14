@@ -1,5 +1,5 @@
 import {getTracer} from "@/tracing";
-import { promptlayerApiHandler } from "@/utils";
+import {promptlayerApiHandler} from "@/utils";
 
 const tracer = getTracer();
 
@@ -68,31 +68,31 @@ export const promptLayerBase = (
               if (response instanceof Promise) {
                 return new Promise((resolve, reject) => {
                   response
-                      .then(async (request_response) => {
-                        const response = await promptlayerApiHandler(apiKey, {
-                          api_key: apiKey,
-                          provider_type,
-                          function_name,
-                          request_start_time,
-                          request_end_time: new Date().toISOString(),
-                          request_response,
-                          kwargs: args[0],
-                          return_pl_id,
-                          tags: pl_tags,
-                        });
-
-                        // Add response information to the span
-                        span.setAttribute('response_status', 'success');
-                        span.end();
-                        resolve(response);
-                      })
-                      .catch((error) => {
-                        // Record error in the span
-                        span.recordException(error);
-                        span.setAttribute('response_status', 'error');
-                        span.end();
-                        reject(error);
+                    .then(async (request_response) => {
+                      const response = await promptlayerApiHandler(apiKey, {
+                        api_key: apiKey,
+                        provider_type,
+                        function_name,
+                        request_start_time,
+                        request_end_time: new Date().toISOString(),
+                        request_response,
+                        kwargs: args[0],
+                        return_pl_id,
+                        tags: pl_tags,
                       });
+
+                      // Add response information to the span
+                      span.setAttribute('response_status', 'success');
+                      span.end();
+                      resolve(response);
+                    })
+                    .catch((error) => {
+                      // Record error in the span
+                      span.recordException(error);
+                      span.setAttribute('response_status', 'error');
+                      span.end();
+                      reject(error);
+                    });
                 });
               }
 
