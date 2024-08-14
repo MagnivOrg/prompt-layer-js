@@ -1,3 +1,17 @@
+import * as opentelemetry from '@opentelemetry/api';
+import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
+import { SimpleSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
+
+// Set up the tracer provider
+const provider = new NodeTracerProvider();
+const consoleExporter = new ConsoleSpanExporter();
+const processor = new SimpleSpanProcessor(consoleExporter);
+provider.addSpanProcessor(processor);
+provider.register();
+
+// Get a tracer
+const tracer = opentelemetry.trace.getTracer('promptlayer-tracer');
+
 import { promptlayerApiHandler } from "@/utils";
 
 export const promptLayerBase = (
@@ -26,6 +40,7 @@ export const promptLayerBase = (
         target,
         "function_name"
       )}.${prop.toString()}`;
+
       if (typeof value === "object") {
         Object.defineProperties(value, {
           function_name: {
@@ -38,6 +53,7 @@ export const promptLayerBase = (
         });
         return new Proxy(value, handler);
       }
+
       if (typeof value === "function") {
         return (...args: any[]) => {
           const request_start_time = new Date().toISOString();
@@ -46,34 +62,69 @@ export const promptLayerBase = (
           const pl_tags = args[0]?.pl_tags;
           delete args[0]?.return_pl_id;
           delete args[0]?.pl_tags;
-          const response = Reflect.apply(value, target, args);
-          if (response instanceof Promise) {
-            return new Promise((resolve, reject) => {
-              response
-                .then(async (request_response) => {
-                  const response = await promptlayerApiHandler(apiKey, {
-                    api_key: apiKey,
-                    provider_type,
-                    function_name,
-                    request_start_time,
-                    request_end_time: new Date().toISOString(),
-                    request_response,
-                    kwargs: args[0],
-                    return_pl_id,
-                    tags: pl_tags,
-                  });
-                  resolve(response);
-                })
-                .catch((error) => {
-                  reject(error);
+
+          // Create a span for the API call
+          return tracer.startActiveSpan(`${provider_type}.${function_name}`, async (span: any) => {
+            try {
+              // Set span attributes
+              span.setAttribute('provider_type', provider_type);
+              span.setAttribute('function_name', function_name);
+              if (pl_tags) {
+                span.setAttribute('pl_tags', JSON.stringify(pl_tags));
+              }
+
+              // Call the original function
+              const response = Reflect.apply(value, target, args);
+
+              if (response instanceof Promise) {
+                return new Promise((resolve, reject) => {
+                  response
+                      .then(async (request_response) => {
+                        const response = await promptlayerApiHandler(apiKey, {
+                          api_key: apiKey,
+                          provider_type,
+                          function_name,
+                          request_start_time,
+                          request_end_time: new Date().toISOString(),
+                          request_response,
+                          kwargs: args[0],
+                          return_pl_id,
+                          tags: pl_tags,
+                        });
+
+                        // Add response information to the span
+                        span.setAttribute('response_status', 'success');
+                        span.end();
+                        resolve(response);
+                      })
+                      .catch((error) => {
+                        // Record error in the span
+                        span.recordException(error);
+                        span.setAttribute('response_status', 'error');
+                        span.end();
+                        reject(error);
+                      });
                 });
-            });
-          }
-          return response;
+              }
+
+              // For non-promise responses
+              span.setAttribute('response_status', 'success');
+              span.end();
+              return response;
+            } catch (error) {
+              // Record error in the span
+              span.recordException(error);
+              span.setAttribute('response_status', 'error');
+              span.end();
+              throw error;
+            }
+          });
         };
       }
+
       return Reflect.get(target, prop, receiver);
     },
   };
+
   return new Proxy(llm, handler);
 };

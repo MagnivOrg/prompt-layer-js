@@ -24,7 +24,8 @@ import {
   Completion,
 } from "openai/resources";
 
-const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
+// TODO: Revert this before merging
+const URL_API_PROMPTLAYER = "http://localhost:8000";
 
 const promptlayerApiHandler = async <Item>(
   apiKey: string,
