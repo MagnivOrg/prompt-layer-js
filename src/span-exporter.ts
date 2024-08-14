@@ -18,6 +18,10 @@ class PromptLayerSpanExporter implements SpanExporter {
     return Object.fromEntries(Object.entries(attributes));
   }
 
+  private hrTimeToMilliseconds(time: [number, number]): number {
+    return Math.floor(time[0] * 1000 + time[1] / 1e6);
+  }
+
   private spanKindToString(kind: SpanKind): string {
     const kindMap: Record<SpanKind, string> = {
       [SpanKind.INTERNAL]: 'SpanKind.INTERNAL',
@@ -30,12 +34,12 @@ class PromptLayerSpanExporter implements SpanExporter {
   }
 
   private statusCodeToString(code: SpanStatusCode): string {
-    // Always return 'StatusCode.UNSET' as per API requirement
-    return 'StatusCode.UNSET';
-  }
-
-  private hrTimeToMilliseconds(time: [number, number]): number {
-    return Math.floor(time[0] * 1000 + time[1] / 1e6);
+    const statusMap: Record<SpanStatusCode, string> = {
+      [SpanStatusCode.ERROR]: 'StatusCode.ERROR',
+      [SpanStatusCode.OK]: 'StatusCode.OK',
+      [SpanStatusCode.UNSET]: 'StatusCode.UNSET',
+    };
+    return statusMap[code] || 'StatusCode.UNSET';
   }
 
   export(spans: ReadableSpan[]): Promise<ExportResultCode> {
@@ -65,12 +69,15 @@ class PromptLayerSpanExporter implements SpanExporter {
         attributes: this.attributesToObject(link.attributes),
       })),
       resource: {
-        attributes: this.attributesToObject(span.resource.attributes),
+        attributes: {
+          ...span.resource.attributes,
+          "service.name": "prompt-layer-js",
+        },
         schema_url: '',
       },
     }));
 
-    // TODO: Remove
+    // // TODO: Remove
     console.log({
       spans: requestData,
       workspace_id: 1,
@@ -85,7 +92,7 @@ class PromptLayerSpanExporter implements SpanExporter {
       {
         headers: {
           'Content-Type': 'application/json',
-          "X-API-KEY": this.apiKey,
+          'X-API-KEY': this.apiKey,
         },
       }
     )
