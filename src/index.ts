@@ -57,8 +57,8 @@ export class PromptLayer {
   track: TrackManager;
 
   constructor({
-                apiKey = process.env.PROMPTLAYER_API_KEY,
-              }: ClientOptions = {}) {
+    apiKey = process.env.PROMPTLAYER_API_KEY,
+  }: ClientOptions = {}) {
     if (apiKey === undefined) {
       throw new Error(
         "PromptLayer API key not provided. Please set the PROMPTLAYER_API_KEY environment variable or pass the api_key parameter."
@@ -68,17 +68,6 @@ export class PromptLayer {
     this.templates = new TemplateManager(apiKey);
     this.group = new GroupManager(apiKey);
     this.track = new TrackManager(apiKey);
-  }
-
-  get OpenAI() {
-    try {
-      const module = require("openai").default;
-      return promptLayerBase(this.apiKey, module, "openai", "openai");
-    } catch (e) {
-      console.error(
-        "To use the OpenAI module, you must install the @openai/api package."
-      );
-    }
   }
 
   get Anthropic() {
@@ -92,28 +81,31 @@ export class PromptLayer {
     }
   }
 
+  get OpenAI() {
+    try {
+      const module = require("openai").default;
+      return promptLayerBase(this.apiKey, module, "openai", "openai");
+    } catch (e) {
+      console.error(
+        "To use the OpenAI module, you must install the @openai/api package."
+      );
+    }
+  }
+
   async run({
-              promptName,
-              promptVersion,
-              promptReleaseLabel,
-              inputVariables,
-              tags,
-              metadata,
-              groupId,
-              stream = false,
-            }: RunRequest) {
+    promptName,
+    promptVersion,
+    promptReleaseLabel,
+    inputVariables,
+    tags,
+    metadata,
+    groupId,
+    stream = false,
+  }: RunRequest) {
     const tracer = getTracer();
 
     return tracer.startActiveSpan('PromptLayer.run', async (span) => {
       try {
-        span.setAttribute('promptName', promptName);
-        span.setAttribute('promptVersion', promptVersion || 'undefined');
-        span.setAttribute('promptReleaseLabel', promptReleaseLabel || 'undefined');
-        span.setAttribute('stream', stream);
-
-        if (tags) span.setAttribute('tags', JSON.stringify(tags));
-        if (groupId) span.setAttribute('groupId', groupId);
-
         const prompt_input_variables = inputVariables;
         const templateGetParams: GetPromptTemplateParams = {
           label: promptReleaseLabel,
@@ -150,7 +142,6 @@ export class PromptLayer {
         }
 
         const provider_type = promptBlueprintModel.provider;
-        span.setAttribute('provider_type', provider_type);
 
         const request_start_time = new Date().toISOString();
         const kwargs = promptBlueprint.llm_kwargs;
@@ -159,7 +150,6 @@ export class PromptLayer {
             provider_type as keyof typeof MAP_PROVIDER_TO_FUNCTION_NAME
             ][promptTemplate.type];
         const function_name = config.function_name;
-        span.setAttribute('function_name', function_name);
 
         const stream_function = config.stream_function;
         const request_function = MAP_PROVIDER_TO_FUNCTION[provider_type];
@@ -212,12 +202,12 @@ export class PromptLayer {
 
         if (stream) return streamResponse(response, _trackRequest, stream_function);
         const requestLog = await _trackRequest({request_response: response});
-        const data = {
+
+        return {
           request_id: requestLog.request_id,
           raw_response: response,
           prompt_blueprint: requestLog.prompt_blueprint,
         };
-        return data;
       } catch (error) {
         span.setStatus({
           code: opentelemetry.SpanStatusCode.ERROR,
