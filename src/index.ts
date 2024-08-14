@@ -114,10 +114,25 @@ export class PromptLayer {
         };
         if (inputVariables) templateGetParams.input_variables = inputVariables;
 
-        const promptBlueprint = await this.templates.get(
-          promptName,
-          templateGetParams
-        );
+        const promptBlueprint = await tracer.startActiveSpan('PromptLayer.templates.get', async (templateSpan) => {
+          try {
+            const result = await this.templates.get(
+              promptName,
+              templateGetParams
+            );
+            templateSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
+            return result;
+          } catch (error) {
+            templateSpan.setStatus({
+              code: opentelemetry.SpanStatusCode.ERROR,
+              message: error instanceof Error ? error.message : 'Unknown error',
+            });
+            throw error;
+          } finally {
+            templateSpan.end();
+          }
+        });
+
         if (!promptBlueprint) throw new Error("Prompt not found");
 
         const promptTemplate = promptBlueprint.prompt_template;
