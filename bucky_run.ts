@@ -1,7 +1,8 @@
 import {PromptLayer} from "@/index";
 
 const promptlayer = new PromptLayer({
-  apiKey: process.env.PROMPTLAYER_API_KEY
+  apiKey: process.env.PROMPTLAYER_API_KEY,
+  enableTracing: true,
 });
 
 const runPromptExample = async () => {

@@ -6,10 +6,12 @@ import {URL_API_PROMPTLAYER} from '@/utils';
 
 class PromptLayerSpanExporter implements SpanExporter {
   private apiKey: string | undefined;
+  private enableTracing: boolean;
   private url: string;
 
-  constructor() {
+  constructor(enableTracing: boolean) {
     this.apiKey = process.env.PROMPTLAYER_API_KEY;
+    this.enableTracing = enableTracing;
     this.url = `${URL_API_PROMPTLAYER}/spans-bulk`;
   }
 
@@ -43,6 +45,10 @@ class PromptLayerSpanExporter implements SpanExporter {
   };
 
   export(spans: ReadableSpan[]): Promise<ExportResultCode> {
+    if (!this.enableTracing) {
+      return Promise.resolve(ExportResultCode.SUCCESS);
+    }
+
     const requestData = spans.map(span => ({
       name: span.name,
       context: {

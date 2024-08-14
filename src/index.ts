@@ -16,8 +16,6 @@ import {
   trackRequest,
 } from "@/utils";
 
-setupTracing();
-
 const MAP_PROVIDER_TO_FUNCTION_NAME = {
   openai: {
     chat: {
@@ -48,6 +46,7 @@ const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
 
 export interface ClientOptions {
   apiKey?: string;
+  enableTracing?: boolean;
 }
 
 export class PromptLayer {
@@ -55,9 +54,11 @@ export class PromptLayer {
   templates: TemplateManager;
   group: GroupManager;
   track: TrackManager;
+  enableTracing: boolean;
 
   constructor({
     apiKey = process.env.PROMPTLAYER_API_KEY,
+    enableTracing = false,
   }: ClientOptions = {}) {
     if (apiKey === undefined) {
       throw new Error(
@@ -65,9 +66,12 @@ export class PromptLayer {
       );
     }
     this.apiKey = apiKey;
+    this.enableTracing = enableTracing;
     this.templates = new TemplateManager(apiKey);
     this.group = new GroupManager(apiKey);
     this.track = new TrackManager(apiKey);
+
+    setupTracing(this.enableTracing);
   }
 
   get Anthropic() {
