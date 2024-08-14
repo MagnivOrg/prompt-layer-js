@@ -1,6 +1,7 @@
 import * as opentelemetry from '@opentelemetry/api';
 import {GroupManager} from "@/groups";
 import {promptLayerBase} from "@/promptlayer";
+import { wrapWithSpan } from '@/span-wrapper';
 import {TemplateManager} from "@/templates";
 import {getTracer, setupTracing} from '@/tracing';
 import {TrackManager} from "@/track";
@@ -55,6 +56,7 @@ export class PromptLayer {
   group: GroupManager;
   track: TrackManager;
   enableTracing: boolean;
+  wrapWithSpan: typeof wrapWithSpan;
 
   constructor({
     apiKey = process.env.PROMPTLAYER_API_KEY,
@@ -70,6 +72,7 @@ export class PromptLayer {
     this.templates = new TemplateManager(apiKey);
     this.group = new GroupManager(apiKey);
     this.track = new TrackManager(apiKey);
+    this.wrapWithSpan = wrapWithSpan;
 
     setupTracing(this.enableTracing);
   }
