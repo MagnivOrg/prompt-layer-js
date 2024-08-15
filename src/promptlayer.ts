@@ -54,6 +54,7 @@ export const promptLayerBase = (
 
           return tracer.startActiveSpan(`${provider_type}.${function_name}`, async (span: any) => {
             try {
+              span.setAttribute('function_input', JSON.stringify(args));
               const response = Reflect.apply(value, target, args);
               const spanId = span.spanContext().spanId;
 
@@ -74,6 +75,7 @@ export const promptLayerBase = (
                         span_id: spanId,
                       });
 
+                      span.setAttribute('function_output', JSON.stringify(response));
                       span.setAttribute('response_status', 'success');
                       span.end();
                       resolve(response);
@@ -87,6 +89,7 @@ export const promptLayerBase = (
                 });
               }
 
+              span.setAttribute('function_output', JSON.stringify(response));
               span.setAttribute('response_status', 'success');
               span.end();
               return response;

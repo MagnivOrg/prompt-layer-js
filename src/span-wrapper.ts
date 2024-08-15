@@ -7,10 +7,13 @@ export const wrapWithSpan = (functionName: string, func: Function) => {
 
     return tracer.startActiveSpan(functionName, async (span) => {
       try {
+        span.setAttribute('function_input', JSON.stringify(args));
         const result = await func(...args);
+        span.setAttribute('function_output', JSON.stringify(result));
         span.setStatus({ code: opentelemetry.SpanStatusCode.OK });
         return result;
       } catch (error) {
+        span.setAttribute('function_input', JSON.stringify(args));
         span.setStatus({
           code: opentelemetry.SpanStatusCode.ERROR,
           message: error instanceof Error ? error.message : 'Unknown error',
