@@ -214,7 +214,6 @@ export class PromptLayer {
 
         let requestSpanId: string;
 
-        // Create a new span for the request_function call
         const response = await tracer.startActiveSpan(`${provider_type}.request`, async (requestSpan) => {
           requestSpanId = requestSpan.spanContext().spanId;
 
