@@ -83,12 +83,6 @@ class PromptLayerSpanExporter implements SpanExporter {
       },
     }));
 
-    // TODO: Remove
-    console.log({
-      spans: requestData,
-      workspace_id: 1,
-    });
-
     // TODO: Consider swapping out Axios
     return axios.post(
       this.url,
