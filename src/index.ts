@@ -184,8 +184,12 @@ export class PromptLayer {
           kwargs["stream_options"] = {include_usage: true};
         }
 
+        let requestSpanId: string;
+
         // Create a new span for the request_function call
         const response = await tracer.startActiveSpan(`${provider_type}.request`, async (requestSpan) => {
+          requestSpanId = requestSpan.spanContext().spanId;
+
           try {
             const result = await request_function(promptBlueprint, kwargs);
             requestSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
@@ -220,6 +224,7 @@ export class PromptLayer {
                 prompt_input_variables,
                 group_id: groupId,
                 return_prompt_blueprint: true,
+                span_id: requestSpanId,
                 ...body,
               });
               trackSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
