@@ -97,7 +97,8 @@ class PromptLayerSpanExporter implements SpanExporter {
     })
       .then(response => {
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          console.error(`Error exporting spans\nHTTP error! status: ${response.status}`);
+          return ExportResultCode.FAILED;
         }
         return ExportResultCode.SUCCESS;
       })
