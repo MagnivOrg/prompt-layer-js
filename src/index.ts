@@ -113,6 +113,18 @@ export class PromptLayer {
 
     return tracer.startActiveSpan('PromptLayer.run', async (span) => {
       try {
+        const functionInput = {
+          promptName,
+          promptVersion,
+          promptReleaseLabel,
+          inputVariables,
+          tags,
+          metadata,
+          groupId,
+          stream,
+        };
+        span.setAttribute('function_input', JSON.stringify(functionInput));
+
         const prompt_input_variables = inputVariables;
         const templateGetParams: GetPromptTemplateParams = {
           label: promptReleaseLabel,
@@ -123,10 +135,15 @@ export class PromptLayer {
 
         const promptBlueprint = await tracer.startActiveSpan('PromptLayer.templates.get', async (templateSpan) => {
           try {
+            templateSpan.setAttribute('function_input', JSON.stringify({
+              promptName,
+              templateGetParams,
+            }));
             const result = await this.templates.get(
               promptName,
               templateGetParams
             );
+            templateSpan.setAttribute('function_output', JSON.stringify(result));
             templateSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
             return result;
           } catch (error) {
@@ -191,7 +208,12 @@ export class PromptLayer {
           requestSpanId = requestSpan.spanContext().spanId;
 
           try {
+            requestSpan.setAttribute('function_input', JSON.stringify({
+              promptBlueprint,
+              kwargs,
+            }));
             const result = await request_function(promptBlueprint, kwargs);
+            requestSpan.setAttribute('function_output', JSON.stringify(result));
             requestSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
             return result;
           } catch (error) {
@@ -209,7 +231,7 @@ export class PromptLayer {
           return tracer.startActiveSpan('PromptLayer._trackRequest', async (trackSpan) => {
             try {
               const request_end_time = new Date().toISOString();
-              const result = await trackRequest({
+              const trackRequestInput = {
                 function_name,
                 provider_type,
                 args: [],
@@ -226,7 +248,10 @@ export class PromptLayer {
                 return_prompt_blueprint: true,
                 span_id: requestSpanId,
                 ...body,
-              });
+              };
+              trackSpan.setAttribute('function_input', JSON.stringify(trackRequestInput));
+              const result = await trackRequest(trackRequestInput);
+              trackSpan.setAttribute('function_output', JSON.stringify(result));
               trackSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
               return result;
             } catch (error) {
@@ -244,11 +269,14 @@ export class PromptLayer {
         if (stream) return streamResponse(response, _trackRequest, stream_function);
         const requestLog = await _trackRequest({request_response: response});
 
-        return {
+        const functionOutput = {
           request_id: requestLog.request_id,
           raw_response: response,
           prompt_blueprint: requestLog.prompt_blueprint,
         };
+        span.setAttribute('function_output', JSON.stringify(functionOutput));
+
+        return functionOutput;
       } catch (error) {
         span.setStatus({
           code: opentelemetry.SpanStatusCode.ERROR,
