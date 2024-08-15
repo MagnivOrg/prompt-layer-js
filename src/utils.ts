@@ -24,7 +24,7 @@ import {
   Completion,
 } from "openai/resources";
 
-export const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
+export const URL_API_PROMPTLAYER = process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
 
 const promptlayerApiHandler = async <Item>(
   apiKey: string,

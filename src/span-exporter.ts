@@ -1,4 +1,3 @@
-import axios from 'axios';
 import {Attributes, SpanKind, SpanStatusCode} from '@opentelemetry/api';
 import {ReadableSpan, SpanExporter} from '@opentelemetry/sdk-trace-base';
 import {ExportResultCode} from '@opentelemetry/core';
@@ -8,11 +7,13 @@ class PromptLayerSpanExporter implements SpanExporter {
   private apiKey: string | undefined;
   private enableTracing: boolean;
   private url: string;
+  private workspaceId: number;
 
-  constructor(enableTracing: boolean) {
+  constructor(enableTracing: boolean, workspaceId: number) {
     this.apiKey = process.env.PROMPTLAYER_API_KEY;
     this.enableTracing = enableTracing;
     this.url = `${URL_API_PROMPTLAYER}/spans-bulk`;
+    this.workspaceId = workspaceId;
   }
 
   private attributesToObject(attributes: Attributes | undefined): Record<string, any> {
@@ -83,21 +84,23 @@ class PromptLayerSpanExporter implements SpanExporter {
       },
     }));
 
-    // TODO: Consider swapping out Axios
-    return axios.post(
-      this.url,
-      {
-        spans: requestData,
-        workspace_id: 1,
+    return fetch(this.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': this.apiKey || '',
       },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': this.apiKey,
-        },
-      }
-    )
-      .then(() => ExportResultCode.SUCCESS)
+      body: JSON.stringify({
+        spans: requestData,
+        workspace_id: this.workspaceId,
+      }),
+    })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return ExportResultCode.SUCCESS;
+      })
       .catch((error) => {
         console.error('Error exporting spans:', error);
         return ExportResultCode.FAILED;

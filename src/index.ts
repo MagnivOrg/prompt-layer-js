@@ -48,6 +48,7 @@ const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
 export interface ClientOptions {
   apiKey?: string;
   enableTracing?: boolean;
+  workspaceId?: number;
 }
 
 export class PromptLayer {
@@ -56,25 +57,35 @@ export class PromptLayer {
   group: GroupManager;
   track: TrackManager;
   enableTracing: boolean;
+  workspaceId?: number;
   wrapWithSpan: typeof wrapWithSpan;
 
   constructor({
     apiKey = process.env.PROMPTLAYER_API_KEY,
     enableTracing = false,
+    workspaceId,
   }: ClientOptions = {}) {
     if (apiKey === undefined) {
       throw new Error(
         "PromptLayer API key not provided. Please set the PROMPTLAYER_API_KEY environment variable or pass the api_key parameter."
       );
     }
+
+    if (enableTracing && workspaceId === undefined) {
+      throw new Error("Please set a workspaceId to enable tracing.")
+    }
+
     this.apiKey = apiKey;
     this.enableTracing = enableTracing;
     this.templates = new TemplateManager(apiKey);
     this.group = new GroupManager(apiKey);
     this.track = new TrackManager(apiKey);
+    this.workspaceId = workspaceId;
     this.wrapWithSpan = wrapWithSpan;
 
-    setupTracing(this.enableTracing);
+    if (enableTracing && workspaceId) {
+      setupTracing(enableTracing, workspaceId);
+    }
   }
 
   get Anthropic() {
