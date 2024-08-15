@@ -52,18 +52,10 @@ export const promptLayerBase = (
           delete args[0]?.return_pl_id;
           delete args[0]?.pl_tags;
 
-          // Create a span for the API call
           return tracer.startActiveSpan(`${provider_type}.${function_name}`, async (span: any) => {
             try {
-              // Set span attributes
-              span.setAttribute('provider_type', provider_type);
-              span.setAttribute('function_name', function_name);
-              if (pl_tags) {
-                span.setAttribute('pl_tags', JSON.stringify(pl_tags));
-              }
-
-              // Call the original function
               const response = Reflect.apply(value, target, args);
+              const spanId = span.spanContext().spanId;
 
               if (response instanceof Promise) {
                 return new Promise((resolve, reject) => {
@@ -79,15 +71,14 @@ export const promptLayerBase = (
                         kwargs: args[0],
                         return_pl_id,
                         tags: pl_tags,
+                        span_id: spanId,
                       });
 
-                      // Add response information to the span
                       span.setAttribute('response_status', 'success');
                       span.end();
                       resolve(response);
                     })
                     .catch((error) => {
-                      // Record error in the span
                       span.recordException(error);
                       span.setAttribute('response_status', 'error');
                       span.end();
@@ -96,12 +87,10 @@ export const promptLayerBase = (
                 });
               }
 
-              // For non-promise responses
               span.setAttribute('response_status', 'success');
               span.end();
               return response;
             } catch (error) {
-              // Record error in the span
               span.recordException(error);
               span.setAttribute('response_status', 'error');
               span.end();

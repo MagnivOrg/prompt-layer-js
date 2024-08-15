@@ -33,6 +33,7 @@ export interface TrackRequest {
   prompt_input_variables?: Record<string, unknown> | string[];
   return_data?: boolean;
   group_id?: number;
+  span_id?: string;
   [k: string]: unknown;
 }
 
