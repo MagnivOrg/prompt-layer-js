@@ -1,11 +1,11 @@
-import * as opentelemetry from '@opentelemetry/api';
-import {GroupManager} from "@/groups";
-import {promptLayerBase} from "@/promptlayer";
-import { wrapWithSpan } from '@/span-wrapper';
-import {TemplateManager} from "@/templates";
-import {getTracer, setupTracing} from '@/tracing';
-import {TrackManager} from "@/track";
-import {GetPromptTemplateParams, RunRequest} from "@/types";
+import * as opentelemetry from "@opentelemetry/api";
+import { GroupManager } from "@/groups";
+import { promptLayerBase } from "@/promptlayer";
+import { wrapWithSpan } from "@/span-wrapper";
+import { TemplateManager } from "@/templates";
+import { getTracer, setupTracing } from "@/tracing";
+import { TrackManager } from "@/track";
+import { GetPromptTemplateParams, RunRequest } from "@/types";
 import {
   anthropicRequest,
   anthropicStreamCompletion,
@@ -67,12 +67,12 @@ export class PromptLayer {
   }: ClientOptions = {}) {
     if (apiKey === undefined) {
       throw new Error(
-        "PromptLayer API key not provided. Please set the PROMPTLAYER_API_KEY environment variable or pass the api_key parameter."
+        "PromptLayer API key not provided. Please set the PROMPTLAYER_API_KEY environment variable or pass the api_key parameter.",
       );
     }
 
     if (enableTracing && workspaceId === undefined) {
-      throw new Error("Please set a workspaceId to enable tracing.")
+      throw new Error("Please set a workspaceId to enable tracing.");
     }
 
     this.apiKey = apiKey;
@@ -94,7 +94,7 @@ export class PromptLayer {
       return promptLayerBase(this.apiKey, module, "anthropic", "anthropic");
     } catch (e) {
       console.error(
-        "To use the Anthropic module, you must install the @anthropic-ai/sdk package."
+        "To use the Anthropic module, you must install the @anthropic-ai/sdk package.",
       );
     }
   }
@@ -105,7 +105,7 @@ export class PromptLayer {
       return promptLayerBase(this.apiKey, module, "openai", "openai");
     } catch (e) {
       console.error(
-        "To use the OpenAI module, you must install the @openai/api package."
+        "To use the OpenAI module, you must install the @openai/api package.",
       );
     }
   }
@@ -122,7 +122,7 @@ export class PromptLayer {
   }: RunRequest) {
     const tracer = getTracer();
 
-    return tracer.startActiveSpan('PromptLayer.run', async (span) => {
+    return tracer.startActiveSpan("PromptLayer.run", async (span) => {
       try {
         const functionInput = {
           promptName,
@@ -134,7 +134,7 @@ export class PromptLayer {
           groupId,
           stream,
         };
-        span.setAttribute('function_input', JSON.stringify(functionInput));
+        span.setAttribute("function_input", JSON.stringify(functionInput));
 
         const prompt_input_variables = inputVariables;
         const templateGetParams: GetPromptTemplateParams = {
@@ -144,50 +144,60 @@ export class PromptLayer {
         };
         if (inputVariables) templateGetParams.input_variables = inputVariables;
 
-        const promptBlueprint = await tracer.startActiveSpan('PromptLayer.templates.get', async (templateSpan) => {
-          try {
-            templateSpan.setAttribute('function_input', JSON.stringify({
-              promptName,
-              templateGetParams,
-            }));
-            const result = await this.templates.get(
-              promptName,
-              templateGetParams
-            );
-            templateSpan.setAttribute('function_output', JSON.stringify(result));
-            templateSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
-            return result;
-          } catch (error) {
-            templateSpan.setStatus({
-              code: opentelemetry.SpanStatusCode.ERROR,
-              message: error instanceof Error ? error.message : 'Unknown error',
-            });
-            throw error;
-          } finally {
-            templateSpan.end();
-          }
-        });
+        const promptBlueprint = await tracer.startActiveSpan(
+          "PromptLayer.templates.get",
+          async (templateSpan) => {
+            try {
+              templateSpan.setAttribute(
+                "function_input",
+                JSON.stringify({
+                  promptName,
+                  templateGetParams,
+                }),
+              );
+              const result = await this.templates.get(
+                promptName,
+                templateGetParams,
+              );
+              templateSpan.setAttribute(
+                "function_output",
+                JSON.stringify(result),
+              );
+              templateSpan.setStatus({ code: opentelemetry.SpanStatusCode.OK });
+              return result;
+            } catch (error) {
+              templateSpan.setStatus({
+                code: opentelemetry.SpanStatusCode.ERROR,
+                message:
+                  error instanceof Error ? error.message : "Unknown error",
+              });
+              throw error;
+            } finally {
+              templateSpan.end();
+            }
+          },
+        );
 
         if (!promptBlueprint) throw new Error("Prompt not found");
 
         const promptTemplate = promptBlueprint.prompt_template;
         if (!promptBlueprint.llm_kwargs) {
           throw new Error(
-            `Prompt '${promptName}' does not have any LLM kwargs associated with it.`
+            `Prompt '${promptName}' does not have any LLM kwargs associated with it.`,
           );
         }
 
         const promptBlueprintMetadata = promptBlueprint.metadata;
         if (!promptBlueprintMetadata) {
           throw new Error(
-            `Prompt '${promptName}' does not have any metadata associated with it.`
+            `Prompt '${promptName}' does not have any metadata associated with it.`,
           );
         }
 
         const promptBlueprintModel = promptBlueprintMetadata.model;
         if (!promptBlueprintModel) {
           throw new Error(
-            `Prompt '${promptName}' does not have a model parameters associated with it.`
+            `Prompt '${promptName}' does not have a model parameters associated with it.`,
           );
         }
 
@@ -198,7 +208,7 @@ export class PromptLayer {
         const config =
           MAP_PROVIDER_TO_FUNCTION_NAME[
             provider_type as keyof typeof MAP_PROVIDER_TO_FUNCTION_NAME
-            ][promptTemplate.type];
+          ][promptTemplate.type];
         const function_name = config.function_name;
 
         const stream_function = config.stream_function;
@@ -209,88 +219,109 @@ export class PromptLayer {
         }
         kwargs["stream"] = stream;
         if (stream && provider_type === "openai") {
-          kwargs["stream_options"] = {include_usage: true};
+          kwargs["stream_options"] = { include_usage: true };
         }
 
         let requestSpanId: string;
 
-        const response = await tracer.startActiveSpan(`${provider_type}.request`, async (requestSpan) => {
-          requestSpanId = requestSpan.spanContext().spanId;
+        const response = await tracer.startActiveSpan(
+          `${provider_type}.request`,
+          async (requestSpan) => {
+            requestSpanId = requestSpan.spanContext().spanId;
 
-          try {
-            requestSpan.setAttribute('function_input', JSON.stringify({
-              promptBlueprint,
-              kwargs,
-            }));
-            const result = await request_function(promptBlueprint, kwargs);
-            requestSpan.setAttribute('function_output', JSON.stringify(result));
-            requestSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
-            return result;
-          } catch (error) {
-            requestSpan.setStatus({
-              code: opentelemetry.SpanStatusCode.ERROR,
-              message: error instanceof Error ? error.message : 'Unknown error',
-            });
-            throw error;
-          } finally {
-            requestSpan.end();
-          }
-        });
-
-        const _trackRequest = (body: object) => {
-          return tracer.startActiveSpan('PromptLayer._trackRequest', async (trackSpan) => {
             try {
-              const request_end_time = new Date().toISOString();
-              const trackRequestInput = {
-                function_name,
-                provider_type,
-                args: [],
-                kwargs,
-                tags,
-                request_start_time,
-                request_end_time,
-                api_key: this.apiKey,
-                metadata,
-                prompt_id: promptBlueprint.id,
-                prompt_version: promptBlueprint.version,
-                prompt_input_variables,
-                group_id: groupId,
-                return_prompt_blueprint: true,
-                span_id: requestSpanId,
-                ...body,
-              };
-              trackSpan.setAttribute('function_input', JSON.stringify(trackRequestInput));
-              const result = await trackRequest(trackRequestInput);
-              trackSpan.setAttribute('function_output', JSON.stringify(result));
-              trackSpan.setStatus({code: opentelemetry.SpanStatusCode.OK});
+              requestSpan.setAttribute(
+                "function_input",
+                JSON.stringify({
+                  promptBlueprint,
+                  kwargs,
+                }),
+              );
+              const result = await request_function(promptBlueprint, kwargs);
+              requestSpan.setAttribute(
+                "function_output",
+                JSON.stringify(result),
+              );
+              requestSpan.setStatus({ code: opentelemetry.SpanStatusCode.OK });
               return result;
             } catch (error) {
-              trackSpan.setStatus({
+              requestSpan.setStatus({
                 code: opentelemetry.SpanStatusCode.ERROR,
-                message: error instanceof Error ? error.message : 'Unknown error',
+                message:
+                  error instanceof Error ? error.message : "Unknown error",
               });
               throw error;
             } finally {
-              trackSpan.end();
+              requestSpan.end();
             }
-          });
+          },
+        );
+
+        const _trackRequest = (body: object) => {
+          return tracer.startActiveSpan(
+            "PromptLayer._trackRequest",
+            async (trackSpan) => {
+              try {
+                const request_end_time = new Date().toISOString();
+                const trackRequestInput = {
+                  function_name,
+                  provider_type,
+                  args: [],
+                  kwargs,
+                  tags,
+                  request_start_time,
+                  request_end_time,
+                  api_key: this.apiKey,
+                  metadata,
+                  prompt_id: promptBlueprint.id,
+                  prompt_version: promptBlueprint.version,
+                  prompt_input_variables,
+                  group_id: groupId,
+                  return_prompt_blueprint: true,
+                  span_id: requestSpanId,
+                  ...body,
+                };
+                trackSpan.setAttribute(
+                  "function_input",
+                  JSON.stringify(trackRequestInput),
+                );
+                const result = await trackRequest(trackRequestInput);
+                trackSpan.setAttribute(
+                  "function_output",
+                  JSON.stringify(result),
+                );
+                trackSpan.setStatus({ code: opentelemetry.SpanStatusCode.OK });
+                return result;
+              } catch (error) {
+                trackSpan.setStatus({
+                  code: opentelemetry.SpanStatusCode.ERROR,
+                  message:
+                    error instanceof Error ? error.message : "Unknown error",
+                });
+                throw error;
+              } finally {
+                trackSpan.end();
+              }
+            },
+          );
         };
 
-        if (stream) return streamResponse(response, _trackRequest, stream_function);
-        const requestLog = await _trackRequest({request_response: response});
+        if (stream)
+          return streamResponse(response, _trackRequest, stream_function);
+        const requestLog = await _trackRequest({ request_response: response });
 
         const functionOutput = {
           request_id: requestLog.request_id,
           raw_response: response,
           prompt_blueprint: requestLog.prompt_blueprint,
         };
-        span.setAttribute('function_output', JSON.stringify(functionOutput));
+        span.setAttribute("function_output", JSON.stringify(functionOutput));
 
         return functionOutput;
       } catch (error) {
         span.setStatus({
           code: opentelemetry.SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: error instanceof Error ? error.message : "Unknown error",
         });
         throw error;
       } finally {

@@ -24,13 +24,14 @@ import {
   Completion,
 } from "openai/resources";
 
-export const URL_API_PROMPTLAYER = process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
+export const URL_API_PROMPTLAYER =
+  process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
 
 const promptlayerApiHandler = async <Item>(
   apiKey: string,
   body: TrackRequest & {
     request_response: AsyncIterable<Item> | any;
-  }
+  },
 ) => {
   const isGenerator = body.request_response[Symbol.asyncIterator] !== undefined;
   if (isGenerator) {
@@ -52,7 +53,7 @@ const promptLayerApiRequest = async (apiKey: string, body: TrackRequest) => {
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While logging your request, PromptLayer experienced the following error:"
+        "WARNING: While logging your request, PromptLayer experienced the following error:",
       );
     }
     if (data && body.return_pl_id) {
@@ -60,7 +61,7 @@ const promptLayerApiRequest = async (apiKey: string, body: TrackRequest) => {
     }
   } catch (e) {
     console.warn(
-      `WARNING: While logging your request PromptLayer had the following error: ${e}`
+      `WARNING: While logging your request PromptLayer had the following error: ${e}`,
     );
   }
   return body.request_response;
@@ -68,7 +69,7 @@ const promptLayerApiRequest = async (apiKey: string, body: TrackRequest) => {
 
 const promptLayerTrackMetadata = async (
   apiKey: string,
-  body: TrackMetadata
+  body: TrackMetadata,
 ): Promise<boolean> => {
   try {
     const response = await fetch(
@@ -82,19 +83,19 @@ const promptLayerTrackMetadata = async (
           ...body,
           api_key: apiKey,
         }),
-      }
+      },
     );
     const data = await response.json();
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While logging metadata to your request, PromptLayer experienced the following error"
+        "WARNING: While logging metadata to your request, PromptLayer experienced the following error",
       );
       return false;
     }
   } catch (e) {
     console.warn(
-      `WARNING: While logging metadata to your request, PromptLayer experienced the following error: ${e}`
+      `WARNING: While logging metadata to your request, PromptLayer experienced the following error: ${e}`,
     );
     return false;
   }
@@ -103,7 +104,7 @@ const promptLayerTrackMetadata = async (
 
 const promptLayerTrackScore = async (
   apiKey: string,
-  body: TrackScore
+  body: TrackScore,
 ): Promise<boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/library-track-score`, {
@@ -120,13 +121,13 @@ const promptLayerTrackScore = async (
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While scoring your request, PromptLayer experienced the following error"
+        "WARNING: While scoring your request, PromptLayer experienced the following error",
       );
       return false;
     }
   } catch (e) {
     console.warn(
-      `WARNING: While scoring your request, PromptLayer experienced the following error: ${e}`
+      `WARNING: While scoring your request, PromptLayer experienced the following error: ${e}`,
     );
     return false;
   }
@@ -135,7 +136,7 @@ const promptLayerTrackScore = async (
 
 const promptLayerTrackPrompt = async (
   apiKey: string,
-  body: TrackPrompt
+  body: TrackPrompt,
 ): Promise<boolean> => {
   try {
     const response = await fetch(
@@ -149,19 +150,19 @@ const promptLayerTrackPrompt = async (
           ...body,
           api_key: apiKey,
         }),
-      }
+      },
     );
     const data = await response.json();
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While associating your request with a prompt template, PromptLayer experienced the following error"
+        "WARNING: While associating your request with a prompt template, PromptLayer experienced the following error",
       );
       return false;
     }
   } catch (e) {
     console.warn(
-      `WARNING: While associating your request with a prompt template, PromptLayer experienced the following error: ${e}`
+      `WARNING: While associating your request with a prompt template, PromptLayer experienced the following error: ${e}`,
     );
     return false;
   }
@@ -170,7 +171,7 @@ const promptLayerTrackPrompt = async (
 
 const promptLayerTrackGroup = async (
   apiKey: string,
-  body: TrackGroup
+  body: TrackGroup,
 ): Promise<boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/track-group`, {
@@ -187,13 +188,13 @@ const promptLayerTrackGroup = async (
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While associating your request with a group, PromptLayer experienced the following error"
+        "WARNING: While associating your request with a group, PromptLayer experienced the following error",
       );
       return false;
     }
   } catch (e) {
     console.warn(
-      `WARNING: While associating your request with a group, PromptLayer experienced the following error: ${e}`
+      `WARNING: While associating your request with a group, PromptLayer experienced the following error: ${e}`,
     );
     return false;
   }
@@ -201,7 +202,7 @@ const promptLayerTrackGroup = async (
 };
 
 const promptLayerCreateGroup = async (
-  apiKey: string
+  apiKey: string,
 ): Promise<number | boolean> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/create-group`, {
@@ -217,14 +218,14 @@ const promptLayerCreateGroup = async (
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While creating a group PromptLayer had the following error"
+        "WARNING: While creating a group PromptLayer had the following error",
       );
       return false;
     }
     return data.id;
   } catch (e) {
     console.warn(
-      `WARNING: While creating a group PromptLayer had the following error: ${e}`
+      `WARNING: While creating a group PromptLayer had the following error: ${e}`,
     );
     return false;
   }
@@ -233,11 +234,11 @@ const promptLayerCreateGroup = async (
 const getPromptTemplate = async (
   apiKey: string,
   promptName: string,
-  params?: Partial<GetPromptTemplateParams>
+  params?: Partial<GetPromptTemplateParams>,
 ) => {
   try {
     const url = new URL(
-      `${URL_API_PROMPTLAYER}/prompt-templates/${promptName}`
+      `${URL_API_PROMPTLAYER}/prompt-templates/${promptName}`,
     );
     const response = await fetch(url, {
       method: "POST",
@@ -251,14 +252,14 @@ const getPromptTemplate = async (
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While fetching a prompt template PromptLayer had the following error"
+        "WARNING: While fetching a prompt template PromptLayer had the following error",
       );
       return null;
     }
     return data as Promise<GetPromptTemplateResponse>;
   } catch (e) {
     console.warn(
-      `WARNING: While fetching a prompt template PromptLayer had the following error: ${e}`
+      `WARNING: While fetching a prompt template PromptLayer had the following error: ${e}`,
     );
     return null;
   }
@@ -266,7 +267,7 @@ const getPromptTemplate = async (
 
 const publishPromptTemplate = async (
   apiKey: string,
-  body: PublishPromptTemplate
+  body: PublishPromptTemplate,
 ) => {
   try {
     const response = await fetch(
@@ -282,31 +283,31 @@ const publishPromptTemplate = async (
           prompt_version: { ...body },
           release_labels: body.release_labels ? body.release_labels : undefined,
         }),
-      }
+      },
     );
     const data = await response.json();
     if (response.status === 400) {
       warnOnBadResponse(
         data,
-        "WARNING: While publishing a prompt template PromptLayer had the following error"
+        "WARNING: While publishing a prompt template PromptLayer had the following error",
       );
     }
     return data as Promise<PublishPromptTemplateResponse>;
   } catch (e) {
     console.warn(
-      `WARNING: While publishing a prompt template PromptLayer had the following error: ${e}`
+      `WARNING: While publishing a prompt template PromptLayer had the following error: ${e}`,
     );
   }
 };
 
 const getAllPromptTemplates = async (
   apiKey: string,
-  params?: Partial<Pagination>
+  params?: Partial<Pagination>,
 ) => {
   try {
     const url = new URL(`${URL_API_PROMPTLAYER}/prompt-templates`);
     Object.entries(params || {}).forEach(([key, value]) =>
-      url.searchParams.append(key, value.toString())
+      url.searchParams.append(key, value.toString()),
     );
     const response = await fetch(url, {
       headers: {
@@ -318,14 +319,14 @@ const getAllPromptTemplates = async (
     if (response.status !== 200) {
       warnOnBadResponse(
         data,
-        "WARNING: While fetching all prompt templates PromptLayer had the following error"
+        "WARNING: While fetching all prompt templates PromptLayer had the following error",
       );
       return null;
     }
     return (data.items ?? []) as Promise<Array<ListPromptTemplatesResponse>>;
   } catch (e) {
     console.warn(
-      `WARNING: While fetching all prompt templates PromptLayer had the following error: ${e}`
+      `WARNING: While fetching all prompt templates PromptLayer had the following error: ${e}`,
     );
     return null;
   }
@@ -453,7 +454,7 @@ const anthropicStreamMessage = (results: MessageStreamEvent[]): Message => {
 
 const cleaned_result = (
   results: any[],
-  function_name = "openai.chat.completions.create"
+  function_name = "openai.chat.completions.create",
 ) => {
   if ("completion" in results[0]) {
     return results.reduce(
@@ -461,7 +462,7 @@ const cleaned_result = (
         ...current,
         completion: `${prev.completion}${current.completion}`,
       }),
-      {}
+      {},
     );
   }
 
@@ -493,7 +494,7 @@ const cleaned_result = (
 async function* proxyGenerator<Item>(
   apiKey: string,
   generator: AsyncIterable<Item>,
-  body: TrackRequest
+  body: TrackRequest,
 ) {
   const results = [];
   for await (const value of generator) {
@@ -535,12 +536,12 @@ const trackRequest = async (body: TrackRequest) => {
     if (response.status !== 200)
       warnOnBadResponse(
         response,
-        "WARNING: While logging your request, PromptLayer experienced the following error:"
+        "WARNING: While logging your request, PromptLayer experienced the following error:",
       );
     return response.json();
   } catch (e) {
     console.warn(
-      `WARNING: While logging your request PromptLayer had the following error: ${e}`
+      `WARNING: While logging your request PromptLayer had the following error: ${e}`,
     );
   }
   return {};
@@ -602,7 +603,7 @@ const anthropicStreamCompletion = (results: AnthropicCompletion[]) => {
 async function* streamResponse<Item>(
   generator: AsyncIterable<Item>,
   afterStream: (body: object) => any,
-  mapResults: any
+  mapResults: any,
 ) {
   const data: {
     request_id: number | null;
@@ -641,7 +642,7 @@ const MAP_TYPE_TO_OPENAI_FUNCTION = {
 
 const openaiRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
-  kwargs: any
+  kwargs: any,
 ) => {
   const OpenAI = require("openai").default;
   const client = new OpenAI({
@@ -658,7 +659,7 @@ const anthropicChatRequest = async (client: TypeAnthropic, kwargs: any) => {
 
 const anthropicCompletionsRequest = async (
   client: TypeAnthropic,
-  kwargs: any
+  kwargs: any,
 ) => {
   return client.completions.create(kwargs);
 };
@@ -670,7 +671,7 @@ const MAP_TYPE_TO_ANTHROPIC_FUNCTION = {
 
 const anthropicRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
-  kwargs: any
+  kwargs: any,
 ) => {
   const Anthropic = require("@anthropic-ai/sdk").default;
   const client = new Anthropic({

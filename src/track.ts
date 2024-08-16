@@ -13,7 +13,7 @@ const metadata = (apiKey: string, body: TrackMetadata): Promise<boolean> => {
   for (const [key, value] of Object.entries(body.metadata)) {
     if (typeof key !== "string" || typeof value !== "string") {
       throw new Error(
-        "Please provide a dictionary of metadata with key value pair of strings."
+        "Please provide a dictionary of metadata with key value pair of strings.",
       );
     }
   }
