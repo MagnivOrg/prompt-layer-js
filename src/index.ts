@@ -57,13 +57,11 @@ export class PromptLayer {
   group: GroupManager;
   track: TrackManager;
   enableTracing: boolean;
-  workspaceId?: number;
   wrapWithSpan: typeof wrapWithSpan;
 
   constructor({
     apiKey = process.env.PROMPTLAYER_API_KEY,
     enableTracing = false,
-    workspaceId,
   }: ClientOptions = {}) {
     if (apiKey === undefined) {
       throw new Error(
@@ -71,20 +69,15 @@ export class PromptLayer {
       );
     }
 
-    if (enableTracing && workspaceId === undefined) {
-      throw new Error("Please set a workspaceId to enable tracing.")
-    }
-
     this.apiKey = apiKey;
     this.enableTracing = enableTracing;
     this.templates = new TemplateManager(apiKey);
     this.group = new GroupManager(apiKey);
     this.track = new TrackManager(apiKey);
-    this.workspaceId = workspaceId;
     this.wrapWithSpan = wrapWithSpan;
 
-    if (enableTracing && workspaceId) {
-      setupTracing(enableTracing, workspaceId);
+    if (enableTracing) {
+      setupTracing(enableTracing);
     }
   }
 
