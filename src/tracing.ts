@@ -7,9 +7,9 @@ export const getTracer = (name: string = 'promptlayer-tracer') => {
   return opentelemetry.trace.getTracer(name);
 }
 
-export const setupTracing = (enableTracing: boolean, workspaceId: number) => {
+export const setupTracing = (enableTracing: boolean) => {
   const provider = new NodeTracerProvider();
-  const exporter = new PromptLayerSpanExporter(enableTracing, workspaceId);
+  const exporter = new PromptLayerSpanExporter(enableTracing);
   const processor = new SimpleSpanProcessor(exporter);
   provider.addSpanProcessor(processor);
   provider.register();

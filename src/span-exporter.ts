@@ -7,13 +7,11 @@ class PromptLayerSpanExporter implements SpanExporter {
   private apiKey: string | undefined;
   private enableTracing: boolean;
   private url: string;
-  private workspaceId: number;
 
-  constructor(enableTracing: boolean, workspaceId: number) {
+  constructor(enableTracing: boolean) {
     this.apiKey = process.env.PROMPTLAYER_API_KEY;
     this.enableTracing = enableTracing;
     this.url = `${URL_API_PROMPTLAYER}/spans-bulk`;
-    this.workspaceId = workspaceId;
   }
 
   private attributesToObject(attributes: Attributes | undefined): Record<string, any> {
@@ -92,7 +90,6 @@ class PromptLayerSpanExporter implements SpanExporter {
       },
       body: JSON.stringify({
         spans: requestData,
-        workspace_id: this.workspaceId,
       }),
     })
       .then(response => {
