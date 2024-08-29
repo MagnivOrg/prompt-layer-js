@@ -77,7 +77,7 @@ export class PromptLayer {
     this.wrapWithSpan = wrapWithSpan;
 
     if (enableTracing) {
-      setupTracing(enableTracing);
+      setupTracing(enableTracing, apiKey);
     }
   }
 

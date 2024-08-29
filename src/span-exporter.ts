@@ -8,8 +8,8 @@ class PromptLayerSpanExporter implements SpanExporter {
   private enableTracing: boolean;
   private url: string;
 
-  constructor(enableTracing: boolean) {
-    this.apiKey = process.env.PROMPTLAYER_API_KEY;
+  constructor(enableTracing: boolean, apiKey?: string) {
+    this.apiKey = apiKey || process.env.PROMPTLAYER_API_KEY;
     this.enableTracing = enableTracing;
     this.url = `${URL_API_PROMPTLAYER}/spans-bulk`;
   }
