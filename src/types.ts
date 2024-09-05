@@ -216,14 +216,14 @@ export type BasePromptTemplate = {
   tags?: string[];
 };
 
-export type PromptVersion = {
+export type PromptBlueprint = {
   prompt_template: PromptTemplate;
   commit_message?: string;
   metadata?: Metadata;
 };
 
 export type PublishPromptTemplate = BasePromptTemplate &
-  PromptVersion & { release_labels?: string[] };
+  PromptBlueprint & { release_labels?: string[] };
 
 export interface ProviderBaseURL {
   id: number;
@@ -264,4 +264,29 @@ export interface RunRequest {
   promptVersion?: number;
   promptReleaseLabel?: string;
   inputVariables?: Record<string, unknown>;
+}
+
+export interface LogRequest {
+  provider: string;
+  model: string;
+  input: PromptTemplate;
+  output: PromptTemplate;
+  request_start_time: number;
+  request_end_time: number;
+  parameters?: Record<string, unknown>;
+  tags?: string[];
+  metadata?: Record<string, string>;
+  prompt_name?: string;
+  prompt_version_number?: number;
+  prompt_input_variables?: Record<string, unknown>;
+  input_tokens?: number;
+  output_tokens?: number;
+  price?: number;
+  function_name?: string;
+  score?: number;
+}
+
+export interface RequestLog {
+  id: number;
+  prompt_version: PromptBlueprint;
 }

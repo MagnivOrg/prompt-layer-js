@@ -1,11 +1,10 @@
-import * as opentelemetry from '@opentelemetry/api';
-import {GroupManager} from "@/groups";
-import {promptLayerBase} from "@/promptlayer";
-import {wrapWithSpan} from '@/span-wrapper';
-import {TemplateManager} from "@/templates";
-import {getTracer, setupTracing} from '@/tracing';
-import {TrackManager} from "@/track";
-import {GetPromptTemplateParams, RunRequest} from "@/types";
+import { GroupManager } from "@/groups";
+import { promptLayerBase } from "@/promptlayer";
+import { wrapWithSpan } from "@/span-wrapper";
+import { TemplateManager } from "@/templates";
+import { getTracer, setupTracing } from "@/tracing";
+import { TrackManager } from "@/track";
+import { GetPromptTemplateParams, RunRequest } from "@/types";
 import {
   anthropicRequest,
   anthropicStreamCompletion,
@@ -15,7 +14,9 @@ import {
   openaiStreamCompletion,
   streamResponse,
   trackRequest,
+  utilLogRequest,
 } from "@/utils";
+import * as opentelemetry from "@opentelemetry/api";
 
 const MAP_PROVIDER_TO_FUNCTION_NAME = {
   openai: {
@@ -115,7 +116,7 @@ export class PromptLayer {
   }: RunRequest) {
     const tracer = getTracer();
 
-    return tracer.startActiveSpan('PromptLayer Run', async (span) => {
+    return tracer.startActiveSpan("PromptLayer Run", async (span) => {
       try {
         const functionInput = {
           promptName,
@@ -127,7 +128,7 @@ export class PromptLayer {
           groupId,
           stream,
         };
-        span.setAttribute('function_input', JSON.stringify(functionInput));
+        span.setAttribute("function_input", JSON.stringify(functionInput));
 
         const prompt_input_variables = inputVariables;
         const templateGetParams: GetPromptTemplateParams = {
@@ -172,7 +173,7 @@ export class PromptLayer {
         const config =
           MAP_PROVIDER_TO_FUNCTION_NAME[
             provider_type as keyof typeof MAP_PROVIDER_TO_FUNCTION_NAME
-            ][promptTemplate.type];
+          ][promptTemplate.type];
         const function_name = config.function_name;
 
         const stream_function = config.stream_function;
@@ -183,7 +184,7 @@ export class PromptLayer {
         }
         kwargs["stream"] = stream;
         if (stream && provider_type === "openai") {
-          kwargs["stream_options"] = {include_usage: true};
+          kwargs["stream_options"] = { include_usage: true };
         }
 
         const response = await request_function(promptBlueprint, kwargs);
@@ -210,26 +211,31 @@ export class PromptLayer {
           });
         };
 
-        if (stream) return streamResponse(response, _trackRequest, stream_function);
-        const requestLog = await _trackRequest({request_response: response});
+        if (stream)
+          return streamResponse(response, _trackRequest, stream_function);
+        const requestLog = await _trackRequest({ request_response: response });
 
         const functionOutput = {
           request_id: requestLog.request_id,
           raw_response: response,
           prompt_blueprint: requestLog.prompt_blueprint,
         };
-        span.setAttribute('function_output', JSON.stringify(functionOutput));
+        span.setAttribute("function_output", JSON.stringify(functionOutput));
 
         return functionOutput;
       } catch (error) {
         span.setStatus({
           code: opentelemetry.SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: error instanceof Error ? error.message : "Unknown error",
         });
         throw error;
       } finally {
         span.end();
       }
     });
+  }
+
+  async logRequest(body: Parameters<typeof utilLogRequest>[1]) {
+    return utilLogRequest(this.apiKey, body);
   }
 }

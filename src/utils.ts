@@ -2,9 +2,11 @@ import {
   GetPromptTemplateParams,
   GetPromptTemplateResponse,
   ListPromptTemplatesResponse,
+  LogRequest,
   Pagination,
   PublishPromptTemplate,
   PublishPromptTemplateResponse,
+  RequestLog,
   TrackGroup,
   TrackMetadata,
   TrackPrompt,
@@ -24,7 +26,8 @@ import {
   Completion,
 } from "openai/resources";
 
-export const URL_API_PROMPTLAYER = process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
+export const URL_API_PROMPTLAYER =
+  process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
 
 const promptlayerApiHandler = async <Item>(
   apiKey: string,
@@ -681,6 +684,35 @@ const anthropicRequest = async (
   return requestToMake(client, kwargs);
 };
 
+const utilLogRequest = async (
+  apiKey: string,
+  kwargs: LogRequest
+): Promise<RequestLog | null> => {
+  try {
+    const response = await fetch(`${URL_API_PROMPTLAYER}/log-request`, {
+      method: "POST",
+      headers: {
+        "X-API-KEY": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(kwargs),
+    });
+    if (response.status !== 201) {
+      warnOnBadResponse(
+        response,
+        "WARNING: While logging your request PromptLayer had the following error"
+      );
+      return null;
+    }
+    return response.json();
+  } catch (e) {
+    console.warn(
+      `WARNING: While tracking your prompt PromptLayer had the following error: ${e}`
+    );
+    return null;
+  }
+};
+
 export {
   anthropicRequest,
   anthropicStreamCompletion,
@@ -690,14 +722,15 @@ export {
   openaiRequest,
   openaiStreamChat,
   openaiStreamCompletion,
+  promptlayerApiHandler,
   promptLayerApiRequest,
   promptLayerCreateGroup,
   promptLayerTrackGroup,
   promptLayerTrackMetadata,
   promptLayerTrackPrompt,
   promptLayerTrackScore,
-  promptlayerApiHandler,
   publishPromptTemplate,
   streamResponse,
   trackRequest,
+  utilLogRequest,
 };
