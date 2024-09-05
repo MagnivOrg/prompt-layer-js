@@ -686,7 +686,7 @@ const anthropicRequest = async (
 
 const utilLogRequest = async (
   apiKey: string,
-  kwargs: LogRequest
+  body: LogRequest
 ): Promise<RequestLog | null> => {
   try {
     const response = await fetch(`${URL_API_PROMPTLAYER}/log-request`, {
@@ -695,7 +695,7 @@ const utilLogRequest = async (
         "X-API-KEY": apiKey,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(kwargs),
+      body: JSON.stringify(body),
     });
     if (response.status !== 201) {
       warnOnBadResponse(
