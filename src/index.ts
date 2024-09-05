@@ -4,7 +4,7 @@ import { wrapWithSpan } from "@/span-wrapper";
 import { TemplateManager } from "@/templates";
 import { getTracer, setupTracing } from "@/tracing";
 import { TrackManager } from "@/track";
-import { GetPromptTemplateParams, RunRequest } from "@/types";
+import { GetPromptTemplateParams, LogRequest, RunRequest } from "@/types";
 import {
   anthropicRequest,
   anthropicStreamCompletion,
@@ -235,7 +235,7 @@ export class PromptLayer {
     });
   }
 
-  async logRequest(body: Parameters<typeof utilLogRequest>[1]) {
+  async logRequest(body: LogRequest) {
     return utilLogRequest(this.apiKey, body);
   }
 }
