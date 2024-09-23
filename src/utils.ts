@@ -258,6 +258,11 @@ const getPromptTemplate = async (
       );
       return null;
     }
+    if(data.warning){
+        console.warn(
+          `WARNING: While tracking your prompt PromptLayer had the following error: ${data.warning}`
+        );
+    }
     return data as Promise<GetPromptTemplateResponse>;
   } catch (e) {
     console.warn(
