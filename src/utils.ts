@@ -10,6 +10,7 @@ import {
   TrackPrompt,
   TrackRequest,
   TrackScore,
+  WorkflowResponse,
 } from "@/types";
 import type TypeAnthropic from "@anthropic-ai/sdk";
 import {
@@ -25,6 +26,51 @@ import {
 } from "openai/resources";
 
 export const URL_API_PROMPTLAYER = process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
+
+export const runWorkflowRequest = async ({
+   workflow_name,
+   input_variables,
+   metadata = {},
+   workflow_label_name = null,
+   workflow_version_number = null,
+   api_key,
+ }: {
+  workflow_name: string;
+  input_variables: Record<string, any>;
+  metadata?: Record<string, string>;
+  workflow_label_name?: string | null;
+  workflow_version_number?: number | null;
+  api_key: string;
+}): Promise<WorkflowResponse> => {
+  const payload = {
+    input_variables,
+    metadata,
+    workflow_label_name,
+    workflow_version_number,
+  };
+
+  try {
+    const response = await fetch(`${URL_API_PROMPTLAYER}/workflows/${workflow_name}/run`, {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': api_key,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.status !== 201) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Failed to run workflow: ${errorData.error || response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error(`Failed to run workflow: ${(error as Error).message}`);
+    throw error;
+  }
+};
 
 const promptlayerApiHandler = async <Item>(
   apiKey: string,

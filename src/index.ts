@@ -5,7 +5,7 @@ import {wrapWithSpan} from '@/span-wrapper';
 import {TemplateManager} from "@/templates";
 import {getTracer, setupTracing} from '@/tracing';
 import {TrackManager} from "@/track";
-import {GetPromptTemplateParams, RunRequest} from "@/types";
+import {GetPromptTemplateParams, RunRequest, WorkflowRequest, WorkflowResponse} from "@/types";
 import {
   anthropicRequest,
   anthropicStreamCompletion,
@@ -13,6 +13,7 @@ import {
   openaiRequest,
   openaiStreamChat,
   openaiStreamCompletion,
+  runWorkflowRequest,
   streamResponse,
   trackRequest,
 } from "@/utils";
@@ -232,4 +233,33 @@ export class PromptLayer {
       }
     });
   }
+
+  async runWorkflow({
+    workflowName,
+    inputVariables = {},
+    metadata = {},
+    workflowLabelName = null,
+    workflowVersionNumber = null,
+  }: WorkflowRequest): Promise<WorkflowResponse> {
+    try {
+      const result = await runWorkflowRequest({
+        workflow_name: workflowName,
+        input_variables: inputVariables,
+        metadata,
+        workflow_label_name: workflowLabelName,
+        workflow_version_number: workflowVersionNumber,
+        api_key: this.apiKey,
+      });
+      return result;
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error("Error running workflow:", error.message);
+        throw new Error(`Error running workflow: ${error.message}`);
+      } else {
+        console.error("Unknown error running workflow:", error);
+        throw new Error("Unknown error running workflow");
+      }
+    }
+  }
+
 }
