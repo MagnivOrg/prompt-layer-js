@@ -290,3 +290,18 @@ export interface RequestLog {
   id: number;
   prompt_version: PromptBlueprint;
 }
+
+export interface WorkflowRequest {
+  workflowName: string;
+  inputVariables?: Record<string, any>;
+  metadata?: Record<string, string>;
+  workflowLabelName?: string | null;
+  workflowVersionNumber?: number | null;
+}
+
+export interface WorkflowResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+  workflow_version_execution_id?: string;
+}
