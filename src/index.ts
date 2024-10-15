@@ -195,7 +195,7 @@ export class PromptLayer {
           kwargs["baseURL"] = provider_base_url.url;
         }
         kwargs["stream"] = stream;
-        if (stream && provider_type === "openai") {
+        if (stream && ["openai", "openai.azure"].includes(provider_type)) {
           kwargs["stream_options"] = { include_usage: true };
         }
 
