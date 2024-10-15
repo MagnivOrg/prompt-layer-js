@@ -403,6 +403,7 @@ const openaiStreamChat = (results: ChatCompletionChunk[]): ChatCompletion => {
       content,
       function_call: functionCall ? functionCall : undefined,
       tool_calls: toolCalls ? toolCalls : undefined,
+      refusal: firstChoice?.delta.refusal ?? null,
     },
   });
   response.id = lastResult.id;
