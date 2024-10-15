@@ -9,6 +9,7 @@ import {
   anthropicRequest,
   anthropicStreamCompletion,
   anthropicStreamMessage,
+  azureOpenAIRequest,
   openaiRequest,
   openaiStreamChat,
   openaiStreamCompletion,
@@ -39,11 +40,22 @@ const MAP_PROVIDER_TO_FUNCTION_NAME = {
       stream_function: anthropicStreamCompletion,
     },
   },
+  "openai.azure": {
+    chat: {
+      function_name: "openai.AzureOpenAI.chat.completions.create",
+      stream_function: openaiStreamChat,
+    },
+    completion: {
+      function_name: "openai.AzureOpenAI.completions.create",
+      stream_function: openaiStreamCompletion,
+    },
+  },
 };
 
 const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
   openai: openaiRequest,
   anthropic: anthropicRequest,
+  "openai.azure": azureOpenAIRequest,
 };
 
 export interface ClientOptions {
