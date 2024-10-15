@@ -259,10 +259,10 @@ const getPromptTemplate = async (
       );
       return null;
     }
-    if(data.warning){
-        console.warn(
-          `WARNING: While tracking your prompt PromptLayer had the following error: ${data.warning}`
-        );
+    if (data.warning) {
+      console.warn(
+        `WARNING: While tracking your prompt PromptLayer had the following error: ${data.warning}`
+      );
     }
     return data as Promise<GetPromptTemplateResponse>;
   } catch (e) {
@@ -439,15 +439,17 @@ const openaiStreamChat = (results: ChatCompletionChunk[]): ChatCompletion => {
       }`;
     }
   }
+  const firstChoice = results[0].choices.at(0);
   response.choices.push({
-    finish_reason: results[0].choices[0].finish_reason || "stop",
-    index: results[0].choices[0].index || 0,
-    logprobs: results[0].choices[0].logprobs || null,
+    finish_reason: firstChoice?.finish_reason ?? "stop",
+    index: firstChoice?.index ?? 0,
+    logprobs: firstChoice?.logprobs ?? null,
     message: {
       role: "assistant",
       content,
       function_call: functionCall ? functionCall : undefined,
       tool_calls: toolCalls ? toolCalls : undefined,
+      refusal: firstChoice?.delta.refusal ?? null,
     },
   });
   response.id = lastResult.id;
@@ -706,6 +708,19 @@ const openaiRequest = async (
   return requestToMake(client, kwargs);
 };
 
+const azureOpenAIRequest = async (
+  promptBlueprint: GetPromptTemplateResponse,
+  kwargs: any
+) => {
+  const OpenAI = require("openai").AzureOpenAI;
+  const client = new OpenAI({
+    baseURL: kwargs.baseURL,
+  });
+  const requestToMake =
+    MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
+  return requestToMake(client, kwargs);
+};
+
 const anthropicChatRequest = async (client: TypeAnthropic, kwargs: any) => {
   return client.messages.create(kwargs);
 };
@@ -768,6 +783,7 @@ export {
   anthropicRequest,
   anthropicStreamCompletion,
   anthropicStreamMessage,
+  azureOpenAIRequest,
   getAllPromptTemplates,
   getPromptTemplate,
   openaiRequest,
