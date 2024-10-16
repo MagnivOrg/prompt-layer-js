@@ -296,7 +296,7 @@ export interface WorkflowRequest {
   inputVariables?: Record<string, any>;
   metadata?: Record<string, string>;
   workflowLabelName?: string | null;
-  workflowVersionNumber?: number | null;
+  workflowVersion?: number | null;
 }
 
 export interface WorkflowResponse {

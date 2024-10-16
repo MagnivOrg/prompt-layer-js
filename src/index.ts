@@ -253,7 +253,7 @@ export class PromptLayer {
     inputVariables = {},
     metadata = {},
     workflowLabelName = null,
-    workflowVersionNumber = null,
+    workflowVersion = null, // This is the version number, not the version ID
   }: WorkflowRequest): Promise<WorkflowResponse> {
     try {
       const result = await runWorkflowRequest({
@@ -261,7 +261,7 @@ export class PromptLayer {
         input_variables: inputVariables,
         metadata,
         workflow_label_name: workflowLabelName,
-        workflow_version_number: workflowVersionNumber,
+        workflow_version_number: workflowVersion,
         api_key: this.apiKey,
       });
       return result;
