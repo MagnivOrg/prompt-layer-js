@@ -297,11 +297,24 @@ export interface WorkflowRequest {
   metadata?: Record<string, string>;
   workflowLabelName?: string | null;
   workflowVersion?: number | null;
+  returnAllOutputs?: boolean;
+}
+
+export interface RunWorkflowRequestParams {
+  workflow_name: string;
+  input_variables: Record<string, any>;
+  metadata?: Record<string, string>;
+  workflow_label_name?: string | null;
+  workflow_version_number?: number | null;
+  return_all_outputs?: boolean;
+  api_key: string;
+  timeout?: number;
 }
 
 export interface WorkflowResponse {
-  success: boolean;
+  success?: boolean;
   message?: string;
   error?: string;
-  workflow_version_execution_id?: string;
+  status?: string;
+  value?: string;
 }
