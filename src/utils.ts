@@ -376,7 +376,7 @@ export const runWorkflowRequest = async ({
 
     if (response.status !== 201) {
       const errorData = await response.json().catch(() => ({}));
-      return {success: false, message: "Failed to run workflow"}
+      return {success: false, message:`Failed to run workflow: ${errorData.error || response.statusText}`};
     }
 
     const result = await response.json();
@@ -390,7 +390,7 @@ export const runWorkflowRequest = async ({
   const channel_name = `workflow_updates:${execution_id}`;
 
     // Request a token to subscribe to the channel
-    const ws_response = await fetch(`${URL_API_PROMPTLAYER}/ws-token-request?capability=${channel_name}`, {
+    const ws_response = await fetch(`${URL_API_PROMPTLAYER}/ws-token-request-library?capability=${channel_name}`, {
         method: 'POST',
         headers: headers,
       });
@@ -406,11 +406,11 @@ export const runWorkflowRequest = async ({
     try {
       // Wait for the workflow to complete and get the final output
       const final_output = await waitForWorkflowCompletion(ably, channel_name, timeout);
-      await ably.close();
+      ably.close();
       return final_output;
     } finally {
       // Ensure the Ably client is closed in all cases
-      await ably.close();
+      ably.close();
     }
   } catch (error) {
     console.error(`Failed to run workflow: ${error instanceof Error ? error.message : error}`);
