@@ -21,14 +21,13 @@ import {
   Message,
   MessageStreamEvent,
 } from "@anthropic-ai/sdk/resources";
+import Ably from "ably";
 import type TypeOpenAI from "openai";
 import {
   ChatCompletion,
   ChatCompletionChunk,
   Completion,
 } from "openai/resources";
-import Ably from 'ably';
-
 
 export const URL_API_PROMPTLAYER =
   process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
@@ -362,50 +361,65 @@ export const runWorkflowRequest = async ({
   };
 
   const headers = {
-    'X-API-KEY': api_key,
-    'Content-Type': 'application/json',
-  }
+    "X-API-KEY": api_key,
+    "Content-Type": "application/json",
+  };
 
   try {
     // Start the workflow by making a POST request
-    const response = await fetch(`${URL_API_PROMPTLAYER}/workflows/${encodeURIComponent(workflow_name)}/run`, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(payload),
-    });
+    const response = await fetch(
+      `${URL_API_PROMPTLAYER}/workflows/${encodeURIComponent(
+        workflow_name
+      )}/run`,
+      {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(payload),
+      }
+    );
 
     if (response.status !== 201) {
       const errorData = await response.json().catch(() => ({}));
-      return {success: false, message:`Failed to run workflow: ${errorData.error || response.statusText}`};
+      return {
+        success: false,
+        message: `Failed to run workflow: ${
+          errorData.error || response.statusText
+        }`,
+      };
     }
 
     const result = await response.json();
     const execution_id = result.workflow_version_execution_id;
     if (!execution_id) {
-        console.log('No execution ID returned from workflow run');
-        return {success: false, message: "Failed to run workflow"}
+      console.log("No execution ID returned from workflow run");
+      return { success: false, message: "Failed to run workflow" };
     }
 
-
-  const channel_name = `workflow_updates:${execution_id}`;
+    const channel_name = `workflow_updates:${execution_id}`;
 
     // Request a token to subscribe to the channel
-    const ws_response = await fetch(`${URL_API_PROMPTLAYER}/ws-token-request-library?capability=${channel_name}`, {
-        method: 'POST',
+    const ws_response = await fetch(
+      `${URL_API_PROMPTLAYER}/ws-token-request-library?capability=${channel_name}`,
+      {
+        method: "POST",
         headers: headers,
-      });
+      }
+    );
 
     const ws_token_response = await ws_response.json();
 
     const ably_token = ws_token_response.token_details.token;
-    
 
     // Initialize Ably client using the Promise-based client
-    const ably = new Ably.Realtime({token: ably_token});
+    const ably = new Ably.Realtime({ token: ably_token });
 
     try {
       // Wait for the workflow to complete and get the final output
-      const final_output = await waitForWorkflowCompletion(ably, channel_name, timeout);
+      const final_output = await waitForWorkflowCompletion(
+        ably,
+        channel_name,
+        timeout
+      );
       ably.close();
       return final_output;
     } finally {
@@ -413,7 +427,11 @@ export const runWorkflowRequest = async ({
       ably.close();
     }
   } catch (error) {
-    console.error(`Failed to run workflow: ${error instanceof Error ? error.message : error}`);
+    console.error(
+      `Failed to run workflow: ${
+        error instanceof Error ? error.message : error
+      }`
+    );
     throw error;
   }
 };
@@ -427,11 +445,11 @@ async function waitForWorkflowCompletion(
 
   return new Promise(async (resolve, reject) => {
     const messageListener = (message: Ably.Message) => {
-      if (message.name === 'set_workflow_node_output') {
+      if (message.name === "set_workflow_node_output") {
         const data = JSON.parse(message.data);
-        if (data.status === 'workflow_complete') {
+        if (data.status === "workflow_complete") {
           clearTimeout(timer);
-          channel.unsubscribe('set_workflow_node_output', messageListener);
+          channel.unsubscribe("set_workflow_node_output", messageListener);
           resolve(data.final_output);
         }
       }
@@ -439,13 +457,15 @@ async function waitForWorkflowCompletion(
 
     // Set up a timeout to reject the promise if no message is received in time
     const timer = setTimeout(() => {
-      channel.unsubscribe('set_workflow_node_output', messageListener);
-      reject(new Error('Workflow execution did not complete properly (timeout)'));
+      channel.unsubscribe("set_workflow_node_output", messageListener);
+      reject(
+        new Error("Workflow execution did not complete properly (timeout)")
+      );
     }, timeout);
 
     try {
       // Subscribe to the channel to receive updates
-      await channel.subscribe('set_workflow_node_output', messageListener);
+      await channel.subscribe("set_workflow_node_output", messageListener);
     } catch (err) {
       clearTimeout(timer);
       reject(err);
@@ -782,8 +802,9 @@ const azureOpenAIRequest = async (
 ) => {
   const OpenAI = require("openai").AzureOpenAI;
   const client = new OpenAI({
-    baseURL: kwargs.baseURL,
+    endpoint: kwargs.baseURL,
   });
+  delete kwargs?.baseURL;
   const requestToMake =
     MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
   return requestToMake(client, kwargs);
