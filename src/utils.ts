@@ -389,6 +389,9 @@ export const runWorkflowRequest = async ({
     }
 
     const result = await response.json();
+    if (result.warning) {
+      console.warn(`WARNING: ${result.warning}`);
+    }
     const execution_id = result.workflow_version_execution_id;
     if (!execution_id) {
       console.log("No execution ID returned from workflow run");
