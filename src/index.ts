@@ -125,6 +125,7 @@ export class PromptLayer {
     tags,
     metadata,
     groupId,
+    modelParameterOverrides,
     stream = false,
   }: RunRequest) {
     const tracer = getTracer();
@@ -139,6 +140,7 @@ export class PromptLayer {
           tags,
           metadata,
           groupId,
+          modelParameterOverrides,
           stream,
         };
         span.setAttribute("function_input", JSON.stringify(functionInput));
@@ -182,7 +184,10 @@ export class PromptLayer {
         const provider_type = promptBlueprintModel.provider;
 
         const request_start_time = new Date().toISOString();
-        const kwargs = promptBlueprint.llm_kwargs;
+        const kwargs = {
+          ...promptBlueprint.llm_kwargs,
+          ...(modelParameterOverrides || {}),
+        };
         const config =
           MAP_PROVIDER_TO_FUNCTION_NAME[
             provider_type as keyof typeof MAP_PROVIDER_TO_FUNCTION_NAME

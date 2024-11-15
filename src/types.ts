@@ -264,6 +264,7 @@ export interface RunRequest {
   promptVersion?: number;
   promptReleaseLabel?: string;
   inputVariables?: Record<string, unknown>;
+  modelParameterOverrides?: Record<string, unknown>;
 }
 
 export interface LogRequest {
