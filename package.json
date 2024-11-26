@@ -13,6 +13,7 @@
   "scripts": {
     "build": "tsup-node src/index.ts --format cjs,esm --minify --dts-resolve --clean --sourcemap --legacy-output",
     "lint": "tsc",
+    "release:repo": "npm run build",
     "release": "npm run build && npm publish"
   },
   "devDependencies": {
