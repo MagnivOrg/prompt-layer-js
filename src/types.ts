@@ -91,7 +91,23 @@ export type ImageContent = {
   image_url: ImageUrl;
 };
 
-export type Content = TextContent | ImageContent;
+export type Media = {
+  title: string;
+  type: string;
+  url: string;
+};
+
+export type MediaContent = {
+  type: "media";
+  media: Media;
+};
+
+export type MediaVariable = {
+  type: "media_variable";
+  name: string;
+};
+
+export type Content = TextContent | ImageContent | MediaContent | MediaVariable;
 
 export type Function_ = {
   name: string;
