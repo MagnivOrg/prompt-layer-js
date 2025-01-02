@@ -127,6 +127,7 @@ export class PromptLayer {
     groupId,
     modelParameterOverrides,
     stream = false,
+    skipLogging = false, // New option to skip logging
   }: RunRequest) {
     const tracer = getTracer();
 
@@ -142,6 +143,7 @@ export class PromptLayer {
           groupId,
           modelParameterOverrides,
           stream,
+          skipLogging,
         };
         span.setAttribute("function_input", JSON.stringify(functionInput));
 
@@ -208,6 +210,9 @@ export class PromptLayer {
         const response = await request_function(promptBlueprint, kwargs);
 
         const _trackRequest = (body: object) => {
+          if (skipLogging) {
+            return Promise.resolve({}); // Return an empty object if logging is skipped
+          }
           const request_end_time = new Date().toISOString();
           return trackRequest({
             function_name,
@@ -234,9 +239,9 @@ export class PromptLayer {
         const requestLog = await _trackRequest({ request_response: response });
 
         const functionOutput = {
-          request_id: requestLog.request_id,
+          request_id: skipLogging ? null : requestLog.request_id,
           raw_response: response,
-          prompt_blueprint: requestLog.prompt_blueprint,
+          prompt_blueprint: skipLogging ? null : requestLog.prompt_blueprint,
         };
         span.setAttribute("function_output", JSON.stringify(functionOutput));
 
