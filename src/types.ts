@@ -179,13 +179,22 @@ export type PlaceholderMessage = {
   name: string;
 };
 
+
+export type DeveloperMessage = {
+  role: "developer";
+  input_variables?: string[];
+  template_format?: TemplateFormat;
+  content: Content[];
+};
+
 export type Message =
   | SystemMessage
   | UserMessage
   | AssistantMessage
   | FunctionMessage
   | ToolMessage
-  | PlaceholderMessage;
+  | PlaceholderMessage
+  | DeveloperMessage;
 
 export type ChatFunctionCall = {
   name: string;
