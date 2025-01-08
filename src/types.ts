@@ -185,7 +185,6 @@ export type DeveloperMessage = {
   input_variables?: string[];
   template_format?: TemplateFormat;
   content: Content[];
-  name?: string;
 };
 
 export type Message =
