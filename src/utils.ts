@@ -445,8 +445,10 @@ async function waitForWorkflowCompletion(
   timeout: number
 ): Promise<any> {
   const channel = ably.channels.get(channel_name);
+
   return new Promise(async (resolve, reject) => {
     let results: any = null;
+
     const messageListener = (message: Ably.Message) => {
       if (message.name === "SET_WORKFLOW_COMPLETE") {
         const message_data = JSON.parse(message.data as string);
@@ -456,11 +458,15 @@ async function waitForWorkflowCompletion(
         resolve(results);
       }
     };
+
+    // Set up a timeout to reject the promise if no message is received in time
     const timer = setTimeout(() => {
       channel.unsubscribe("SET_WORKFLOW_COMPLETE", messageListener);
       reject(new Error("Workflow execution did not complete properly (timeout)"));
     }, timeout);
+
     try {
+      // Subscribe to the channel to receive updates
       await channel.subscribe("SET_WORKFLOW_COMPLETE", messageListener);
     } catch (err) {
       clearTimeout(timer);
