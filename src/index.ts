@@ -65,6 +65,26 @@ export interface ClientOptions {
   workspaceId?: number;
 }
 
+const isWorkflowResultsDict = (obj: any): boolean => {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+    return false;
+  }
+
+  const REQUIRED_KEYS = [
+    "status",
+    "value",
+    "error_message",
+    "raw_error_message",
+    "is_output_node",
+  ];
+  const values = Object.values(obj);
+
+  return values.every((val) => {
+    if (typeof val !== "object" || val === null) return false;
+    return REQUIRED_KEYS.every((key) => key in val);
+  });
+}
+
 export class PromptLayer {
   apiKey: string;
   templates: TemplateManager;
@@ -273,14 +293,11 @@ export class PromptLayer {
       });
 
       if (!returnAllOutputs) {
-        const isResultDict =
-          result && typeof result === "object" && !Array.isArray(result);
-
-        if (isResultDict) {
+        if (isWorkflowResultsDict(result)) {
           const nodeValues = Object.values(result);
 
           const outputNodes = nodeValues.filter(
-            (node: any) => node?.is_output_node === true
+            (node: any) => node.is_output_node === true
           );
 
           if (outputNodes.length === 0) {
@@ -288,9 +305,8 @@ export class PromptLayer {
           }
 
           const anyOutputSuccess = outputNodes.some(
-            (node: any) => node?.status === "SUCCESS"
+            (node: any) => node.status === "SUCCESS"
           );
-
           if (!anyOutputSuccess) {
             throw new Error(JSON.stringify(result, null, 2));
           }
