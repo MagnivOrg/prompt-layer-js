@@ -271,6 +271,32 @@ export class PromptLayer {
         return_all_outputs: returnAllOutputs,
         api_key: this.apiKey,
       });
+
+      if (!returnAllOutputs) {
+        const isResultDict =
+          result && typeof result === "object" && !Array.isArray(result);
+
+        if (isResultDict) {
+          const nodeValues = Object.values(result);
+
+          const outputNodes = nodeValues.filter(
+            (node: any) => node?.is_output_node === true
+          );
+
+          if (outputNodes.length === 0) {
+            throw new Error(JSON.stringify(result, null, 2));
+          }
+
+          const anyOutputSuccess = outputNodes.some(
+            (node: any) => node?.status === "SUCCESS"
+          );
+
+          if (!anyOutputSuccess) {
+            throw new Error(JSON.stringify(result, null, 2));
+          }
+        }
+      }
+
       return result;
     } catch (error) {
       if (error instanceof Error) {
