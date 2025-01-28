@@ -350,7 +350,7 @@ export const runWorkflowRequest = async ({
   workflow_version_number = null,
   return_all_outputs = false,
   api_key,
-  timeout = 120000, // Default timeout is 2 minutes in milliseconds
+  timeout = 3600000, // Default timeout is 1 hour in milliseconds
 }: RunWorkflowRequestParams): Promise<WorkflowResponse> => {
   const payload = {
     input_variables,
