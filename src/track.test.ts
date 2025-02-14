@@ -40,7 +40,7 @@ describe('TrackManager', () => {
       expect(promptLayerTrackMetadata).toHaveBeenCalledWith(apiKey, validMetadata);
     });
 
-    it('should throw error when metadata is not an object', async () => {
+    it('should throw error when metadata is not a valid object', async () => {
       const invalidMetadata = {
         request_id: '123',
         metadata: 'invalid',
