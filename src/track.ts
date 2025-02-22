@@ -7,7 +7,7 @@ import {
 } from "@/utils";
 
 const metadata = (apiKey: string, body: TrackMetadata): Promise<boolean> => {
-  if (!(body.metadata instanceof Object)) {
+  if (typeof body.metadata !== 'object' || body.metadata === null) {
     throw new Error("Please provide a dictionary of metadata.");
   }
   for (const [key, value] of Object.entries(body.metadata)) {
@@ -31,7 +31,7 @@ const score = (apiKey: string, body: TrackScore): Promise<boolean> => {
 };
 
 const prompt = (apiKey: string, body: TrackPrompt): Promise<boolean> => {
-  if (!(body.prompt_input_variables instanceof Object)) {
+  if (typeof body.prompt_input_variables !== 'object' || body.prompt_input_variables === null) {
     throw new Error("Prompt template input variable dictionary not provided.");
   }
   return promptLayerTrackPrompt(apiKey, body);
