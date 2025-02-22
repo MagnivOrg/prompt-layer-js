@@ -263,7 +263,7 @@ const getPromptTemplate = async (
     }
     if (data.warning) {
       console.warn(
-        `WARNING: While tracking your prompt PromptLayer had the following error: ${data.warning}`
+        `WARNING: While fetching your prompt PromptLayer had the following error: ${data.warning}`
       );
     }
     return data as Promise<GetPromptTemplateResponse>;
