@@ -183,7 +183,7 @@ export class PromptLayer {
         const promptTemplate = promptBlueprint.prompt_template;
         if (!promptBlueprint.llm_kwargs) {
           throw new Error(
-            `Prompt '${promptName}' does not have any LLM kwargs associated with it.`
+            `Prompt '${promptName}' does not have any LLM kwargs associated with it. Please set your model parameters in the registry in the PromptLayer dashbaord.`
           );
         }
 
