@@ -28,6 +28,7 @@ import {
   ChatCompletionChunk,
   Completion,
 } from "openai/resources";
+import { GenerateContentResponse } from "@google/generative-ai";
 
 export const URL_API_PROMPTLAYER =
   process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
@@ -870,6 +871,90 @@ const utilLogRequest = async (
   }
 };
 
+const googleStreamResponse = (results: GenerateContentResponse[]) => {
+  const response: GenerateContentResponse = {
+    candidates: [
+      { 
+        index: 0,
+        content: { parts: [{ text: '' }], role: '' },
+        finishReason: undefined,
+      }
+    ],
+    usageMetadata: undefined,
+  };
+
+  if (!results.length) {
+    return response;
+  }
+  
+  const lastResult = results.at(-1);
+  let aggregatedText = '';
+  let role = '';
+
+  for (const result of results) {
+    if (result?.candidates) {
+      aggregatedText += result.candidates[0].content.parts[0].text;
+      role = result.candidates[0].content.role;
+    }
+  }
+
+  if (response.candidates?.[0]?.content?.parts?.length) {
+    response.candidates[0].content.parts[0].text = aggregatedText;
+    response.candidates[0].content.role = role;
+    response.candidates[0].finishReason = lastResult?.candidates?.[0]?.finishReason ?? undefined;
+  }
+  response.usageMetadata = lastResult?.usageMetadata;
+  
+  return response;
+}
+
+const googleStreamChat = (results: GenerateContentResponse[]) => {
+  return googleStreamResponse(results);
+};
+
+const googleStreamCompletion = (results: GenerateContentResponse[]) => {
+  return googleStreamResponse(results);
+};
+
+const googleChatRequest = async (model: any, kwargs: any) => {
+  const history = kwargs?.history
+  const generationConfig = kwargs?.generation_config ?? null;
+  const lastMessage = history.length > 0 ? history[history.length - 1] : "";
+  const chat = model.startChat({
+    history: history.slice(0, -1) ?? []
+  });
+
+  if (kwargs?.stream)
+    return await chat.sendMessageStream(lastMessage.parts, { generationConfig }); 
+  return await chat.sendMessage(lastMessage.parts, { generationConfig });
+};
+
+const googleCompletionsRequest = async (model_client: any, {stream, ...kwargs}: any) => {
+  if (stream)
+    return await model_client.generateContentSteam({...kwargs})
+  return await model_client.generateContent({...kwargs});
+};
+
+const MAP_TYPE_TO_GOOGLE_FUNCTION = {
+  chat: googleChatRequest,
+  completion: googleCompletionsRequest,
+};
+
+const googleRequest = async (
+  promptBlueprint: GetPromptTemplateResponse,
+  kwargs: any
+) => {
+  const { GoogleGenerativeAI } = require("@google/generative-ai");
+  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+  const requestToMake =
+    MAP_TYPE_TO_GOOGLE_FUNCTION[promptBlueprint.prompt_template.type];
+  const model = genAI.getGenerativeModel({ 
+    model: kwargs.model ?? "gemini-1.5-pro",
+    systemInstruction: kwargs?.systemInstruction,
+  });
+  return await requestToMake(model, kwargs);
+};
+
 export {
   anthropicRequest,
   anthropicStreamCompletion,
@@ -880,6 +965,9 @@ export {
   openaiRequest,
   openaiStreamChat,
   openaiStreamCompletion,
+  googleRequest,
+  googleStreamChat,
+  googleStreamCompletion,
   promptlayerApiHandler,
   promptLayerApiRequest,
   promptLayerCreateGroup,

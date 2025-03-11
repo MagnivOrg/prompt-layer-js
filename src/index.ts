@@ -13,6 +13,9 @@ import {
   openaiRequest,
   openaiStreamChat,
   openaiStreamCompletion,
+  googleRequest,
+  googleStreamChat,
+  googleStreamCompletion,
   runWorkflowRequest,
   streamResponse,
   trackRequest,
@@ -51,12 +54,23 @@ const MAP_PROVIDER_TO_FUNCTION_NAME = {
       stream_function: openaiStreamCompletion,
     },
   },
+  google: {
+    chat: {
+      function_name: "google.convo.send_message",
+      stream_function: googleStreamChat,
+    },
+    completion: {
+      function_name: "google.model.generate_content",
+      stream_function: googleStreamCompletion,
+    },
+  },
 };
 
 const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
   openai: openaiRequest,
   anthropic: anthropicRequest,
   "openai.azure": azureOpenAIRequest,
+  google: googleRequest,
 };
 
 export interface ClientOptions {
