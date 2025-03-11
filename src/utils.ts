@@ -924,11 +924,15 @@ const googleChatRequest = async (model: any, kwargs: any) => {
     history: history.slice(0, -1) ?? []
   });
 
+  if (kwargs?.stream)
+    return await chat.sendMessageStream(lastMessage.parts, { generationConfig }); 
   return await chat.sendMessage(lastMessage.parts, { generationConfig });
 };
 
-const googleCompletionsRequest = async (model_client: any, kwargs: any) => {
-  return await model_client.generateContent(kwargs.parts);
+const googleCompletionsRequest = async (model_client: any, {stream, ...kwargs}: any) => {
+  if (stream)
+    return await model_client.generateContentSteam({...kwargs})
+  return await model_client.generateContent({...kwargs});
 };
 
 const MAP_TYPE_TO_GOOGLE_FUNCTION = {
@@ -948,7 +952,7 @@ const googleRequest = async (
     model: kwargs.model ?? "gemini-1.5-pro",
     systemInstruction: kwargs?.systemInstruction,
   });
-  return requestToMake(model, kwargs);
+  return await requestToMake(model, kwargs);
 };
 
 export {
