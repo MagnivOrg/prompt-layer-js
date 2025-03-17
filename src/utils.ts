@@ -872,40 +872,31 @@ const utilLogRequest = async (
 };
 
 const googleStreamResponse = (results: GenerateContentResponse[]) => {
-  const response: GenerateContentResponse = {
-    candidates: [
-      { 
-        index: 0,
-        content: { parts: [{ text: '' }], role: '' },
-        finishReason: undefined,
-      }
-    ],
-    usageMetadata: undefined,
-  };
-
   if (!results.length) {
-    return response;
+    const emptyResponse: GenerateContentResponse = {
+      candidates: [
+        { 
+          index: 0,
+          content: { parts: [{ text: '' }], role: '' },
+          finishReason: undefined,
+        }
+      ],
+      usageMetadata: undefined,
+    };
+    return emptyResponse;
   }
   
-  const lastResult = results.at(-1);
-  let aggregatedText = '';
-  let role = '';
-
-  for (const result of results) {
-    if (result?.candidates) {
-      aggregatedText += result.candidates[0].content.parts[0].text;
-      role = result.candidates[0].content.role;
+  let content = "";
+    for (const result of results) {
+      content += result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     }
-  }
 
-  if (response.candidates?.[0]?.content?.parts?.length) {
-    response.candidates[0].content.parts[0].text = aggregatedText;
-    response.candidates[0].content.role = role;
-    response.candidates[0].finishReason = lastResult?.candidates?.[0]?.finishReason ?? undefined;
-  }
-  response.usageMetadata = lastResult?.usageMetadata;
-  
-  return response;
+    const lastResult = { ...results[results.length - 1] };
+    if (lastResult.candidates?.[0]?.content?.parts?.[0]) {
+      lastResult.candidates[0].content.parts[0].text = content;
+    }
+
+    return lastResult;
 }
 
 const googleStreamChat = (results: GenerateContentResponse[]) => {
@@ -918,20 +909,20 @@ const googleStreamCompletion = (results: GenerateContentResponse[]) => {
 
 const googleChatRequest = async (model: any, kwargs: any) => {
   const history = kwargs?.history
-  const generationConfig = kwargs?.generation_config ?? null;
+  const generationConfig = kwargs?.generationConfig;
   const lastMessage = history.length > 0 ? history[history.length - 1] : "";
   const chat = model.startChat({
     history: history.slice(0, -1) ?? []
   });
 
   if (kwargs?.stream)
-    return await chat.sendMessageStream(lastMessage.parts, { generationConfig }); 
+    return (await chat.sendMessageStream(lastMessage.parts, { generationConfig })).stream; 
   return await chat.sendMessage(lastMessage.parts, { generationConfig });
 };
 
 const googleCompletionsRequest = async (model_client: any, {stream, ...kwargs}: any) => {
   if (stream)
-    return await model_client.generateContentSteam({...kwargs})
+    return (await model_client.generateContentStream({...kwargs})).stream;
   return await model_client.generateContent({...kwargs});
 };
 
@@ -948,11 +939,26 @@ const googleRequest = async (
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
   const requestToMake =
     MAP_TYPE_TO_GOOGLE_FUNCTION[promptBlueprint.prompt_template.type];
+  
+  const kwargsCamelCased = convertKeysToCamelCase(kwargs);
+
   const model = genAI.getGenerativeModel({ 
-    model: kwargs.model ?? "gemini-1.5-pro",
-    systemInstruction: kwargs?.systemInstruction,
+    model: kwargsCamelCased.model ?? "gemini-1.5-pro",
+    systemInstruction: kwargsCamelCased?.systemInstruction,
   });
-  return await requestToMake(model, kwargs);
+  return await requestToMake(model, kwargsCamelCased);
+};
+
+const snakeToCamel = (str: string): string => 
+  str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+
+const convertKeysToCamelCase = <T>(obj: T): T => {
+  if (!obj || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(convertKeysToCamelCase) as T;
+
+  return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [snakeToCamel(key), convertKeysToCamelCase(value)])
+  ) as T;
 };
 
 export {
