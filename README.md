@@ -32,7 +32,7 @@ Use `npm install .` to install locally.
 
 ### Using PromptLayer
 
-To get started, create an account by clicking “_Log in_” on [PromptLayer](https://promptlayer.com/). Once logged in, click the button to create an API key and save this in a secure location ([Guide to Using Env Vars](https://nodejs.dev/en/learn/how-to-read-environment-variables-from-nodejs/)).
+To get started, create an account by clicking “_Log in_” on [PromptLayer](https://promptlayer.com/). Once logged in, click the button to create an API key and save this in a secure location ([Guide to Using Env Vars](https://nodejs.org/en/learn/command-line/how-to-read-environment-variables-from-nodejs/)).
 
 ```bash
 export OPENAI_API_KEY=sk_xxxxxx
