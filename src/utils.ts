@@ -679,12 +679,14 @@ const trackRequest = async (body: TrackRequest) => {
       },
       body: JSON.stringify(body),
     });
-    if (response.status !== 200)
+    const data = await response.json();
+    if (response.status !== 200) {
       warnOnBadResponse(
-        response,
+        data,
         "WARNING: While logging your request, PromptLayer experienced the following error:"
       );
-    return response.json();
+    }
+    return data;
   } catch (e) {
     console.warn(
       `WARNING: While logging your request PromptLayer had the following error: ${e}`
@@ -855,14 +857,15 @@ const utilLogRequest = async (
       },
       body: JSON.stringify(body),
     });
+    const data = await response.json();
     if (response.status !== 201) {
       warnOnBadResponse(
-        response,
+        data,
         "WARNING: While logging your request PromptLayer had the following error"
       );
       return null;
     }
-    return response.json();
+    return data;
   } catch (e) {
     console.warn(
       `WARNING: While tracking your prompt PromptLayer had the following error: ${e}`
