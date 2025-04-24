@@ -28,7 +28,7 @@ import {
   ChatCompletionChunk,
   Completion,
 } from "openai/resources";
-import { GenerateContentResponse } from "@google/generative-ai";
+import { GenerateContentResponse } from "@google/genai";
 
 export const URL_API_PROMPTLAYER =
   process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
@@ -876,19 +876,9 @@ const utilLogRequest = async (
 
 const googleStreamResponse = (results: GenerateContentResponse[]) => {
   if (!results.length) {
-    const emptyResponse: GenerateContentResponse = {
-      candidates: [
-        { 
-          index: 0,
-          content: { parts: [{ text: '' }], role: '' },
-          finishReason: undefined,
-        }
-      ],
-      usageMetadata: undefined,
-    };
-    return emptyResponse;
+    return new GenerateContentResponse();
   }
-  
+
   let content = "";
     for (const result of results) {
       content += result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
@@ -910,22 +900,24 @@ const googleStreamCompletion = (results: GenerateContentResponse[]) => {
   return googleStreamResponse(results);
 };
 
-const googleChatRequest = async (model: any, kwargs: any) => {
+const googleChatRequest = async (model_client: any, kwargs: any) => {
   const history = kwargs?.history
   const generationConfig = kwargs?.generationConfig;
   const lastMessage = history.length > 0 ? history[history.length - 1] : "";
-  const chat = model.startChat({
-    history: history.slice(0, -1) ?? []
+  const chat = model_client.chats.create({
+    model: kwargs?.model,
+    history: history.slice(0, -1) ?? [],
+    config: generationConfig
   });
 
   if (kwargs?.stream)
-    return (await chat.sendMessageStream(lastMessage.parts, { generationConfig })).stream; 
-  return await chat.sendMessage(lastMessage.parts, { generationConfig });
+    return await chat.sendMessageStream({message: lastMessage.parts}); 
+  return await chat.sendMessage({message: lastMessage.parts});
 };
 
 const googleCompletionsRequest = async (model_client: any, {stream, ...kwargs}: any) => {
   if (stream)
-    return (await model_client.generateContentStream({...kwargs})).stream;
+    return await model_client.generateContentStream({...kwargs});
   return await model_client.generateContent({...kwargs});
 };
 
@@ -938,18 +930,28 @@ const googleRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const { GoogleGenerativeAI } = require("@google/generative-ai");
-  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY);
+  const { GoogleGenAI } = require("@google/genai");
+
+  const geminiAPI = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const project = process.env.VERTEX_AI_PROJECT_ID || process.env.GOOGLE_PROJECT_ID
+    || process.env.GOOGLE_CLOUD_PROJECT;
+  const location = process.env.VERTEX_AI_PROJECT_LOCATION || process.env.GOOGLE_PROJECT_LOCATION
+    || process.env.GOOGLE_CLOUD_PROJECT_LOCATION;
+  const googleAuthOptions = {
+    keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    projectId: project,
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+  };
+
+  const genAI = geminiAPI
+    ? new GoogleGenAI({ apiKey: geminiAPI })
+    : new GoogleGenAI({ vertexai: true, project: project, location: location, googleAuthOptions });
   const requestToMake =
     MAP_TYPE_TO_GOOGLE_FUNCTION[promptBlueprint.prompt_template.type];
   
   const kwargsCamelCased = convertKeysToCamelCase(kwargs);
 
-  const model = genAI.getGenerativeModel({ 
-    model: kwargsCamelCased.model ?? "gemini-1.5-pro",
-    systemInstruction: kwargsCamelCased?.systemInstruction,
-  });
-  return await requestToMake(model, kwargsCamelCased);
+  return await requestToMake(genAI, kwargsCamelCased);
 };
 
 const snakeToCamel = (str: string): string => 
