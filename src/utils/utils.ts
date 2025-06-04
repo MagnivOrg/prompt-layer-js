@@ -30,7 +30,6 @@ import {
 } from "openai/resources";
 import { GenerateContentResponse } from "@google/genai";
 
-
 export const SET_WORKFLOW_COMPLETE_MESSAGE = "SET_WORKFLOW_COMPLETE";
 
 export enum FinalOutputCode {
@@ -110,34 +109,42 @@ async function waitForWorkflowCompletion({
     resultsPromise.reject = reject;
   });
 
-  const listener = makeMessageListener(resultsPromise, executionId, returnAllOutputs, headers);
+  const listener = makeMessageListener(
+    resultsPromise,
+    executionId,
+    returnAllOutputs,
+    headers
+  );
   await channel.subscribe(SET_WORKFLOW_COMPLETE_MESSAGE, listener);
 
   try {
     return await new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error("Workflow execution did not complete properly (timeout)"));
+        reject(
+          new Error("Workflow execution did not complete properly (timeout)")
+        );
       }, timeout);
 
-      promise.then((result) => {
-        clearTimeout(timer);
-        resolve(result);
-      }).catch((err) => {
-        clearTimeout(timer);
-        reject(err);
-      });
+      promise
+        .then((result) => {
+          clearTimeout(timer);
+          resolve(result);
+        })
+        .catch((err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
     });
   } finally {
-    console.log('Closing client')
+    console.log("Closing client");
     channel.unsubscribe(SET_WORKFLOW_COMPLETE_MESSAGE, listener);
     client.close();
-    console.log('Closed client')
+    console.log("Closed client");
   }
 }
 
-
-export const URL_API_PROMPTLAYER =
-  process.env.URL_API_PROMPTLAYER || "https://api.promptlayer.com";
+export const URL_API_PROMPTLAYER = "http://127.0.0.1:5000";
+// export const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
 
 const promptlayerApiHandler = async <Item>(
   apiKey: string,
@@ -533,7 +540,6 @@ export const runWorkflowRequest = async ({
   }
 };
 
-
 const openaiStreamChat = (results: ChatCompletionChunk[]): ChatCompletion => {
   let content: ChatCompletion.Choice["message"]["content"] = null;
   let functionCall: ChatCompletion.Choice["message"]["function_call"] =
@@ -834,6 +840,7 @@ async function* streamResponse<Item>(
 }
 
 const openaiChatRequest = async (client: TypeOpenAI, kwargs: any) => {
+  console.log(kwargs, 1212);
   return client.chat.completions.create(kwargs);
 };
 
@@ -853,6 +860,7 @@ const openaiRequest = async (
   const OpenAI = require("openai").default;
   const client = new OpenAI({
     baseURL: kwargs.baseURL,
+    apiKey: kwargs.apiKey,
   });
   const requestToMake =
     MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
@@ -938,17 +946,17 @@ const googleStreamResponse = (results: GenerateContentResponse[]) => {
   }
 
   let content = "";
-    for (const result of results) {
-      content += result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    }
+  for (const result of results) {
+    content += result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  }
 
-    const lastResult = { ...results[results.length - 1] };
-    if (lastResult.candidates?.[0]?.content?.parts?.[0]) {
-      lastResult.candidates[0].content.parts[0].text = content;
-    }
+  const lastResult = { ...results[results.length - 1] };
+  if (lastResult.candidates?.[0]?.content?.parts?.[0]) {
+    lastResult.candidates[0].content.parts[0].text = content;
+  }
 
-    return lastResult;
-}
+  return lastResult;
+};
 
 const googleStreamChat = (results: GenerateContentResponse[]) => {
   return googleStreamResponse(results);
@@ -959,24 +967,26 @@ const googleStreamCompletion = (results: GenerateContentResponse[]) => {
 };
 
 const googleChatRequest = async (model_client: any, kwargs: any) => {
-  const history = kwargs?.history
+  const history = kwargs?.history;
   const generationConfig = kwargs?.generationConfig;
   const lastMessage = history.length > 0 ? history[history.length - 1] : "";
   const chat = model_client.chats.create({
     model: kwargs?.model,
     history: history.slice(0, -1) ?? [],
-    config: generationConfig
+    config: generationConfig,
   });
 
   if (kwargs?.stream)
-    return await chat.sendMessageStream({message: lastMessage.parts}); 
-  return await chat.sendMessage({message: lastMessage.parts});
+    return await chat.sendMessageStream({ message: lastMessage.parts });
+  return await chat.sendMessage({ message: lastMessage.parts });
 };
 
-const googleCompletionsRequest = async (model_client: any, {stream, ...kwargs}: any) => {
-  if (stream)
-    return await model_client.generateContentStream({...kwargs});
-  return await model_client.generateContent({...kwargs});
+const googleCompletionsRequest = async (
+  model_client: any,
+  { stream, ...kwargs }: any
+) => {
+  if (stream) return await model_client.generateContentStream({ ...kwargs });
+  return await model_client.generateContent({ ...kwargs });
 };
 
 const MAP_TYPE_TO_GOOGLE_FUNCTION = {
@@ -991,10 +1001,14 @@ const googleRequest = async (
   const { GoogleGenAI } = require("@google/genai");
 
   const geminiAPI = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-  const project = process.env.VERTEX_AI_PROJECT_ID || process.env.GOOGLE_PROJECT_ID
-    || process.env.GOOGLE_CLOUD_PROJECT;
-  const location = process.env.VERTEX_AI_PROJECT_LOCATION || process.env.GOOGLE_PROJECT_LOCATION
-    || process.env.GOOGLE_CLOUD_PROJECT_LOCATION;
+  const project =
+    process.env.VERTEX_AI_PROJECT_ID ||
+    process.env.GOOGLE_PROJECT_ID ||
+    process.env.GOOGLE_CLOUD_PROJECT;
+  const location =
+    process.env.VERTEX_AI_PROJECT_LOCATION ||
+    process.env.GOOGLE_PROJECT_LOCATION ||
+    process.env.GOOGLE_CLOUD_PROJECT_LOCATION;
   const googleAuthOptions = {
     keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
     projectId: project,
@@ -1003,16 +1017,21 @@ const googleRequest = async (
 
   const genAI = geminiAPI
     ? new GoogleGenAI({ apiKey: geminiAPI })
-    : new GoogleGenAI({ vertexai: true, project: project, location: location, googleAuthOptions });
+    : new GoogleGenAI({
+        vertexai: true,
+        project: project,
+        location: location,
+        googleAuthOptions,
+      });
   const requestToMake =
     MAP_TYPE_TO_GOOGLE_FUNCTION[promptBlueprint.prompt_template.type];
-  
+
   const kwargsCamelCased = convertKeysToCamelCase(kwargs);
 
   return await requestToMake(genAI, kwargsCamelCased);
 };
 
-const snakeToCamel = (str: string): string => 
+const snakeToCamel = (str: string): string =>
   str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 
 const convertKeysToCamelCase = <T>(obj: T): T => {
@@ -1020,8 +1039,127 @@ const convertKeysToCamelCase = <T>(obj: T): T => {
   if (Array.isArray(obj)) return obj.map(convertKeysToCamelCase) as T;
 
   return Object.fromEntries(
-      Object.entries(obj).map(([key, value]) => [snakeToCamel(key), convertKeysToCamelCase(value)])
+    Object.entries(obj).map(([key, value]) => [
+      snakeToCamel(key),
+      convertKeysToCamelCase(value),
+    ])
   ) as T;
+};
+
+export const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
+  openai: openaiRequest,
+  anthropic: anthropicRequest,
+  "openai.azure": azureOpenAIRequest,
+  google: googleRequest,
+};
+
+export const STREAMING_PROVIDERS_WITH_USAGE = [
+  "openai",
+  "openai.azure",
+] as const;
+
+const MAP_PROVIDER_TO_FUNCTION_NAME = {
+  openai: {
+    chat: {
+      function_name: "openai.chat.completions.create",
+      stream_function: openaiStreamChat,
+    },
+    completion: {
+      function_name: "openai.completions.create",
+      stream_function: openaiStreamCompletion,
+    },
+  },
+  anthropic: {
+    chat: {
+      function_name: "anthropic.messages.create",
+      stream_function: anthropicStreamMessage,
+    },
+    completion: {
+      function_name: "anthropic.completions.create",
+      stream_function: anthropicStreamCompletion,
+    },
+  },
+  "openai.azure": {
+    chat: {
+      function_name: "openai.AzureOpenAI.chat.completions.create",
+      stream_function: openaiStreamChat,
+    },
+    completion: {
+      function_name: "openai.AzureOpenAI.completions.create",
+      stream_function: openaiStreamCompletion,
+    },
+  },
+  google: {
+    chat: {
+      function_name: "google.convo.send_message",
+      stream_function: googleStreamChat,
+    },
+    completion: {
+      function_name: "google.model.generate_content",
+      stream_function: googleStreamCompletion,
+    },
+  },
+};
+
+const configureProviderSettings = (
+  promptBlueprint: any,
+  customProvider: any,
+  modelParameterOverrides: any = {},
+  stream: boolean = false
+) => {
+  const provider_type =
+    customProvider?.client ?? promptBlueprint.metadata?.model?.provider;
+
+  if (!provider_type) {
+    throw new Error(
+      "Provider type not found in prompt blueprint or custom provider"
+    );
+  }
+
+  const kwargs = {
+    ...(promptBlueprint.llm_kwargs || {}),
+    ...modelParameterOverrides,
+    stream,
+  };
+
+  const providerConfig = {
+    baseURL: customProvider?.base_url ?? promptBlueprint.provider_base_url?.url,
+    apiKey: customProvider?.api_key,
+  };
+
+  Object.entries(providerConfig).forEach(([key, value]) => {
+    if (value !== undefined) {
+      kwargs[key] = value;
+    }
+  });
+
+  if (stream && STREAMING_PROVIDERS_WITH_USAGE.includes(provider_type as any)) {
+    kwargs.stream_options = { include_usage: true };
+  }
+
+  return { provider_type, kwargs };
+};
+
+const getProviderConfig = (provider_type: string, promptTemplate: any) => {
+  const providerMap =
+    MAP_PROVIDER_TO_FUNCTION_NAME[
+      provider_type as keyof typeof MAP_PROVIDER_TO_FUNCTION_NAME
+    ];
+
+  if (!providerMap) {
+    throw new Error(`Unsupported provider type: ${provider_type}`);
+  }
+
+  const templateType = promptTemplate.type as keyof typeof providerMap;
+  const config = providerMap[templateType];
+
+  if (!config) {
+    throw new Error(
+      `Unsupported template type '${promptTemplate.type}' for provider '${provider_type}'`
+    );
+  }
+
+  return config;
 };
 
 export {
@@ -1048,4 +1186,6 @@ export {
   streamResponse,
   trackRequest,
   utilLogRequest,
+  getProviderConfig,
+  configureProviderSettings,
 };
