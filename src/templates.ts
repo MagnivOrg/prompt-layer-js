@@ -7,7 +7,7 @@ import {
   getAllPromptTemplates,
   getPromptTemplate,
   publishPromptTemplate,
-} from "@/utils";
+} from "@/utils/utils";
 
 export class TemplateManager {
   apiKey: string;

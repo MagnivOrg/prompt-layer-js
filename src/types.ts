@@ -65,6 +65,15 @@ export interface Pagination {
   per_page?: number;
 }
 
+export interface CustomProvider {
+  id: number;
+  name: string;
+  client: string;
+  base_url: string;
+  workspace_id: number;
+  api_key: string;
+}
+
 export interface GetPromptTemplateParams {
   version?: number;
   label?: string;
@@ -179,7 +188,6 @@ export type PlaceholderMessage = {
   name: string;
 };
 
-
 export type DeveloperMessage = {
   role: "developer";
   input_variables?: string[];
@@ -265,6 +273,7 @@ export interface BasePromptTemplateResponse {
   commit_message?: string;
   metadata?: Metadata;
   provider_base_url?: ProviderBaseURL;
+  custom_provider?: CustomProvider;
 }
 
 export interface PublishPromptTemplateResponse

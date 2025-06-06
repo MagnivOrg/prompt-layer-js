@@ -4,7 +4,7 @@ import {
   promptLayerTrackMetadata,
   promptLayerTrackPrompt,
   promptLayerTrackScore,
-} from "@/utils";
+} from "@/utils/utils";
 
 const metadata = (apiKey: string, body: TrackMetadata): Promise<boolean> => {
   if (!(body.metadata instanceof Object)) {

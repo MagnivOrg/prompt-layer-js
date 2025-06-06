@@ -1,4 +1,4 @@
-import { promptLayerCreateGroup } from "@/utils";
+import { promptLayerCreateGroup } from "@/utils/utils";
 
 export class GroupManager {
   apiKey: string;
