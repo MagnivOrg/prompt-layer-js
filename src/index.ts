@@ -18,9 +18,19 @@ import {
   utilLogRequest,
   getProviderConfig,
   configureProviderSettings,
-  MAP_PROVIDER_TO_FUNCTION,
+  googleRequest,
+  azureOpenAIRequest,
+  anthropicRequest,
+  openaiRequest,
 } from "@/utils/utils";
 import * as opentelemetry from "@opentelemetry/api";
+
+const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
+  openai: openaiRequest,
+  anthropic: anthropicRequest,
+  "openai.azure": azureOpenAIRequest,
+  google: googleRequest,
+};
 
 export interface ClientOptions {
   apiKey?: string;
