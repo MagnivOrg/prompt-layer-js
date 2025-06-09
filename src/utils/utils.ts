@@ -611,7 +611,7 @@ const openaiStreamChat = (results: ChatCompletionChunk[]): ChatCompletion => {
   response.model = lastResult.model;
   response.created = lastResult.created;
   response.system_fingerprint = lastResult.system_fingerprint;
-  response.usage = lastResult.usage;
+  response.usage = lastResult.usage ?? undefined;
   return response;
 };
 
@@ -1046,17 +1046,7 @@ const convertKeysToCamelCase = <T>(obj: T): T => {
   ) as T;
 };
 
-export const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
-  openai: openaiRequest,
-  anthropic: anthropicRequest,
-  "openai.azure": azureOpenAIRequest,
-  google: googleRequest,
-};
-
-export const STREAMING_PROVIDERS_WITH_USAGE = [
-  "openai",
-  "openai.azure",
-] as const;
+const STREAMING_PROVIDERS_WITH_USAGE = ["openai", "openai.azure"] as const;
 
 const MAP_PROVIDER_TO_FUNCTION_NAME = {
   openai: {
