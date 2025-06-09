@@ -4,67 +4,26 @@ import { wrapWithSpan } from "@/span-wrapper";
 import { TemplateManager } from "@/templates";
 import { getTracer, setupTracing } from "@/tracing";
 import { TrackManager } from "@/track";
-import { GetPromptTemplateParams, LogRequest, RunRequest, WorkflowRequest, WorkflowResponse } from "@/types";
 import {
-  anthropicRequest,
-  anthropicStreamCompletion,
-  anthropicStreamMessage,
-  azureOpenAIRequest,
-  openaiRequest,
-  openaiStreamChat,
-  openaiStreamCompletion,
-  googleRequest,
-  googleStreamChat,
-  googleStreamCompletion,
+  GetPromptTemplateParams,
+  LogRequest,
+  RunRequest,
+  WorkflowRequest,
+  WorkflowResponse,
+} from "@/types";
+import {
   runWorkflowRequest,
   streamResponse,
   trackRequest,
   utilLogRequest,
-} from "@/utils";
+  getProviderConfig,
+  configureProviderSettings,
+  googleRequest,
+  azureOpenAIRequest,
+  anthropicRequest,
+  openaiRequest,
+} from "@/utils/utils";
 import * as opentelemetry from "@opentelemetry/api";
-
-const MAP_PROVIDER_TO_FUNCTION_NAME = {
-  openai: {
-    chat: {
-      function_name: "openai.chat.completions.create",
-      stream_function: openaiStreamChat,
-    },
-    completion: {
-      function_name: "openai.completions.create",
-      stream_function: openaiStreamCompletion,
-    },
-  },
-  anthropic: {
-    chat: {
-      function_name: "anthropic.messages.create",
-      stream_function: anthropicStreamMessage,
-    },
-    completion: {
-      function_name: "anthropic.completions.create",
-      stream_function: anthropicStreamCompletion,
-    },
-  },
-  "openai.azure": {
-    chat: {
-      function_name: "openai.AzureOpenAI.chat.completions.create",
-      stream_function: openaiStreamChat,
-    },
-    completion: {
-      function_name: "openai.AzureOpenAI.completions.create",
-      stream_function: openaiStreamCompletion,
-    },
-  },
-  google: {
-    chat: {
-      function_name: "google.convo.send_message",
-      stream_function: googleStreamChat,
-    },
-    completion: {
-      function_name: "google.model.generate_content",
-      stream_function: googleStreamCompletion,
-    },
-  },
-};
 
 const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
   openai: openaiRequest,
@@ -97,7 +56,7 @@ const isWorkflowResultsDict = (obj: any): boolean => {
     if (typeof val !== "object" || val === null) return false;
     return REQUIRED_KEYS.every((key) => key in val);
   });
-}
+};
 
 export class PromptLayer {
   apiKey: string;
@@ -196,7 +155,7 @@ export class PromptLayer {
 
         const promptTemplate = promptBlueprint.prompt_template;
         if (!promptBlueprint.llm_kwargs) {
-          throw new Error(
+          console.warn(
             `Prompt '${promptName}' does not have any LLM kwargs associated with it. Please set your model parameters in the registry in the PromptLayer dashbaord.`
           );
         }
@@ -215,28 +174,24 @@ export class PromptLayer {
           );
         }
 
-        const provider_type = promptBlueprintModel.provider;
-
+        const customProvider = promptBlueprint.custom_provider;
         const request_start_time = new Date().toISOString();
-        const kwargs = {
-          ...promptBlueprint.llm_kwargs,
-          ...(modelParameterOverrides || {}),
-        };
-        const config =
-          MAP_PROVIDER_TO_FUNCTION_NAME[
-            provider_type as keyof typeof MAP_PROVIDER_TO_FUNCTION_NAME
-          ][promptTemplate.type];
-        const function_name = config.function_name;
 
-        const stream_function = config.stream_function;
+        const { provider_type, kwargs } = configureProviderSettings(
+          promptBlueprint,
+          customProvider,
+          modelParameterOverrides,
+          stream
+        );
+
+        const config = getProviderConfig(provider_type, promptTemplate);
+        const { function_name, stream_function } = config;
+
         const request_function = MAP_PROVIDER_TO_FUNCTION[provider_type];
-        const provider_base_url = promptBlueprint.provider_base_url;
-        if (provider_base_url) {
-          kwargs["baseURL"] = provider_base_url.url;
-        }
-        kwargs["stream"] = stream;
-        if (stream && ["openai", "openai.azure"].includes(provider_type)) {
-          kwargs["stream_options"] = { include_usage: true };
+        if (!request_function) {
+          throw new Error(
+            `No request function found for provider: ${provider_type}`
+          );
         }
 
         const response = await request_function(promptBlueprint, kwargs);

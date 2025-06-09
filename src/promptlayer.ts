@@ -1,5 +1,5 @@
-import {getTracer} from "@/tracing";
-import {promptlayerApiHandler} from "@/utils";
+import { getTracer } from "@/tracing";
+import { promptlayerApiHandler } from "@/utils/utils";
 
 const tracer = getTracer();
 
@@ -52,54 +52,60 @@ export const promptLayerBase = (
           delete args[0]?.return_pl_id;
           delete args[0]?.pl_tags;
 
-          return tracer.startActiveSpan(`${provider_type}.${function_name}`, async (span: any) => {
-            try {
-              span.setAttribute('function_input', JSON.stringify(args));
-              const response = Reflect.apply(value, target, args);
-              const spanId = span.spanContext().spanId;
+          return tracer.startActiveSpan(
+            `${provider_type}.${function_name}`,
+            async (span: any) => {
+              try {
+                span.setAttribute("function_input", JSON.stringify(args));
+                const response = Reflect.apply(value, target, args);
+                const spanId = span.spanContext().spanId;
 
-              if (response instanceof Promise) {
-                return new Promise((resolve, reject) => {
-                  response
-                    .then(async (request_response) => {
-                      const response = await promptlayerApiHandler(apiKey, {
-                        api_key: apiKey,
-                        provider_type,
-                        function_name,
-                        request_start_time,
-                        request_end_time: new Date().toISOString(),
-                        request_response,
-                        kwargs: args[0],
-                        return_pl_id,
-                        tags: pl_tags,
-                        span_id: spanId,
+                if (response instanceof Promise) {
+                  return new Promise((resolve, reject) => {
+                    response
+                      .then(async (request_response) => {
+                        const response = await promptlayerApiHandler(apiKey, {
+                          api_key: apiKey,
+                          provider_type,
+                          function_name,
+                          request_start_time,
+                          request_end_time: new Date().toISOString(),
+                          request_response,
+                          kwargs: args[0],
+                          return_pl_id,
+                          tags: pl_tags,
+                          span_id: spanId,
+                        });
+
+                        span.setAttribute(
+                          "function_output",
+                          JSON.stringify(response)
+                        );
+                        span.setAttribute("response_status", "success");
+                        span.end();
+                        resolve(response);
+                      })
+                      .catch((error) => {
+                        span.recordException(error);
+                        span.setAttribute("response_status", "error");
+                        span.end();
+                        reject(error);
                       });
+                  });
+                }
 
-                      span.setAttribute('function_output', JSON.stringify(response));
-                      span.setAttribute('response_status', 'success');
-                      span.end();
-                      resolve(response);
-                    })
-                    .catch((error) => {
-                      span.recordException(error);
-                      span.setAttribute('response_status', 'error');
-                      span.end();
-                      reject(error);
-                    });
-                });
+                span.setAttribute("function_output", JSON.stringify(response));
+                span.setAttribute("response_status", "success");
+                span.end();
+                return response;
+              } catch (error) {
+                span.recordException(error);
+                span.setAttribute("response_status", "error");
+                span.end();
+                throw error;
               }
-
-              span.setAttribute('function_output', JSON.stringify(response));
-              span.setAttribute('response_status', 'success');
-              span.end();
-              return response;
-            } catch (error) {
-              span.recordException(error);
-              span.setAttribute('response_status', 'error');
-              span.end();
-              throw error;
             }
-          });
+          );
         };
       }
 
