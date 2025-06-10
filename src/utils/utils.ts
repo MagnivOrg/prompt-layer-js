@@ -143,8 +143,8 @@ async function waitForWorkflowCompletion({
   }
 }
 
-export const URL_API_PROMPTLAYER = "http://127.0.0.1:5000";
-// export const URL_API_PROMPTLAYER = "https://api.promptlayer.com";
+export const URL_API_PROMPTLAYER =
+  process.env.PROMPTLAYER_API_URL || "https://api.promptlayer.com";
 
 const promptlayerApiHandler = async <Item>(
   apiKey: string,
