@@ -19,8 +19,8 @@ import type TypeAnthropic from "@anthropic-ai/sdk";
 import {
   Completion as AnthropicCompletion,
   Message,
-  MessageStreamEvent,
 } from "@anthropic-ai/sdk/resources";
+import { MessageStreamEvent } from "@anthropic-ai/sdk/resources/messages";
 import Ably from "ably";
 import type TypeOpenAI from "openai";
 import {
@@ -627,11 +627,20 @@ const anthropicStreamMessage = (results: MessageStreamEvent[]): Message => {
     usage: {
       input_tokens: 0,
       output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      server_tool_use: null,
+      service_tier: null,
     },
   };
   const lastResult = results.at(-1);
   if (!lastResult) return response;
-  let content = "";
+  let textContent = "";
+  let thinkingContent = "";
+  let signatureContent = "";
+  let inThinkingBlock = false;
+  let thinkingBlockIndex: number | null = null;
+
   for (const result of results) {
     switch (result.type) {
       case "message_start": {
@@ -640,25 +649,72 @@ const anthropicStreamMessage = (results: MessageStreamEvent[]): Message => {
         };
         break;
       }
+      case "content_block_start": {
+        if ((result.content_block as any).type === "thinking") {
+          inThinkingBlock = true;
+          thinkingContent = "";
+          signatureContent = "";
+          thinkingBlockIndex = result.index;
+        }
+        break;
+      }
       case "content_block_delta": {
-        if (result.delta.type === "text_delta")
-          content = `${content}${result.delta.text}`;
+        if (inThinkingBlock && result.index === thinkingBlockIndex) {
+          if ("thinking" in result.delta) {
+            thinkingContent += result.delta.thinking;
+          }
+          if ("signature" in result.delta) {
+            signatureContent += result.delta.signature;
+          }
+        }
+        if ("text" in result.delta) {
+          textContent += result.delta.text;
+        }
+        break;
+      }
+      case "content_block_stop": {
+        if (inThinkingBlock && result.index === thinkingBlockIndex) {
+          response.content!.push({
+            type: "thinking",
+            thinking: thinkingContent,
+            signature: signatureContent,
+          });
+          inThinkingBlock = false;
+          thinkingBlockIndex = null;
+        }
+        break;
       }
       case "message_delta": {
-        if ("usage" in result)
-          response.usage.output_tokens = result.usage.output_tokens;
-        if ("stop_reason" in result.delta)
-          response.stop_reason = result.delta.stop_reason;
+        if ("usage" in result && result.usage) {
+          const usage = result.usage;
+          response.usage = {
+            ...response.usage,
+            output_tokens: usage.output_tokens ?? 0,
+          };
+        }
+        if ("delta" in result && result.delta) {
+          if ("stop_reason" in result.delta && result.delta.stop_reason !== undefined) {
+            response.stop_reason = result.delta.stop_reason;
+          }
+          if ("stop_sequence" in result.delta && result.delta.stop_sequence !== undefined) {
+            response.stop_sequence = result.delta.stop_sequence;
+          }
+        }
+        break;
       }
       default: {
         break;
       }
     }
   }
-  response.content.push({
-    type: "text",
-    text: content,
-  });
+  if (textContent) {
+    response.content!.push({
+      type: "text",
+      text: textContent,
+      citations: null,
+    });
+  }
+  console.log(JSON.stringify(response, null, 2))
   return response;
 };
 
