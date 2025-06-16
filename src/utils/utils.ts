@@ -28,7 +28,6 @@ import {
   ChatCompletionChunk,
   Completion,
 } from "openai/resources";
-import { GenerateContentResponse } from "@google/genai";
 
 export const SET_WORKFLOW_COMPLETE_MESSAGE = "SET_WORKFLOW_COMPLETE";
 
@@ -714,7 +713,6 @@ const anthropicStreamMessage = (results: MessageStreamEvent[]): Message => {
       citations: null,
     });
   }
-  console.log(JSON.stringify(response, null, 2))
   return response;
 };
 
@@ -996,11 +994,12 @@ const utilLogRequest = async (
   }
 };
 
-const googleStreamResponse = (results: GenerateContentResponse[]) => {
+const googleStreamResponse = (results: any[]) => {
+  const { GenerateContentResponse } = require("@google/genai");
+
   if (!results.length) {
     return new GenerateContentResponse();
   }
-
   let content = "";
   for (const result of results) {
     content += result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
@@ -1014,11 +1013,11 @@ const googleStreamResponse = (results: GenerateContentResponse[]) => {
   return lastResult;
 };
 
-const googleStreamChat = (results: GenerateContentResponse[]) => {
+const googleStreamChat = (results: any[]) => {
   return googleStreamResponse(results);
 };
 
-const googleStreamCompletion = (results: GenerateContentResponse[]) => {
+const googleStreamCompletion = (results: any[]) => {
   return googleStreamResponse(results);
 };
 
