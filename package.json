@@ -1,7 +1,7 @@
 {
   "name": "promptlayer",
   "license": "MIT",
-  "version": "1.0.30",
+  "version": "1.0.31",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
@@ -16,7 +16,7 @@
     "release": "npm run build && npm publish"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.20.8",
+    "@anthropic-ai/sdk": "^0.54.0",
     "@google/genai": "^0.10.0",
     "@types/ably": "^1.0.0",
     "@types/node": "^20.8.0",

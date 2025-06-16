@@ -95,6 +95,12 @@ export type TextContent = {
   text: string;
 };
 
+export type ThinkingContent = {
+  signature?: string;
+  type: "thinking";
+  thinking: string;
+};
+
 export type ImageContent = {
   type: "image_url";
   image_url: ImageUrl;
@@ -116,7 +122,7 @@ export type MediaVariable = {
   name: string;
 };
 
-export type Content = TextContent | ImageContent | MediaContent | MediaVariable;
+export type Content = TextContent | ThinkingContent | ImageContent | MediaContent | MediaVariable;
 
 export type Function_ = {
   name: string;
