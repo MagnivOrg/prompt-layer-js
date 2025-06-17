@@ -305,6 +305,7 @@ export interface RunRequest {
   promptReleaseLabel?: string;
   inputVariables?: Record<string, unknown>;
   modelParameterOverrides?: Record<string, unknown>;
+  skipLogging?: boolean;
 }
 
 export interface LogRequest {
