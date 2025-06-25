@@ -999,23 +999,78 @@ const utilLogRequest = async (
   }
 };
 
+const buildGoogleResponseFromParts = (
+  thoughtContent: string,
+  regularContent: string,
+  functionCalls: any[],
+  lastResult: any
+) => {
+  const response = { ...lastResult };
+  const finalParts = [];
+
+  if (thoughtContent) {
+    const thoughtPart = {
+      text: thoughtContent,
+      thought: true,
+    };
+    finalParts.push(thoughtPart);
+  }
+
+  if (regularContent) {
+    const textPart = {
+      text: regularContent,
+      thought: null,
+    };
+    finalParts.push(textPart);
+  }
+
+  for (const functionCall of functionCalls) {
+    const functionPart = {
+      function_call: functionCall,
+    };
+    finalParts.push(functionPart);
+  }
+
+  if (finalParts.length > 0 && response.candidates?.[0]?.content) {
+    response.candidates[0].content.parts = finalParts;
+  }
+
+  return response;
+};
+
 const googleStreamResponse = (results: any[]) => {
   const { GenerateContentResponse } = require("@google/genai");
 
   if (!results.length) {
     return new GenerateContentResponse();
   }
-  let content = "";
+
+  let thoughtContent = "";
+  let regularContent = "";
+  const functionCalls: any[] = [];
+
   for (const result of results) {
-    content += result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    if (result.candidates && result.candidates[0]?.content?.parts) {
+      for (const part of result.candidates[0].content.parts) {
+        if (part.text) {
+          if (part.thought === true) {
+            thoughtContent += part.text;
+          } else {
+            regularContent += part.text;
+          }
+        } else if (part.functionCall) {
+          functionCalls.push(part.functionCall);
+        }
+      }
+    }
   }
 
-  const lastResult = { ...results[results.length - 1] };
-  if (lastResult.candidates?.[0]?.content?.parts?.[0]) {
-    lastResult.candidates[0].content.parts[0].text = content;
-  }
-
-  return lastResult;
+  return buildGoogleResponseFromParts(
+    thoughtContent,
+    regularContent,
+    functionCalls,
+    results[results.length - 1]
+  );
 };
 
 const googleStreamChat = (results: any[]) => {
