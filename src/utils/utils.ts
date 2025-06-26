@@ -1091,7 +1091,7 @@ const googleStreamCompletion = (results: any[]) => {
 const googleChatRequest = async (model_client: any, kwargs: any) => {
   const history = kwargs?.history;
   const generationConfig = kwargs?.generationConfig;
-  const lastMessage = history.length > 0 ? history[history.length - 1] : "";
+  const lastMessage = history.length > 0 ? history[history.length - 1]?.parts : "";
   const chat = model_client.chats.create({
     model: kwargs?.model,
     history: history.slice(0, -1) ?? [],
@@ -1099,8 +1099,8 @@ const googleChatRequest = async (model_client: any, kwargs: any) => {
   });
 
   if (kwargs?.stream)
-    return await chat.sendMessageStream({ message: lastMessage.parts });
-  return await chat.sendMessage({ message: lastMessage.parts });
+    return await chat.sendMessageStream({ message: lastMessage });
+  return await chat.sendMessage({ message: lastMessage });
 };
 
 const googleCompletionsRequest = async (
