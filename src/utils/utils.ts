@@ -634,91 +634,98 @@ const anthropicStreamMessage = (results: MessageStreamEvent[]): Message => {
   };
   const lastResult = results.at(-1);
   if (!lastResult) return response;
-  let textContent = "";
-  let thinkingContent = "";
-  let signatureContent = "";
-  let inThinkingBlock = false;
-  let thinkingBlockIndex: number | null = null;
+  let currentBlock: any = null;
+  let currentSignature = "";
+  let currentThinking = "";
+  let currentText = "";
+  let currentToolInputJson = "";
 
-  for (const result of results) {
-    switch (result.type) {
-      case "message_start": {
-        response = {
-          ...result.message,
+  for (const event of results) {
+    if (event.type === "message_start") {
+      response = { ...event.message };
+    } else if (event.type === "content_block_start") {
+      currentBlock = { ...event.content_block };
+      if (currentBlock.type === "thinking") {
+        currentSignature = "";
+        currentThinking = "";
+      } else if (currentBlock.type === "text") {
+        currentText = "";
+      } else if (
+        currentBlock.type === "tool_use" ||
+        currentBlock.type === "server_tool_use"
+      ) {
+        currentToolInputJson = "";
+      }
+    } else if (event.type === "content_block_delta" && currentBlock !== null) {
+      if (currentBlock.type === "thinking") {
+        if ("signature" in event.delta) {
+          currentSignature = event.delta.signature || "";
+        }
+        if ("thinking" in event.delta) {
+          currentThinking += event.delta.thinking || "";
+        }
+      } else if (currentBlock.type === "text") {
+        if ("text" in event.delta) {
+          currentText += event.delta.text || "";
+        }
+      } else if (
+        currentBlock.type === "tool_use" ||
+        currentBlock.type === "server_tool_use"
+      ) {
+        if (event.delta.type === "input_json_delta") {
+          const inputJsonDelta = event.delta as any;
+          currentToolInputJson += inputJsonDelta.partial_json || "";
+        }
+      }
+    } else if (event.type === "content_block_stop" && currentBlock !== null) {
+      if (currentBlock.type === "thinking") {
+        currentBlock.signature = currentSignature;
+        currentBlock.thinking = currentThinking;
+      } else if (currentBlock.type === "text") {
+        currentBlock.text = currentText;
+        currentBlock.citations = null;
+      } else if (
+        currentBlock.type === "tool_use" ||
+        currentBlock.type === "server_tool_use"
+      ) {
+        try {
+          currentBlock.input = currentToolInputJson
+            ? JSON.parse(currentToolInputJson)
+            : {};
+        } catch (e) {
+          currentBlock.input = {};
+        }
+      }
+      response.content!.push(currentBlock);
+      currentBlock = null;
+      currentSignature = "";
+      currentThinking = "";
+      currentText = "";
+      currentToolInputJson = "";
+    } else if (event.type === "message_delta") {
+      if ("usage" in event && event.usage) {
+        response.usage = {
+          ...response.usage,
+          output_tokens: event.usage.output_tokens ?? 0,
         };
-        break;
       }
-      case "content_block_start": {
-        if ((result.content_block as any).type === "thinking") {
-          inThinkingBlock = true;
-          thinkingContent = "";
-          signatureContent = "";
-          thinkingBlockIndex = result.index;
+      if ("delta" in event && event.delta) {
+        if (
+          "stop_reason" in event.delta &&
+          event.delta.stop_reason !== undefined
+        ) {
+          response.stop_reason = event.delta.stop_reason;
         }
-        break;
-      }
-      case "content_block_delta": {
-        if (inThinkingBlock && result.index === thinkingBlockIndex) {
-          if ("thinking" in result.delta) {
-            thinkingContent += result.delta.thinking;
-          }
-          if ("signature" in result.delta) {
-            signatureContent += result.delta.signature;
-          }
+        if (
+          "stop_sequence" in event.delta &&
+          event.delta.stop_sequence !== undefined
+        ) {
+          response.stop_sequence = event.delta.stop_sequence;
         }
-        if ("text" in result.delta) {
-          textContent += result.delta.text;
-        }
-        break;
-      }
-      case "content_block_stop": {
-        if (inThinkingBlock && result.index === thinkingBlockIndex) {
-          response.content!.push({
-            type: "thinking",
-            thinking: thinkingContent,
-            signature: signatureContent,
-          });
-          inThinkingBlock = false;
-          thinkingBlockIndex = null;
-        }
-        break;
-      }
-      case "message_delta": {
-        if ("usage" in result && result.usage) {
-          const usage = result.usage;
-          response.usage = {
-            ...response.usage,
-            output_tokens: usage.output_tokens ?? 0,
-          };
-        }
-        if ("delta" in result && result.delta) {
-          if (
-            "stop_reason" in result.delta &&
-            result.delta.stop_reason !== undefined
-          ) {
-            response.stop_reason = result.delta.stop_reason;
-          }
-          if (
-            "stop_sequence" in result.delta &&
-            result.delta.stop_sequence !== undefined
-          ) {
-            response.stop_sequence = result.delta.stop_sequence;
-          }
-        }
-        break;
-      }
-      default: {
-        break;
       }
     }
   }
-  if (textContent) {
-    response.content!.push({
-      type: "text",
-      text: textContent,
-      citations: null,
-    });
-  }
+
   return response;
 };
 
