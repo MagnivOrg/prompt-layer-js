@@ -12,16 +12,16 @@ import {
   WorkflowResponse,
 } from "@/types";
 import {
+  anthropicRequest,
+  azureOpenAIRequest,
+  configureProviderSettings,
+  getProviderConfig,
+  googleRequest,
+  openaiRequest,
   runWorkflowRequest,
   streamResponse,
   trackRequest,
   utilLogRequest,
-  getProviderConfig,
-  configureProviderSettings,
-  googleRequest,
-  azureOpenAIRequest,
-  anthropicRequest,
-  openaiRequest,
 } from "@/utils/utils";
 import * as opentelemetry from "@opentelemetry/api";
 
@@ -120,6 +120,8 @@ export class PromptLayer {
     groupId,
     modelParameterOverrides,
     stream = false,
+    provider,
+    model,
   }: RunRequest) {
     const tracer = getTracer();
 
@@ -143,6 +145,8 @@ export class PromptLayer {
           label: promptReleaseLabel,
           version: promptVersion,
           metadata_filters: metadata,
+          provider,
+          model,
         };
         if (inputVariables) templateGetParams.input_variables = inputVariables;
 

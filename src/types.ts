@@ -80,6 +80,7 @@ export interface GetPromptTemplateParams {
   provider?: string;
   input_variables?: Record<string, unknown>;
   metadata_filters?: Record<string, string>;
+  model?: string;
 }
 
 const templateFormat = ["f-string", "jinja2"] as const;
@@ -122,7 +123,12 @@ export type MediaVariable = {
   name: string;
 };
 
-export type Content = TextContent | ThinkingContent | ImageContent | MediaContent | MediaVariable;
+export type Content =
+  | TextContent
+  | ThinkingContent
+  | ImageContent
+  | MediaContent
+  | MediaVariable;
 
 export type Function_ = {
   name: string;
@@ -305,6 +311,8 @@ export interface RunRequest {
   promptReleaseLabel?: string;
   inputVariables?: Record<string, unknown>;
   modelParameterOverrides?: Record<string, unknown>;
+  provider?: string;
+  model?: string;
 }
 
 export interface LogRequest {
