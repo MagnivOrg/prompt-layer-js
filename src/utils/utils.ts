@@ -692,10 +692,16 @@ const anthropicStreamMessage = (results: MessageStreamEvent[]): Message => {
           };
         }
         if ("delta" in result && result.delta) {
-          if ("stop_reason" in result.delta && result.delta.stop_reason !== undefined) {
+          if (
+            "stop_reason" in result.delta &&
+            result.delta.stop_reason !== undefined
+          ) {
             response.stop_reason = result.delta.stop_reason;
           }
-          if ("stop_sequence" in result.delta && result.delta.stop_sequence !== undefined) {
+          if (
+            "stop_sequence" in result.delta &&
+            result.delta.stop_sequence !== undefined
+          ) {
             response.stop_sequence = result.delta.stop_sequence;
           }
         }
@@ -894,7 +900,6 @@ async function* streamResponse<Item>(
 }
 
 const openaiChatRequest = async (client: TypeOpenAI, kwargs: any) => {
-  console.log(kwargs, 1212);
   return client.chat.completions.create(kwargs);
 };
 
@@ -1212,14 +1217,16 @@ export {
   anthropicStreamCompletion,
   anthropicStreamMessage,
   azureOpenAIRequest,
+  configureProviderSettings,
   getAllPromptTemplates,
   getPromptTemplate,
-  openaiRequest,
-  openaiStreamChat,
-  openaiStreamCompletion,
+  getProviderConfig,
   googleRequest,
   googleStreamChat,
   googleStreamCompletion,
+  openaiRequest,
+  openaiStreamChat,
+  openaiStreamCompletion,
   promptlayerApiHandler,
   promptLayerApiRequest,
   promptLayerCreateGroup,
@@ -1231,6 +1238,4 @@ export {
   streamResponse,
   trackRequest,
   utilLogRequest,
-  getProviderConfig,
-  configureProviderSettings,
 };
