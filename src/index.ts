@@ -22,6 +22,7 @@ import {
   streamResponse,
   trackRequest,
   utilLogRequest,
+  vertexaiRequest,
 } from "@/utils/utils";
 import * as opentelemetry from "@opentelemetry/api";
 
@@ -30,6 +31,7 @@ const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
   anthropic: anthropicRequest,
   "openai.azure": azureOpenAIRequest,
   google: googleRequest,
+  vertexai: vertexaiRequest,
 };
 
 export interface ClientOptions {
@@ -188,7 +190,14 @@ export class PromptLayer {
           stream
         );
 
-        const config = getProviderConfig(provider_type, promptTemplate);
+        let provider_type_config = provider_type;
+        if (promptBlueprintModel.name.startsWith("gemini")) {
+          provider_type_config = "google";
+        } else if (promptBlueprintModel.name.startsWith("claude")) {
+          provider_type_config = "anthropic";
+        }
+
+        const config = getProviderConfig(provider_type_config, promptTemplate);
         const { function_name, stream_function } = config;
 
         const request_function = MAP_PROVIDER_TO_FUNCTION[provider_type];
