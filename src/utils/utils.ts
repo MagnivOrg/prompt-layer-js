@@ -21,6 +21,7 @@ import {
   Message,
 } from "@anthropic-ai/sdk/resources";
 import { MessageStreamEvent } from "@anthropic-ai/sdk/resources/messages";
+import type { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import Ably from "ably";
 import type TypeOpenAI from "openai";
 import {
@@ -947,7 +948,10 @@ const azureOpenAIRequest = async (
   return requestToMake(client, kwargs);
 };
 
-const anthropicChatRequest = async (client: TypeAnthropic, kwargs: any) => {
+const anthropicChatRequest = async (
+  client: TypeAnthropic | AnthropicVertex,
+  kwargs: any
+) => {
   return client.messages.create(kwargs);
 };
 
@@ -1091,7 +1095,8 @@ const googleStreamCompletion = (results: any[]) => {
 const googleChatRequest = async (model_client: any, kwargs: any) => {
   const history = kwargs?.history;
   const generationConfig = kwargs?.generationConfig;
-  const lastMessage = history.length > 0 ? history[history.length - 1]?.parts : "";
+  const lastMessage =
+    history.length > 0 ? history[history.length - 1]?.parts : "";
   const chat = model_client.chats.create({
     model: kwargs?.model,
     history: history.slice(0, -1) ?? [],
@@ -1120,7 +1125,7 @@ const googleRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const { GoogleGenAI } = require("@google/genai");
+  const { GoogleGenAI } = await import("@google/genai");
 
   const geminiAPI = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
   const project =
@@ -1274,6 +1279,27 @@ const getProviderConfig = (provider_type: string, promptTemplate: any) => {
   return config;
 };
 
+const vertexaiRequest = async (
+  promptBlueprint: GetPromptTemplateResponse,
+  kwargs: any
+) => {
+  const model = promptBlueprint.metadata?.model;
+  if (!model) throw new Error("Model metadata not found in prompt blueprint");
+  if (model.name.startsWith("gemini"))
+    return googleRequest(promptBlueprint, kwargs);
+  if (model.name.startsWith("claude")) {
+    const { AnthropicVertex } = await import("@anthropic-ai/vertex-sdk");
+    const client = new AnthropicVertex({ baseURL: kwargs.baseURL });
+    if (promptBlueprint.prompt_template.type === "chat")
+      return anthropicChatRequest(client, kwargs);
+    throw new Error(
+      `Unsupported prompt template type '${promptBlueprint.prompt_template.type}' for Anthropic Vertex AI`
+    );
+  }
+  throw new Error(
+    `Unsupported model name '${model.name}' for Vertex AI request`
+  );
+};
 export {
   anthropicRequest,
   anthropicStreamCompletion,
@@ -1300,4 +1326,5 @@ export {
   streamResponse,
   trackRequest,
   utilLogRequest,
+  vertexaiRequest,
 };
