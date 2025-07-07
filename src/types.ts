@@ -333,6 +333,7 @@ export interface LogRequest {
   price?: number;
   function_name?: string;
   score?: number;
+  prompt_id?: number;
 }
 
 export interface RequestLog {
