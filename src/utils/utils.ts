@@ -938,7 +938,7 @@ const azureOpenAIRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const { AzureOpenAI } = require("openai").AzureOpenAI;
+  const { AzureOpenAI } = require("openai");
   const client = new AzureOpenAI({
     endpoint: process.env.AZURE_OPENAI_ENDPOINT || kwargs.baseURL,
     apiVersion: process.env.OPENAI_API_VERSION || kwargs.apiVersion,
