@@ -1154,6 +1154,10 @@ const googleRequest = async (
     MAP_TYPE_TO_GOOGLE_FUNCTION[promptBlueprint.prompt_template.type];
 
   const kwargsCamelCased = convertKeysToCamelCase(kwargs);
+  if (kwargsCamelCased.generationConfig)
+    kwargsCamelCased.generationConfig = convertKeysToCamelCase(
+      kwargsCamelCased.generationConfig
+    );
 
   return await requestToMake(genAI, kwargsCamelCased);
 };
@@ -1166,10 +1170,7 @@ const convertKeysToCamelCase = <T>(obj: T): T => {
   if (Array.isArray(obj)) return obj.map(convertKeysToCamelCase) as T;
 
   return Object.fromEntries(
-    Object.entries(obj).map(([key, value]) => [
-      snakeToCamel(key),
-      convertKeysToCamelCase(value),
-    ])
+    Object.entries(obj).map(([key, value]) => [snakeToCamel(key), value])
   ) as T;
 };
 
