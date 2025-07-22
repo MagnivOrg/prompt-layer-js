@@ -938,11 +938,15 @@ const azureOpenAIRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const OpenAI = require("openai").AzureOpenAI;
-  const client = new OpenAI({
-    endpoint: kwargs.baseURL,
+  const { AzureOpenAI } = require("openai").AzureOpenAI;
+  const client = new AzureOpenAI({
+    endpoint: process.env.AZURE_OPENAI_ENDPOINT || kwargs.baseURL,
+    apiVersion: process.env.OPENAI_API_VERSION || kwargs.apiVersion,
+    apiKey: process.env.AZURE_OPENAI_API_KEY || kwargs.apiKey,
   });
   delete kwargs?.baseURL;
+  delete kwargs?.apiVersion;
+  delete kwargs?.apiKey;
   const requestToMake =
     MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
   return requestToMake(client, kwargs);
