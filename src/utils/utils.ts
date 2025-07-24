@@ -15,6 +15,11 @@ import {
   TrackScore,
   WorkflowResponse,
 } from "@/types";
+import {
+  buildPromptBlueprintFromAnthropicEvent,
+  buildPromptBlueprintFromGoogleEvent,
+  buildPromptBlueprintFromOpenAIEvent,
+} from "./blueprint-builder";
 import type TypeAnthropic from "@anthropic-ai/sdk";
 import {
   Completion as AnthropicCompletion,
@@ -883,7 +888,8 @@ const anthropicStreamCompletion = (results: AnthropicCompletion[]) => {
 async function* streamResponse<Item>(
   generator: AsyncIterable<Item>,
   afterStream: (body: object) => any,
-  mapResults: any
+  mapResults: any,
+  metadata: any
 ) {
   const data: {
     request_id: number | null;
@@ -898,6 +904,31 @@ async function* streamResponse<Item>(
   for await (const result of generator) {
     results.push(result);
     data.raw_response = result;
+
+    // Build prompt blueprint for Anthropic streaming events
+    if (result && typeof result === "object" && "type" in result) {
+      data.prompt_blueprint = buildPromptBlueprintFromAnthropicEvent(
+        result as MessageStreamEvent,
+        metadata
+      );
+    }
+
+    // Build prompt blueprint for Google streaming events
+    if (result && typeof result === "object" && "candidates" in result) {
+      data.prompt_blueprint = buildPromptBlueprintFromGoogleEvent(
+        result,
+        metadata
+      );
+    }
+
+    // Build prompt blueprint for OpenAI streaming events
+    if (result && typeof result === "object" && "choices" in result) {
+      data.prompt_blueprint = buildPromptBlueprintFromOpenAIEvent(
+        result,
+        metadata
+      );
+    }
+
     yield data;
   }
   const request_response = mapResults(results);

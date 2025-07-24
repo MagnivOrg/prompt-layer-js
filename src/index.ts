@@ -232,7 +232,7 @@ export class PromptLayer {
         };
 
         if (stream)
-          return streamResponse(response, _trackRequest, stream_function);
+          return streamResponse(response, _trackRequest, stream_function, metadata);
         const requestLog = await _trackRequest({ request_response: response });
 
         const functionOutput = {
