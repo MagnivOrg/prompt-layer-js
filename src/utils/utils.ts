@@ -1188,24 +1188,32 @@ const googleRequest = async (
   const requestToMake =
     MAP_TYPE_TO_GOOGLE_FUNCTION[promptBlueprint.prompt_template.type];
 
-  const kwargsCamelCased = convertKeysToCamelCase(kwargs);
-  if (kwargsCamelCased.generationConfig)
-    kwargsCamelCased.generationConfig = convertKeysToCamelCase(
-      kwargsCamelCased.generationConfig
-    );
-
-  return await requestToMake(genAI, kwargsCamelCased);
+  return await requestToMake(genAI, kwargs);
 };
 
 const snakeToCamel = (str: string): string =>
   str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 
-const convertKeysToCamelCase = <T>(obj: T): T => {
+const convertKeysToCamelCase = <T>(
+  obj: T,
+  ignoreValuesWithKeys: Set<string> = new Set()
+): T => {
   if (!obj || typeof obj !== "object") return obj;
-  if (Array.isArray(obj)) return obj.map(convertKeysToCamelCase) as T;
+  if (Array.isArray(obj))
+    return obj.map((item) =>
+      convertKeysToCamelCase(item, ignoreValuesWithKeys)
+    ) as T;
 
   return Object.fromEntries(
-    Object.entries(obj).map(([key, value]) => [snakeToCamel(key), value])
+    Object.entries(obj).map(([key, value]) => {
+      if (ignoreValuesWithKeys.has(key)) {
+        return [snakeToCamel(key), value];
+      }
+      return [
+        snakeToCamel(key),
+        convertKeysToCamelCase(value, ignoreValuesWithKeys),
+      ];
+    })
   ) as T;
 };
 
@@ -1269,11 +1277,17 @@ const configureProviderSettings = (
     );
   }
 
-  const kwargs = {
+  let kwargs = {
     ...(promptBlueprint.llm_kwargs || {}),
     ...modelParameterOverrides,
     stream,
   };
+
+  if (
+    ["google", "vertexai"].includes(provider_type) &&
+    promptBlueprint.metadata?.model?.name.startsWith("gemini")
+  )
+    kwargs = convertKeysToCamelCase(kwargs, new Set(["function_declarations"]));
 
   const providerConfig = {
     baseURL: customProvider?.base_url ?? promptBlueprint.provider_base_url?.url,
