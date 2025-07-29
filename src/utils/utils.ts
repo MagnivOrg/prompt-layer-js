@@ -15,11 +15,7 @@ import {
   TrackScore,
   WorkflowResponse,
 } from "@/types";
-import {
-  buildPromptBlueprintFromAnthropicEvent,
-  buildPromptBlueprintFromGoogleEvent,
-  buildPromptBlueprintFromOpenAIEvent,
-} from "./blueprint-builder";
+import type { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import type TypeAnthropic from "@anthropic-ai/sdk";
 import {
   Completion as AnthropicCompletion,
@@ -34,6 +30,11 @@ import {
   ChatCompletionChunk,
   Completion,
 } from "openai/resources";
+import {
+  buildPromptBlueprintFromAnthropicEvent,
+  buildPromptBlueprintFromGoogleEvent,
+  buildPromptBlueprintFromOpenAIEvent,
+} from "./blueprint-builder";
 
 export const SET_WORKFLOW_COMPLETE_MESSAGE = "SET_WORKFLOW_COMPLETE";
 
@@ -984,14 +985,14 @@ const azureOpenAIRequest = async (
 };
 
 const anthropicChatRequest = async (
-  client: TypeAnthropic | AnthropicVertex,
+  client: TypeAnthropic | AnthropicVertex | AnthropicBedrock,
   kwargs: any
 ) => {
   return client.messages.create(kwargs);
 };
 
 const anthropicCompletionsRequest = async (
-  client: TypeAnthropic,
+  client: TypeAnthropic | AnthropicBedrock,
   kwargs: any
 ) => {
   return client.completions.create(kwargs);
@@ -1009,6 +1010,7 @@ const anthropicRequest = async (
   const Anthropic = require("@anthropic-ai/sdk").default;
   const client = new Anthropic({
     baseURL: kwargs.baseURL,
+    apiKey: kwargs.apiKey,
   });
   const requestToMake =
     MAP_TYPE_TO_ANTHROPIC_FUNCTION[promptBlueprint.prompt_template.type];
@@ -1260,6 +1262,16 @@ const MAP_PROVIDER_TO_FUNCTION_NAME = {
       stream_function: googleStreamCompletion,
     },
   },
+  "anthropic.bedrock": {
+    chat: {
+      function_name: "anthropic.messages.create",
+      stream_function: anthropicStreamMessage,
+    },
+    completion: {
+      function_name: "anthropic.completions.create",
+      stream_function: anthropicStreamCompletion,
+    },
+  },
 };
 
 const configureProviderSettings = (
@@ -1350,7 +1362,27 @@ const vertexaiRequest = async (
     `Unsupported model name '${model.name}' for Vertex AI request`
   );
 };
+
+const anthropicBedrockRequest = async (
+  promptBlueprint: GetPromptTemplateResponse,
+  kwargs: any
+) => {
+  const { AnthropicBedrock } = await import("@anthropic-ai/bedrock-sdk");
+  const client = new AnthropicBedrock({
+    awsAccessKey: kwargs.aws_access_key,
+    awsSecretKey: kwargs.aws_secret_key,
+    awsRegion: kwargs.aws_region,
+    awsSessionToken: kwargs.aws_session_token,
+    baseURL: kwargs.base_url,
+  });
+
+  const requestToMake =
+    MAP_TYPE_TO_ANTHROPIC_FUNCTION[promptBlueprint.prompt_template.type];
+  return requestToMake(client, kwargs);
+};
+
 export {
+  anthropicBedrockRequest,
   anthropicRequest,
   anthropicStreamCompletion,
   anthropicStreamMessage,

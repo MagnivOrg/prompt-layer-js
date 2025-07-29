@@ -12,6 +12,7 @@ import {
   WorkflowResponse,
 } from "@/types";
 import {
+  anthropicBedrockRequest,
   anthropicRequest,
   azureOpenAIRequest,
   configureProviderSettings,
@@ -32,6 +33,7 @@ const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
   "openai.azure": azureOpenAIRequest,
   google: googleRequest,
   vertexai: vertexaiRequest,
+  "anthropic.bedrock": anthropicBedrockRequest,
 };
 
 export interface ClientOptions {
@@ -232,7 +234,12 @@ export class PromptLayer {
         };
 
         if (stream)
-          return streamResponse(response, _trackRequest, stream_function, metadata);
+          return streamResponse(
+            response,
+            _trackRequest,
+            stream_function,
+            metadata
+          );
         const requestLog = await _trackRequest({ request_response: response });
 
         const functionOutput = {
