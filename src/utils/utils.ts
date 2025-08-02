@@ -886,6 +886,69 @@ const anthropicStreamCompletion = (results: AnthropicCompletion[]) => {
   return response;
 };
 
+const mistralStreamChat = (results: any[]) => {
+  let content: ChatCompletion.Choice["message"]["content"] = null;
+  const response: ChatCompletion = {
+    id: "",
+    choices: [],
+    created: Date.now(),
+    model: "",
+    object: "chat.completion",
+  };
+  const lastResult = results.at(-1).data;
+  if (!lastResult) return response;
+  let toolCalls: ChatCompletion.Choice["message"]["tool_calls"] = undefined;
+
+  for (const result of results) {
+    if (result.data.choices.length === 0) continue;
+    const delta = result.data.choices[0].delta;
+
+    if (delta.content) {
+      content = `${content || ""}${delta.content || ""}`;
+    }
+
+    const toolCall = delta.toolCalls?.[0];
+    if (toolCall) {
+      toolCalls = toolCalls || [];
+      const lastToolCall = toolCalls.at(-1);
+      if (!lastToolCall || toolCall.id) {
+        toolCalls.push({
+          id: toolCall.id || "",
+          type: toolCall.type || "function",
+          function: {
+            name: toolCall.function?.name || "",
+            arguments: toolCall.function?.arguments || "",
+          },
+        });
+        continue;
+      }
+      lastToolCall.function.name = `${lastToolCall.function.name}${
+        toolCall.function?.name || ""
+      }`;
+      lastToolCall.function.arguments = `${lastToolCall.function.arguments}${
+        toolCall.function?.arguments || ""
+      }`;
+    }
+  }
+  const firstChoice = results[0].data.choices.at(0);
+  response.choices.push({
+    finish_reason: firstChoice?.finish_reason ?? "stop",
+    index: firstChoice?.index ?? 0,
+    logprobs: firstChoice?.logprobs ?? null,
+    message: {
+      role: "assistant",
+      content,
+      tool_calls: toolCalls ? toolCalls : undefined,
+      refusal: firstChoice?.delta.refusal ?? null,
+    },
+  });
+  response.id = lastResult.id;
+  response.model = lastResult.model;
+  response.created = lastResult.created;
+  response.usage = lastResult.usage ?? undefined;
+  return response;
+};
+
 async function* streamResponse<Item>(
   generator: AsyncIterable<Item>,
   afterStream: (body: object) => any,
@@ -926,6 +989,14 @@ async function* streamResponse<Item>(
     if (result && typeof result === "object" && "choices" in result) {
       data.prompt_blueprint = buildPromptBlueprintFromOpenAIEvent(
         result,
+        metadata
+      );
+    }
+
+    // Build prompt blueprint for Mistral streaming events
+    if (result && typeof result === "object" && "data" in result) {
+      data.prompt_blueprint = buildPromptBlueprintFromOpenAIEvent(
+        result.data,
         metadata
       );
     }
@@ -1272,6 +1343,16 @@ const MAP_PROVIDER_TO_FUNCTION_NAME = {
       stream_function: anthropicStreamCompletion,
     },
   },
+  mistral: {
+    chat: {
+      function_name: "mistral.client.chat",
+      stream_function: mistralStreamChat,
+    },
+    completion: {
+      function_name: "",
+      stream_function: null,
+    },
+  },
 };
 
 const configureProviderSettings = (
@@ -1381,6 +1462,21 @@ const anthropicBedrockRequest = async (
   return requestToMake(client, kwargs);
 };
 
+const mistralRequest = async (
+  promptBlueprint: GetPromptTemplateResponse,
+  kwargs: any
+) => {
+  const { Mistral } = await import("@mistralai/mistralai");
+  const client = new Mistral({apiKey: process.env.MISTRAL_API_KEY});
+  kwargs = convertKeysToCamelCase(kwargs, new Set());
+  if (kwargs?.stream) {
+    delete kwargs.stream;
+    return await client.chat.stream(kwargs);
+  }
+  delete kwargs.stream;
+  return await client.chat.complete(kwargs);
+};
+
 export {
   anthropicBedrockRequest,
   anthropicRequest,
@@ -1394,6 +1490,8 @@ export {
   googleRequest,
   googleStreamChat,
   googleStreamCompletion,
+  mistralRequest,
+  mistralStreamChat,
   openaiRequest,
   openaiStreamChat,
   openaiStreamCompletion,

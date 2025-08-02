@@ -18,6 +18,7 @@ import {
   configureProviderSettings,
   getProviderConfig,
   googleRequest,
+  mistralRequest,
   openaiRequest,
   runWorkflowRequest,
   streamResponse,
@@ -34,6 +35,7 @@ const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
   google: googleRequest,
   vertexai: vertexaiRequest,
   "anthropic.bedrock": anthropicBedrockRequest,
+  mistral: mistralRequest,
 };
 
 export interface ClientOptions {

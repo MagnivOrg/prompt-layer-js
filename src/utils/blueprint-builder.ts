@@ -176,9 +176,9 @@ export const buildPromptBlueprintFromOpenAIEvent = (
           })
         );
       }
-
-      if (choice.delta.tool_calls && Array.isArray(choice.delta.tool_calls)) {
-        for (const toolCall of choice.delta.tool_calls) {
+      const toolCalls = choice.delta.tool_calls || choice.delta.toolCalls;
+      if (toolCalls && Array.isArray(toolCalls)) {
+        for (const toolCall of toolCalls) {
           if (toolCall.function) {
             tool_calls.push(
               _buildToolCall(
