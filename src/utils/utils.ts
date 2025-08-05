@@ -1372,7 +1372,6 @@ const configureProviderSettings = (
 
   let kwargs = {
     ...(promptBlueprint.llm_kwargs || {}),
-    ...modelParameterOverrides,
     stream,
   };
 

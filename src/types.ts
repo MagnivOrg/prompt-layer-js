@@ -81,6 +81,7 @@ export interface GetPromptTemplateParams {
   input_variables?: Record<string, unknown>;
   metadata_filters?: Record<string, string>;
   model?: string;
+  model_parameter_overrides?: Record<string, unknown>;
 }
 
 const templateFormat = ["f-string", "jinja2"] as const;
