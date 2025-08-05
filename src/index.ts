@@ -153,6 +153,7 @@ export class PromptLayer {
           metadata_filters: metadata,
           provider,
           model,
+          model_parameter_overrides: modelParameterOverrides,
         };
         if (inputVariables) templateGetParams.input_variables = inputVariables;
 
