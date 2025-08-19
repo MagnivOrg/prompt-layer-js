@@ -12,6 +12,7 @@ import {
   WorkflowResponse,
 } from "@/types";
 import {
+  amazonBedrockRequest,
   anthropicBedrockRequest,
   anthropicRequest,
   azureOpenAIRequest,
@@ -34,6 +35,7 @@ const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
   "openai.azure": azureOpenAIRequest,
   google: googleRequest,
   vertexai: vertexaiRequest,
+  "amazon.bedrock": amazonBedrockRequest,
   "anthropic.bedrock": anthropicBedrockRequest,
   mistral: mistralRequest,
 };
@@ -241,7 +243,7 @@ export class PromptLayer {
             response,
             _trackRequest,
             stream_function,
-            metadata
+            metadata || promptBlueprint.metadata
           );
         const requestLog = await _trackRequest({ request_response: response });
 

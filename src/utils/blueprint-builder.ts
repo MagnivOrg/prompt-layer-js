@@ -196,3 +196,60 @@ export const buildPromptBlueprintFromOpenAIEvent = (
   const assistantMessage = _buildAssistantMessage(assistantContent, tool_calls);
   return _buildPromptTemplate(assistantMessage, metadata);
 };
+
+
+export const buildPromptBlueprintFromBedrockEvent = (
+  event: any,
+  metadata: any
+) => {
+  const assistantContent: any[] = [];
+  const tool_calls: any[] = [];
+
+  if ("contentBlockDelta" in event) {
+    const delta = event.contentBlockDelta?.delta || {};
+
+    if ("reasoningContent" in delta) {
+      const reasoningText = delta.reasoningContent?.text || "";
+      const signature = delta.reasoningContent?.signature || "";
+      assistantContent.push(
+        _buildContentBlock({
+          type: "thinking",
+          thinking: reasoningText,
+          signature: signature,
+        })
+      );
+    } else if ("text" in delta) {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "text",
+          text: delta.text || "",
+        })
+      );
+    } else if ("toolUse" in delta) {
+      const toolUse = delta.toolUse || {};
+      tool_calls.push(
+        _buildToolCall(
+          toolUse.toolUseId || "",
+          toolUse.name || "",
+          toolUse.input || ""
+        )
+      );
+    }
+  } else if ("contentBlockStart" in event) {
+    const startBlock = event.contentBlockStart?.start || {};
+
+    if ("toolUse" in startBlock) {
+      const toolUse = startBlock.toolUse || {};
+      tool_calls.push(
+        _buildToolCall(
+          toolUse.toolUseId || "",
+          toolUse.name || "",
+          ""
+        )
+      );
+    }
+  }
+
+  const assistantMessage = _buildAssistantMessage(assistantContent, tool_calls);
+  return _buildPromptTemplate(assistantMessage, metadata);
+};
