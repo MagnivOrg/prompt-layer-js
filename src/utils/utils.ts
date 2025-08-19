@@ -1032,6 +1032,10 @@ const openaiRequest = async (
     baseURL: kwargs.baseURL,
     apiKey: kwargs.apiKey,
   });
+
+  delete kwargs?.apiKey;
+  delete kwargs?.baseURL;
+
   const requestToMake =
     MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
   return requestToMake(client, kwargs);
@@ -1466,7 +1470,7 @@ const mistralRequest = async (
   kwargs: any
 ) => {
   const { Mistral } = await import("@mistralai/mistralai");
-  const client = new Mistral({apiKey: process.env.MISTRAL_API_KEY});
+  const client = new Mistral({ apiKey: process.env.MISTRAL_API_KEY });
   kwargs = convertKeysToCamelCase(kwargs, new Set());
   if (kwargs?.stream) {
     delete kwargs.stream;
