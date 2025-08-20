@@ -32,6 +32,7 @@ import {
 } from "openai/resources";
 import {
   buildPromptBlueprintFromAnthropicEvent,
+  buildPromptBlueprintFromBedrockEvent,
   buildPromptBlueprintFromGoogleEvent,
   buildPromptBlueprintFromOpenAIEvent,
 } from "./blueprint-builder";
@@ -949,8 +950,99 @@ const mistralStreamChat = (results: any[]) => {
   return response;
 };
 
+
+const bedrockStreamMessage = (results: any[]) => {
+  const response: any = {
+    ResponseMetadata: {},
+    output: { message: {} },
+    stopReason: "end_turn",
+    metrics: {},
+    usage: {},
+  };
+
+  const content_blocks: any[] = [];
+  let current_tool_call: any = null;
+  let current_tool_input = "";
+  let current_text = "";
+  let current_signature = "";
+  let current_thinking = "";
+
+  for (const event of results) {
+    if ("contentBlockStart" in event) {
+      const content_block = event["contentBlockStart"];
+      if (
+        "start" in content_block &&
+        "toolUse" in content_block["start"]
+      ) {
+        const tool_use = content_block["start"]["toolUse"];
+        current_tool_call = {
+          toolUse: {
+            toolUseId: tool_use["toolUseId"],
+            name: tool_use["name"],
+          },
+        };
+        current_tool_input = "";
+      }
+    } else if ("contentBlockDelta" in event) {
+      const delta = event["contentBlockDelta"]["delta"];
+      if ("text" in delta) {
+        current_text += delta["text"];
+      } else if ("reasoningContent" in delta) {
+        const reasoning_content = delta["reasoningContent"];
+        if ("text" in reasoning_content) {
+          current_thinking += reasoning_content["text"];
+        } else if ("signature" in reasoning_content) {
+          current_signature += reasoning_content["signature"];
+        }
+      } else if ("toolUse" in delta) {
+        if ("input" in delta["toolUse"]) {
+          const input_chunk = delta["toolUse"]["input"];
+          current_tool_input += input_chunk;
+          if (!input_chunk.trim()) {
+            continue;
+          }
+        }
+      }
+    } else if ("contentBlockStop" in event) {
+      if (current_tool_call && current_tool_input) {
+        try {
+          current_tool_call.toolUse.input = JSON.parse(current_tool_input);
+        } catch {
+          current_tool_call.toolUse.input = {};
+        }
+        content_blocks.push(current_tool_call);
+        current_tool_call = null;
+        current_tool_input = "";
+      } else if (current_text) {
+        content_blocks.push({ text: current_text });
+        current_text = "";
+      } else if (current_thinking && current_signature) {
+        content_blocks.push({
+          reasoningContent: {
+            reasoningText: {
+              text: current_thinking,
+              signature: current_signature,
+            },
+          },
+        });
+        current_thinking = "";
+        current_signature = "";
+      }
+    } else if ("messageStop" in event) {
+      response.stopReason = event["messageStop"]["stopReason"];
+    } else if ("metadata" in event) {
+      const metadata = event["metadata"];
+      response.usage = metadata?.usage || {};
+      response.metrics = metadata?.metrics || {};
+    }
+  }
+
+  response.output.message = { role: "assistant", content: content_blocks };
+  return response;
+};
+
 async function* streamResponse<Item>(
-  generator: AsyncIterable<Item>,
+  generator: AsyncIterable<Item> | any,
   afterStream: (body: object) => any,
   mapResults: any,
   metadata: any
@@ -964,6 +1056,12 @@ async function* streamResponse<Item>(
     raw_response: null,
     prompt_blueprint: null,
   };
+  let response_metadata: any = {};
+  const provider = metadata.model.provider;
+  if (provider == "amazon.bedrock") {
+    response_metadata = generator?.$metadata;
+    generator = generator?.stream;
+  }
   const results = [];
   for await (const result of generator) {
     results.push(result);
@@ -1001,9 +1099,20 @@ async function* streamResponse<Item>(
       );
     }
 
+    // Build prompt blueprint for Amazon Bedrock events
+    if (provider === "amazon.bedrock") {
+      data.prompt_blueprint = buildPromptBlueprintFromBedrockEvent(
+        result,
+        metadata
+      );
+    }
+
     yield data;
   }
   const request_response = mapResults(results);
+  if (provider === "amazon.bedrock") {
+    request_response.ResponseMetadata = response_metadata;
+  }
   const response = await afterStream({ request_response });
   data.request_id = response.request_id;
   data.prompt_blueprint = response.prompt_blueprint;
@@ -1337,6 +1446,16 @@ const MAP_PROVIDER_TO_FUNCTION_NAME = {
       stream_function: googleStreamCompletion,
     },
   },
+  "amazon.bedrock": {
+    chat: {
+      function_name: "boto3.bedrock-runtime.converse",
+      stream_function: bedrockStreamMessage,
+    },
+    completion: {
+      function_name: "boto3.bedrock-runtime.converse",
+      stream_function: bedrockStreamMessage,
+    },
+  },
   "anthropic.bedrock": {
     chat: {
       function_name: "anthropic.messages.create",
@@ -1447,6 +1566,36 @@ const vertexaiRequest = async (
   );
 };
 
+const amazonBedrockRequest = async (
+  promptBlueprint: GetPromptTemplateResponse,
+  kwargs: any
+) => {
+  const { BedrockRuntimeClient, ConverseCommand, ConverseStreamCommand } = await import("@aws-sdk/client-bedrock-runtime");
+  const client = new BedrockRuntimeClient({
+    credentials: {
+      accessKeyId: kwargs?.aws_access_key || process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: kwargs?.aws_secret_key || process.env.AWS_SECRET_ACCESS_KEY,
+      sessionToken: kwargs?.aws_session_token || process.env.AWS_SESSION_TOKEN,
+    },
+    region: kwargs?.aws_region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1",
+  });
+
+  if (kwargs?.stream) {
+    delete kwargs.stream;
+    const command = new ConverseStreamCommand({
+      ...kwargs
+    });
+    return await client.send(command);
+  }
+  else {
+    delete kwargs?.stream;
+    const command = new ConverseCommand({
+      ...kwargs
+    });
+    return await client.send(command);
+  }
+};
+
 const anthropicBedrockRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
@@ -1481,6 +1630,7 @@ const mistralRequest = async (
 };
 
 export {
+  amazonBedrockRequest,
   anthropicBedrockRequest,
   anthropicRequest,
   anthropicStreamCompletion,
