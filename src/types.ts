@@ -45,6 +45,7 @@ export interface TrackMetadata {
 export interface TrackScore {
   request_id: number;
   score: number;
+  name?: string;
 }
 
 export interface TrackPrompt {
@@ -335,6 +336,7 @@ export interface LogRequest {
   function_name?: string;
   score?: number;
   prompt_id?: number;
+  score_name?: string;
 }
 
 export interface RequestLog {
