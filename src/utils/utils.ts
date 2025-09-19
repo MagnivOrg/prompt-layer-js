@@ -950,7 +950,6 @@ const mistralStreamChat = (results: any[]) => {
   return response;
 };
 
-
 const bedrockStreamMessage = (results: any[]) => {
   const response: any = {
     ResponseMetadata: {},
@@ -970,10 +969,7 @@ const bedrockStreamMessage = (results: any[]) => {
   for (const event of results) {
     if ("contentBlockStart" in event) {
       const content_block = event["contentBlockStart"];
-      if (
-        "start" in content_block &&
-        "toolUse" in content_block["start"]
-      ) {
+      if ("start" in content_block && "toolUse" in content_block["start"]) {
         const tool_use = content_block["start"]["toolUse"];
         current_tool_call = {
           toolUse: {
@@ -1502,7 +1498,10 @@ const configureProviderSettings = (
     ["google", "vertexai"].includes(provider_type) &&
     promptBlueprint.metadata?.model?.name.startsWith("gemini")
   )
-    kwargs = convertKeysToCamelCase(kwargs, new Set(["function_declarations"]));
+    kwargs = convertKeysToCamelCase(
+      kwargs,
+      new Set(["function_declarations", "properties"])
+    );
 
   const providerConfig = {
     baseURL: customProvider?.base_url ?? promptBlueprint.provider_base_url?.url,
@@ -1570,27 +1569,32 @@ const amazonBedrockRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const { BedrockRuntimeClient, ConverseCommand, ConverseStreamCommand } = await import("@aws-sdk/client-bedrock-runtime");
+  const { BedrockRuntimeClient, ConverseCommand, ConverseStreamCommand } =
+    await import("@aws-sdk/client-bedrock-runtime");
   const client = new BedrockRuntimeClient({
     credentials: {
       accessKeyId: kwargs?.aws_access_key || process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: kwargs?.aws_secret_key || process.env.AWS_SECRET_ACCESS_KEY,
+      secretAccessKey:
+        kwargs?.aws_secret_key || process.env.AWS_SECRET_ACCESS_KEY,
       sessionToken: kwargs?.aws_session_token || process.env.AWS_SESSION_TOKEN,
     },
-    region: kwargs?.aws_region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1",
+    region:
+      kwargs?.aws_region ||
+      process.env.AWS_REGION ||
+      process.env.AWS_DEFAULT_REGION ||
+      "us-east-1",
   });
 
   if (kwargs?.stream) {
     delete kwargs.stream;
     const command = new ConverseStreamCommand({
-      ...kwargs
+      ...kwargs,
     });
     return await client.send(command);
-  }
-  else {
+  } else {
     delete kwargs?.stream;
     const command = new ConverseCommand({
-      ...kwargs
+      ...kwargs,
     });
     return await client.send(command);
   }
