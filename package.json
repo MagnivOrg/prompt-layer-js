@@ -1,7 +1,7 @@
 {
   "name": "promptlayer",
   "license": "MIT",
-  "version": "1.0.47",
+  "version": "1.0.48",
   "main": "dist/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/index.d.ts",
