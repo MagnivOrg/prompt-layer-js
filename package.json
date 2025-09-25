@@ -3,7 +3,7 @@
   "license": "MIT",
   "version": "1.0.47",
   "main": "dist/index.js",
-  "module": "dist/index.esm.js",
+  "module": "dist/esm/index.js",
   "types": "dist/index.d.ts",
   "private": false,
   "repository": {
