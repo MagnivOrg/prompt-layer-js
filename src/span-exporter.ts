@@ -1,7 +1,7 @@
 import { Attributes, SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { ExportResultCode } from "@opentelemetry/core";
-import { URL_API_PROMPTLAYER } from "@/utils/utils";
+import { fetchWithRetry, URL_API_PROMPTLAYER } from "@/utils/utils";
 
 class PromptLayerSpanExporter implements SpanExporter {
   private apiKey: string | undefined;
@@ -84,7 +84,7 @@ class PromptLayerSpanExporter implements SpanExporter {
       },
     }));
 
-    return fetch(this.url, {
+    return fetchWithRetry(this.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
