@@ -179,9 +179,9 @@ export const fetchWithRetry = async (
     {
       retries: 3, // Retry up to 3 times (4 total attempts)
       factor: 2, // Exponential backoff factor
-      minTimeout: 5000, // First retry after 5 seconds
-      maxTimeout: 15000, // Cap at 15 seconds (gives us 5s, 10s, 15s progression)
-      randomize: false, // Fixed delays for predictable retry timing
+      minTimeout: 1000, // First retry after 1 second
+      maxTimeout: 8000, // Cap at 8 seconds (gives us ~1s, ~2s, ~4s progression with randomization)
+      randomize: true, // Add jitter to avoid thundering herd
       onFailedAttempt: (error) => {
         console.warn(
           `PromptLayer API request attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`
