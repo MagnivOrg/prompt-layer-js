@@ -64,6 +64,7 @@ export interface TrackGroup {
 export interface Pagination {
   page?: number;
   per_page?: number;
+  release_label?: string;
 }
 
 export interface CustomProvider {
