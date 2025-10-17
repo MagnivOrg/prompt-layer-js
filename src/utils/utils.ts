@@ -1,3 +1,4 @@
+import pRetry from "p-retry";
 import {
   GetPromptTemplateParams,
   GetPromptTemplateResponse,
@@ -49,7 +50,7 @@ async function getFinalOutput(
   returnAllOutputs: boolean,
   headers: Record<string, string>
 ): Promise<any> {
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${URL_API_PROMPTLAYER}/workflow-version-execution-results?workflow_version_execution_id=${executionId}&return_all_outputs=${returnAllOutputs}`,
     { headers }
   );
@@ -153,22 +154,64 @@ async function waitForWorkflowCompletion({
 export const URL_API_PROMPTLAYER =
   process.env.PROMPTLAYER_API_URL || "https://api.promptlayer.com";
 
+/**
+ * Wrapper around fetch that retries on 5xx server errors with exponential backoff.
+ * Uses p-retry for industry-standard retry logic with exponential backoff.
+ * 
+ * @param input - The URL or Request object to fetch
+ * @param init - The request initialization options
+ * @returns Promise<Response> - The fetch response
+ */
+export const fetchWithRetry = async (
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> => {
+  return pRetry(
+    async () => {
+      const response = await fetch(input, init);
+
+      if (response.status >= 500 && response.status < 600) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+
+      return response;
+    },
+    {
+      retries: 3, // Retry up to 3 times (4 total attempts)
+      factor: 2, // Exponential backoff factor
+      minTimeout: 1000, // First retry after 1 second
+      maxTimeout: 8000, // Cap at 8 seconds (gives us ~1s, ~2s, ~4s progression with randomization)
+      randomize: true, // Add jitter to avoid thundering herd
+      onFailedAttempt: (error) => {
+        console.warn(
+          `PromptLayer API request attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`
+        );
+      },
+    }
+  );
+};
+
 const promptlayerApiHandler = async <Item>(
   apiKey: string,
   body: TrackRequest & {
     request_response: AsyncIterable<Item> | any;
-  }
+  },
+  throwOnError: boolean = true
 ) => {
   const isGenerator = body.request_response[Symbol.asyncIterator] !== undefined;
   if (isGenerator) {
-    return proxyGenerator(apiKey, body.request_response, body);
+    return proxyGenerator(apiKey, body.request_response, body, throwOnError);
   }
-  return await promptLayerApiRequest(apiKey, body);
+  return await promptLayerApiRequest(apiKey, body, throwOnError);
 };
 
-const promptLayerApiRequest = async (apiKey: string, body: TrackRequest) => {
+const promptLayerApiRequest = async (
+  apiKey: string,
+  body: TrackRequest,
+  throwOnError: boolean = true
+) => {
   try {
-    const response = await fetch(`${URL_API_PROMPTLAYER}/track-request`, {
+    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/track-request`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -177,15 +220,23 @@ const promptLayerApiRequest = async (apiKey: string, body: TrackRequest) => {
     });
     const data = await response.json();
     if (response.status !== 200) {
-      warnOnBadResponse(
-        data,
-        "WARNING: While logging your request, PromptLayer experienced the following error:"
-      );
+      const errorMessage = data.message || data.error || "Failed to log request";
+      if (throwOnError) {
+        throw new Error(errorMessage);
+      } else {
+        warnOnBadResponse(
+          data,
+          "WARNING: While logging your request, PromptLayer experienced the following error:"
+        );
+      }
     }
     if (data && body.return_pl_id) {
       return [body.request_response, data.request_id];
     }
   } catch (e) {
+    if (throwOnError) {
+      throw e;
+    }
     console.warn(
       `WARNING: While logging your request PromptLayer had the following error: ${e}`
     );
@@ -195,10 +246,11 @@ const promptLayerApiRequest = async (apiKey: string, body: TrackRequest) => {
 
 const promptLayerTrackMetadata = async (
   apiKey: string,
-  body: TrackMetadata
+  body: TrackMetadata,
+  throwOnError: boolean = true
 ): Promise<boolean> => {
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${URL_API_PROMPTLAYER}/library-track-metadata`,
       {
         method: "POST",
@@ -213,13 +265,21 @@ const promptLayerTrackMetadata = async (
     );
     const data = await response.json();
     if (response.status !== 200) {
-      warnOnBadResponse(
-        data,
-        "WARNING: While logging metadata to your request, PromptLayer experienced the following error"
-      );
-      return false;
+      const errorMessage = data.message || data.error || "Failed to track metadata";
+      if (throwOnError) {
+        throw new Error(errorMessage);
+      } else {
+        warnOnBadResponse(
+          data,
+          "WARNING: While logging metadata to your request, PromptLayer experienced the following error"
+        );
+        return false;
+      }
     }
   } catch (e) {
+    if (throwOnError) {
+      throw e;
+    }
     console.warn(
       `WARNING: While logging metadata to your request, PromptLayer experienced the following error: ${e}`
     );
@@ -230,10 +290,11 @@ const promptLayerTrackMetadata = async (
 
 const promptLayerTrackScore = async (
   apiKey: string,
-  body: TrackScore
+  body: TrackScore,
+  throwOnError: boolean = true
 ): Promise<boolean> => {
   try {
-    const response = await fetch(`${URL_API_PROMPTLAYER}/library-track-score`, {
+    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/library-track-score`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -245,13 +306,21 @@ const promptLayerTrackScore = async (
     });
     const data = await response.json();
     if (response.status !== 200) {
-      warnOnBadResponse(
-        data,
-        "WARNING: While scoring your request, PromptLayer experienced the following error"
-      );
-      return false;
+      const errorMessage = data.message || data.error || "Failed to track score";
+      if (throwOnError) {
+        throw new Error(errorMessage);
+      } else {
+        warnOnBadResponse(
+          data,
+          "WARNING: While scoring your request, PromptLayer experienced the following error"
+        );
+        return false;
+      }
     }
   } catch (e) {
+    if (throwOnError) {
+      throw e;
+    }
     console.warn(
       `WARNING: While scoring your request, PromptLayer experienced the following error: ${e}`
     );
@@ -262,10 +331,11 @@ const promptLayerTrackScore = async (
 
 const promptLayerTrackPrompt = async (
   apiKey: string,
-  body: TrackPrompt
+  body: TrackPrompt,
+  throwOnError: boolean = true
 ): Promise<boolean> => {
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${URL_API_PROMPTLAYER}/library-track-prompt`,
       {
         method: "POST",
@@ -280,13 +350,21 @@ const promptLayerTrackPrompt = async (
     );
     const data = await response.json();
     if (response.status !== 200) {
-      warnOnBadResponse(
-        data,
-        "WARNING: While associating your request with a prompt template, PromptLayer experienced the following error"
-      );
-      return false;
+      const errorMessage = data.message || data.error || "Failed to track prompt";
+      if (throwOnError) {
+        throw new Error(errorMessage);
+      } else {
+        warnOnBadResponse(
+          data,
+          "WARNING: While associating your request with a prompt template, PromptLayer experienced the following error"
+        );
+        return false;
+      }
     }
   } catch (e) {
+    if (throwOnError) {
+      throw e;
+    }
     console.warn(
       `WARNING: While associating your request with a prompt template, PromptLayer experienced the following error: ${e}`
     );
@@ -297,10 +375,11 @@ const promptLayerTrackPrompt = async (
 
 const promptLayerTrackGroup = async (
   apiKey: string,
-  body: TrackGroup
+  body: TrackGroup,
+  throwOnError: boolean = true
 ): Promise<boolean> => {
   try {
-    const response = await fetch(`${URL_API_PROMPTLAYER}/track-group`, {
+    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/track-group`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -312,13 +391,21 @@ const promptLayerTrackGroup = async (
     });
     const data = await response.json();
     if (response.status !== 200) {
-      warnOnBadResponse(
-        data,
-        "WARNING: While associating your request with a group, PromptLayer experienced the following error"
-      );
-      return false;
+      const errorMessage = data.message || data.error || "Failed to track group";
+      if (throwOnError) {
+        throw new Error(errorMessage);
+      } else {
+        warnOnBadResponse(
+          data,
+          "WARNING: While associating your request with a group, PromptLayer experienced the following error"
+        );
+        return false;
+      }
     }
   } catch (e) {
+    if (throwOnError) {
+      throw e;
+    }
     console.warn(
       `WARNING: While associating your request with a group, PromptLayer experienced the following error: ${e}`
     );
@@ -328,10 +415,11 @@ const promptLayerTrackGroup = async (
 };
 
 const promptLayerCreateGroup = async (
-  apiKey: string
+  apiKey: string,
+  throwOnError: boolean = true
 ): Promise<number | boolean> => {
   try {
-    const response = await fetch(`${URL_API_PROMPTLAYER}/create-group`, {
+    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/create-group`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -342,14 +430,22 @@ const promptLayerCreateGroup = async (
     });
     const data = await response.json();
     if (response.status !== 200) {
-      warnOnBadResponse(
-        data,
-        "WARNING: While creating a group PromptLayer had the following error"
-      );
-      return false;
+      const errorMessage = data.message || data.error || "Failed to create group";
+      if (throwOnError) {
+        throw new Error(errorMessage);
+      } else {
+        warnOnBadResponse(
+          data,
+          "WARNING: While creating a group PromptLayer had the following error"
+        );
+        return false;
+      }
     }
     return data.id;
   } catch (e) {
+    if (throwOnError) {
+      throw e;
+    }
     console.warn(
       `WARNING: While creating a group PromptLayer had the following error: ${e}`
     );
@@ -360,13 +456,14 @@ const promptLayerCreateGroup = async (
 const getPromptTemplate = async (
   apiKey: string,
   promptName: string,
-  params?: Partial<GetPromptTemplateParams>
-) => {
+  params?: Partial<GetPromptTemplateParams>,
+  throwOnError: boolean = true
+): Promise<GetPromptTemplateResponse | null> => {
   try {
     const url = new URL(
       `${URL_API_PROMPTLAYER}/prompt-templates/${promptName}`
     );
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -376,19 +473,26 @@ const getPromptTemplate = async (
     });
     const data = await response.json();
     if (response.status !== 200) {
-      warnOnBadResponse(
-        data,
-        "WARNING: While fetching a prompt template PromptLayer had the following error"
-      );
-      return null;
+      const errorMessage = data.message || data.error || "Failed to fetch prompt template";
+      if (throwOnError) {
+        throw new Error(errorMessage);
+      } else {
+        console.warn(
+          `WARNING: While fetching a prompt template PromptLayer had the following error: ${errorMessage}`
+        );
+        return null;
+      }
     }
     if (data.warning) {
       console.warn(
         `WARNING: While fetching your prompt PromptLayer had the following error: ${data.warning}`
       );
     }
-    return data as Promise<GetPromptTemplateResponse>;
+    return data as GetPromptTemplateResponse;
   } catch (e) {
+    if (throwOnError) {
+      throw e;
+    }
     console.warn(
       `WARNING: While fetching a prompt template PromptLayer had the following error: ${e}`
     );
@@ -398,69 +502,68 @@ const getPromptTemplate = async (
 
 const publishPromptTemplate = async (
   apiKey: string,
-  body: PublishPromptTemplate
-) => {
-  try {
-    const response = await fetch(
-      `${URL_API_PROMPTLAYER}/rest/prompt-templates`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-KEY": apiKey,
-        },
-        body: JSON.stringify({
-          prompt_template: { ...body },
-          prompt_version: { ...body },
-          release_labels: body.release_labels ? body.release_labels : undefined,
-        }),
-      }
-    );
-    const data = await response.json();
-    if (response.status === 400) {
+  body: PublishPromptTemplate,
+  throwOnError: boolean = true
+): Promise<PublishPromptTemplateResponse> => {
+  const response = await fetchWithRetry(
+    `${URL_API_PROMPTLAYER}/rest/prompt-templates`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": apiKey,
+      },
+      body: JSON.stringify({
+        prompt_template: { ...body },
+        prompt_version: { ...body },
+        release_labels: body.release_labels ? body.release_labels : undefined,
+      }),
+    }
+  );
+  const data = await response.json();
+  if (response.status !== 200 && response.status !== 201) {
+    const errorMessage = data.message || data.error || "Failed to publish prompt template";
+    if (throwOnError) {
+      throw new Error(errorMessage);
+    } else {
       warnOnBadResponse(
         data,
         "WARNING: While publishing a prompt template PromptLayer had the following error"
       );
     }
-    return data as Promise<PublishPromptTemplateResponse>;
-  } catch (e) {
-    console.warn(
-      `WARNING: While publishing a prompt template PromptLayer had the following error: ${e}`
-    );
   }
+  return data as PublishPromptTemplateResponse;
 };
 
 const getAllPromptTemplates = async (
   apiKey: string,
-  params?: Partial<Pagination>
-) => {
-  try {
-    const url = new URL(`${URL_API_PROMPTLAYER}/prompt-templates`);
-    Object.entries(params || {}).forEach(([key, value]) =>
-      url.searchParams.append(key, value.toString())
-    );
-    const response = await fetch(url, {
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-KEY": apiKey,
-      },
-    });
-    const data = await response.json();
-    if (response.status !== 200) {
+  params?: Partial<Pagination>,
+  throwOnError: boolean = true
+): Promise<Array<ListPromptTemplatesResponse>> => {
+  const url = new URL(`${URL_API_PROMPTLAYER}/prompt-templates`);
+  Object.entries(params || {}).forEach(([key, value]) =>
+    url.searchParams.append(key, value.toString())
+  );
+  const response = await fetchWithRetry(url, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-KEY": apiKey,
+    },
+  });
+  const data = await response.json();
+  if (response.status !== 200) {
+    const errorMessage = data.message || data.error || "Failed to fetch prompt templates";
+    if (throwOnError) {
+      throw new Error(errorMessage);
+    } else {
       warnOnBadResponse(
         data,
         "WARNING: While fetching all prompt templates PromptLayer had the following error"
       );
-      return null;
+      return [];
     }
-    return (data.items ?? []) as Promise<Array<ListPromptTemplatesResponse>>;
-  } catch (e) {
-    console.warn(
-      `WARNING: While fetching all prompt templates PromptLayer had the following error: ${e}`
-    );
-    return null;
   }
+  return (data.items ?? []) as Array<ListPromptTemplatesResponse>;
 };
 
 export const runWorkflowRequest = async ({
@@ -487,7 +590,7 @@ export const runWorkflowRequest = async ({
   };
 
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${URL_API_PROMPTLAYER}/workflows/${encodeURIComponent(
         workflow_name
       )}/run`,
@@ -519,7 +622,7 @@ export const runWorkflowRequest = async ({
     }
 
     const channel_name = `workflow_updates:${execution_id}`;
-    const ws_response = await fetch(
+    const ws_response = await fetchWithRetry(
       `${URL_API_PROMPTLAYER}/ws-token-request-library?capability=${channel_name}`,
       {
         method: "POST",
@@ -779,7 +882,8 @@ const cleaned_result = (
 async function* proxyGenerator<Item>(
   apiKey: string,
   generator: AsyncIterable<Item>,
-  body: TrackRequest
+  body: TrackRequest,
+  throwOnError: boolean = true
 ) {
   const results = [];
   for await (const value of generator) {
@@ -787,11 +891,15 @@ async function* proxyGenerator<Item>(
     results.push(value);
   }
   const request_response = cleaned_result(results, body.function_name);
-  const response = await promptLayerApiRequest(apiKey, {
-    ...body,
-    request_response,
-    request_end_time: new Date().toISOString(),
-  });
+  const response = await promptLayerApiRequest(
+    apiKey,
+    {
+      ...body,
+      request_response,
+      request_end_time: new Date().toISOString(),
+    },
+    throwOnError
+  );
   if (response) {
     if (body.return_pl_id) {
       const request_id = (response as any)[1];
@@ -809,9 +917,9 @@ const warnOnBadResponse = (request_response: any, main_message: string) => {
   }
 };
 
-const trackRequest = async (body: TrackRequest) => {
+const trackRequest = async (body: TrackRequest, throwOnError: boolean = true) => {
   try {
-    const response = await fetch(`${URL_API_PROMPTLAYER}/track-request`, {
+    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/track-request`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -820,13 +928,21 @@ const trackRequest = async (body: TrackRequest) => {
     });
     const data = await response.json();
     if (response.status !== 200) {
-      warnOnBadResponse(
-        data,
-        "WARNING: While logging your request, PromptLayer experienced the following error:"
-      );
+      const errorMessage = data.message || data.error || "Failed to track request";
+      if (throwOnError) {
+        throw new Error(errorMessage);
+      } else {
+        warnOnBadResponse(
+          data,
+          "WARNING: While logging your request, PromptLayer experienced the following error:"
+        );
+      }
     }
     return data;
   } catch (e) {
+    if (throwOnError) {
+      throw e;
+    }
     console.warn(
       `WARNING: While logging your request PromptLayer had the following error: ${e}`
     );
@@ -1199,10 +1315,11 @@ const anthropicRequest = async (
 
 const utilLogRequest = async (
   apiKey: string,
-  body: LogRequest
+  body: LogRequest,
+  throwOnError: boolean = true
 ): Promise<RequestLog | null> => {
   try {
-    const response = await fetch(`${URL_API_PROMPTLAYER}/log-request`, {
+    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/log-request`, {
       method: "POST",
       headers: {
         "X-API-KEY": apiKey,
@@ -1212,14 +1329,22 @@ const utilLogRequest = async (
     });
     const data = await response.json();
     if (response.status !== 201) {
-      warnOnBadResponse(
-        data,
-        "WARNING: While logging your request PromptLayer had the following error"
-      );
-      return null;
+      const errorMessage = data.message || data.error || "Failed to log request";
+      if (throwOnError) {
+        throw new Error(errorMessage);
+      } else {
+        warnOnBadResponse(
+          data,
+          "WARNING: While logging your request PromptLayer had the following error"
+        );
+        return null;
+      }
     }
     return data;
   } catch (e) {
+    if (throwOnError) {
+      throw e;
+    }
     console.warn(
       `WARNING: While tracking your prompt PromptLayer had the following error: ${e}`
     );

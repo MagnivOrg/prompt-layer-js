@@ -49,8 +49,10 @@ export const promptLayerBase = (
           const provider_type = Reflect.get(target, "provider");
           const return_pl_id = args[0]?.return_pl_id;
           const pl_tags = args[0]?.pl_tags;
+          const pl_warn_on_error = args[0]?.pl_warn_on_error;
           delete args[0]?.return_pl_id;
           delete args[0]?.pl_tags;
+          delete args[0]?.pl_warn_on_error;
 
           return tracer.startActiveSpan(
             `${provider_type}.${function_name}`,
@@ -75,7 +77,7 @@ export const promptLayerBase = (
                           return_pl_id,
                           tags: pl_tags,
                           span_id: spanId,
-                        });
+                        }, !pl_warn_on_error);
 
                         span.setAttribute(
                           "function_output",

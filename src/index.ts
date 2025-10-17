@@ -44,6 +44,7 @@ export interface ClientOptions {
   apiKey?: string;
   enableTracing?: boolean;
   workspaceId?: number;
+  throwOnError?: boolean;
 }
 
 const isWorkflowResultsDict = (obj: any): boolean => {
@@ -72,11 +73,13 @@ export class PromptLayer {
   group: GroupManager;
   track: TrackManager;
   enableTracing: boolean;
+  throwOnError: boolean;
   wrapWithSpan: typeof wrapWithSpan;
 
   constructor({
     apiKey = process.env.PROMPTLAYER_API_KEY,
     enableTracing = false,
+    throwOnError = true,
   }: ClientOptions = {}) {
     if (apiKey === undefined) {
       throw new Error(
@@ -86,9 +89,10 @@ export class PromptLayer {
 
     this.apiKey = apiKey;
     this.enableTracing = enableTracing;
-    this.templates = new TemplateManager(apiKey);
-    this.group = new GroupManager(apiKey);
-    this.track = new TrackManager(apiKey);
+    this.throwOnError = throwOnError;
+    this.templates = new TemplateManager(apiKey, this.throwOnError);
+    this.group = new GroupManager(apiKey, this.throwOnError);
+    this.track = new TrackManager(apiKey, this.throwOnError);
     this.wrapWithSpan = wrapWithSpan;
 
     if (enableTracing) {
@@ -164,16 +168,24 @@ export class PromptLayer {
           templateGetParams
         );
 
-        if (!promptBlueprint) throw new Error("Prompt not found");
-
-        const promptTemplate = promptBlueprint.prompt_template;
-        if (!promptBlueprint.llm_kwargs) {
-          console.warn(
-            `Prompt '${promptName}' does not have any LLM kwargs associated with it. Please set your model parameters in the registry in the PromptLayer dashbaord.`
+        if (!promptBlueprint) {
+          throw new Error(
+            `Cannot proceed: prompt template '${promptName}' could not be fetched. ` +
+            `Check the warnings above for the actual error.`
           );
         }
 
-        const promptBlueprintMetadata = promptBlueprint.metadata;
+        const promptTemplate = promptBlueprint.prompt_template;
+        if (!promptBlueprint!.llm_kwargs) {
+          const errorMessage = `Prompt '${promptName}' does not have any LLM kwargs associated with it. Please set your model parameters in the registry in the PromptLayer dashboard.`;
+          if (this.throwOnError) {
+            throw new Error(errorMessage);
+          } else {
+            console.warn(`WARNING: ${errorMessage}`);
+          }
+        }
+
+        const promptBlueprintMetadata = promptBlueprint!.metadata;
         if (!promptBlueprintMetadata) {
           throw new Error(
             `Prompt '${promptName}' does not have any metadata associated with it.`
@@ -187,7 +199,7 @@ export class PromptLayer {
           );
         }
 
-        const customProvider = promptBlueprint.custom_provider;
+        const customProvider = promptBlueprint!.custom_provider;
         const request_start_time = new Date().toISOString();
 
         const { provider_type, kwargs } = configureProviderSettings(
@@ -214,28 +226,31 @@ export class PromptLayer {
           );
         }
 
-        const response = await request_function(promptBlueprint, kwargs);
+        const response = await request_function(promptBlueprint!, kwargs);
 
         const _trackRequest = (body: object) => {
           const request_end_time = new Date().toISOString();
-          return trackRequest({
-            function_name,
-            provider_type,
-            args: [],
-            kwargs,
-            tags,
-            request_start_time,
-            request_end_time,
-            api_key: this.apiKey,
-            metadata,
-            prompt_id: promptBlueprint.id,
-            prompt_version: promptBlueprint.version,
-            prompt_input_variables,
-            group_id: groupId,
-            return_prompt_blueprint: true,
-            span_id: span.spanContext().spanId,
-            ...body,
-          });
+          return trackRequest(
+            {
+              function_name,
+              provider_type,
+              args: [],
+              kwargs,
+              tags,
+              request_start_time,
+              request_end_time,
+              api_key: this.apiKey,
+              metadata,
+              prompt_id: promptBlueprint!.id,
+              prompt_version: promptBlueprint!.version,
+              prompt_input_variables,
+              group_id: groupId,
+              return_prompt_blueprint: true,
+              span_id: span.spanContext().spanId,
+              ...body,
+            },
+            this.throwOnError
+          );
         };
 
         if (stream)
@@ -243,7 +258,7 @@ export class PromptLayer {
             response,
             _trackRequest,
             stream_function,
-            metadata || promptBlueprint.metadata
+            metadata || promptBlueprint!.metadata
           );
         const requestLog = await _trackRequest({ request_response: response });
 
@@ -320,6 +335,6 @@ export class PromptLayer {
   }
 
   async logRequest(body: LogRequest) {
-    return utilLogRequest(this.apiKey, body);
+    return utilLogRequest(this.apiKey, body, this.throwOnError);
   }
 }
