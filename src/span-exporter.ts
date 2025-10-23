@@ -1,17 +1,19 @@
+import { fetchWithRetry } from "@/utils/utils";
 import { Attributes, SpanKind, SpanStatusCode } from "@opentelemetry/api";
-import { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 import { ExportResultCode } from "@opentelemetry/core";
-import { fetchWithRetry, URL_API_PROMPTLAYER } from "@/utils/utils";
+import { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 
 class PromptLayerSpanExporter implements SpanExporter {
-  private apiKey: string | undefined;
+  private apiKey: string;
+  private baseURL: string;
   private enableTracing: boolean;
   private url: string;
 
-  constructor(enableTracing: boolean, apiKey?: string) {
-    this.apiKey = apiKey || process.env.PROMPTLAYER_API_KEY;
+  constructor(enableTracing: boolean, apiKey: string, baseURL: string) {
+    this.apiKey = apiKey;
+    this.baseURL = baseURL;
     this.enableTracing = enableTracing;
-    this.url = `${URL_API_PROMPTLAYER}/spans-bulk`;
+    this.url = `${this.baseURL}/spans-bulk`;
   }
 
   private attributesToObject(

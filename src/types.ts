@@ -363,6 +363,7 @@ export interface RunWorkflowRequestParams {
   return_all_outputs?: boolean;
   api_key: string;
   timeout?: number;
+  baseURL: string;
 }
 
 export interface WorkflowResponse {
