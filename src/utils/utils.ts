@@ -1,4 +1,3 @@
-import pRetry from "p-retry";
 import {
   GetPromptTemplateParams,
   GetPromptTemplateResponse,
@@ -25,12 +24,14 @@ import {
 import { MessageStreamEvent } from "@anthropic-ai/sdk/resources/messages";
 import type { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import Ably from "ably";
+import { Centrifuge } from "centrifuge";
 import type TypeOpenAI from "openai";
 import {
   ChatCompletion,
   ChatCompletionChunk,
   Completion,
 } from "openai/resources";
+import pRetry from "p-retry";
 import {
   buildPromptBlueprintFromAnthropicEvent,
   buildPromptBlueprintFromBedrockEvent,
@@ -46,12 +47,13 @@ export enum FinalOutputCode {
 }
 
 async function getFinalOutput(
+  baseURL: string,
   executionId: number,
   returnAllOutputs: boolean,
   headers: Record<string, string>
 ): Promise<any> {
   const response = await fetchWithRetry(
-    `${URL_API_PROMPTLAYER}/workflow-version-execution-results?workflow_version_execution_id=${executionId}&return_all_outputs=${returnAllOutputs}`,
+    `${baseURL}/workflow-version-execution-results?workflow_version_execution_id=${executionId}&return_all_outputs=${returnAllOutputs}`,
     { headers }
   );
   if (!response.ok) {
@@ -61,6 +63,7 @@ async function getFinalOutput(
 }
 
 function makeMessageListener(
+  baseURL: string,
   resultsPromise: { resolve: (data: any) => void; reject: (err: any) => void },
   executionId: number,
   returnAllOutputs: boolean,
@@ -77,7 +80,13 @@ function makeMessageListener(
       if (resultCode === FinalOutputCode.OK || resultCode == null) {
         results = data.final_output;
       } else if (resultCode === FinalOutputCode.EXCEEDS_SIZE_LIMIT) {
-        results = await getFinalOutput(executionId, returnAllOutputs, headers);
+        results = await getFinalOutput(
+          baseURL,
+          executionId,
+          returnAllOutputs,
+          headers
+        );
+        resultsPromise.resolve(results);
       } else {
         throw new Error(`Unsupported final output code: ${resultCode}`);
       }
@@ -89,6 +98,16 @@ function makeMessageListener(
   };
 }
 
+interface WaitForWorkflowCompletionParams {
+  token: string;
+  channelName: string;
+  executionId: number;
+  returnAllOutputs: boolean;
+  headers: Record<string, string>;
+  timeout: number;
+  baseURL: string;
+}
+
 async function waitForWorkflowCompletion({
   token,
   channelName,
@@ -96,14 +115,8 @@ async function waitForWorkflowCompletion({
   returnAllOutputs,
   headers,
   timeout,
-}: {
-  token: string;
-  channelName: string;
-  executionId: number;
-  returnAllOutputs: boolean;
-  headers: Record<string, string>;
-  timeout: number;
-}): Promise<any> {
+  baseURL,
+}: WaitForWorkflowCompletionParams): Promise<any> {
   const client = new Ably.Realtime(token);
   const channel = client.channels.get(channelName);
 
@@ -118,6 +131,7 @@ async function waitForWorkflowCompletion({
   });
 
   const listener = makeMessageListener(
+    baseURL,
     resultsPromise,
     executionId,
     returnAllOutputs,
@@ -151,13 +165,10 @@ async function waitForWorkflowCompletion({
   }
 }
 
-export const URL_API_PROMPTLAYER =
-  process.env.PROMPTLAYER_API_URL || "https://api.promptlayer.com";
-
 /**
  * Wrapper around fetch that retries on 5xx server errors with exponential backoff.
  * Uses p-retry for industry-standard retry logic with exponential backoff.
- * 
+ *
  * @param input - The URL or Request object to fetch
  * @param init - The request initialization options
  * @returns Promise<Response> - The fetch response
@@ -171,7 +182,9 @@ export const fetchWithRetry = async (
       const response = await fetch(input, init);
 
       if (response.status >= 500 && response.status < 600) {
-        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Server error: ${response.status} ${response.statusText}`
+        );
       }
 
       return response;
@@ -193,6 +206,7 @@ export const fetchWithRetry = async (
 
 const promptlayerApiHandler = async <Item>(
   apiKey: string,
+  baseURL: string,
   body: TrackRequest & {
     request_response: AsyncIterable<Item> | any;
   },
@@ -200,18 +214,25 @@ const promptlayerApiHandler = async <Item>(
 ) => {
   const isGenerator = body.request_response[Symbol.asyncIterator] !== undefined;
   if (isGenerator) {
-    return proxyGenerator(apiKey, body.request_response, body, throwOnError);
+    return proxyGenerator(
+      apiKey,
+      baseURL,
+      body.request_response,
+      body,
+      throwOnError
+    );
   }
-  return await promptLayerApiRequest(apiKey, body, throwOnError);
+  return await promptLayerApiRequest(apiKey, baseURL, body, throwOnError);
 };
 
 const promptLayerApiRequest = async (
   apiKey: string,
+  baseURL: string,
   body: TrackRequest,
   throwOnError: boolean = true
 ) => {
   try {
-    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/track-request`, {
+    const response = await fetchWithRetry(`${baseURL}/track-request`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -220,7 +241,8 @@ const promptLayerApiRequest = async (
     });
     const data = await response.json();
     if (response.status !== 200) {
-      const errorMessage = data.message || data.error || "Failed to log request";
+      const errorMessage =
+        data.message || data.error || "Failed to log request";
       if (throwOnError) {
         throw new Error(errorMessage);
       } else {
@@ -246,26 +268,25 @@ const promptLayerApiRequest = async (
 
 const promptLayerTrackMetadata = async (
   apiKey: string,
+  baseURL: string,
   body: TrackMetadata,
   throwOnError: boolean = true
 ): Promise<boolean> => {
   try {
-    const response = await fetchWithRetry(
-      `${URL_API_PROMPTLAYER}/library-track-metadata`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...body,
-          api_key: apiKey,
-        }),
-      }
-    );
+    const response = await fetchWithRetry(`${baseURL}/library-track-metadata`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...body,
+        api_key: apiKey,
+      }),
+    });
     const data = await response.json();
     if (response.status !== 200) {
-      const errorMessage = data.message || data.error || "Failed to track metadata";
+      const errorMessage =
+        data.message || data.error || "Failed to track metadata";
       if (throwOnError) {
         throw new Error(errorMessage);
       } else {
@@ -290,11 +311,12 @@ const promptLayerTrackMetadata = async (
 
 const promptLayerTrackScore = async (
   apiKey: string,
+  baseURL: string,
   body: TrackScore,
   throwOnError: boolean = true
 ): Promise<boolean> => {
   try {
-    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/library-track-score`, {
+    const response = await fetchWithRetry(`${baseURL}/library-track-score`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -306,7 +328,8 @@ const promptLayerTrackScore = async (
     });
     const data = await response.json();
     if (response.status !== 200) {
-      const errorMessage = data.message || data.error || "Failed to track score";
+      const errorMessage =
+        data.message || data.error || "Failed to track score";
       if (throwOnError) {
         throw new Error(errorMessage);
       } else {
@@ -331,26 +354,25 @@ const promptLayerTrackScore = async (
 
 const promptLayerTrackPrompt = async (
   apiKey: string,
+  baseURL: string,
   body: TrackPrompt,
   throwOnError: boolean = true
 ): Promise<boolean> => {
   try {
-    const response = await fetchWithRetry(
-      `${URL_API_PROMPTLAYER}/library-track-prompt`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...body,
-          api_key: apiKey,
-        }),
-      }
-    );
+    const response = await fetchWithRetry(`${baseURL}/library-track-prompt`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...body,
+        api_key: apiKey,
+      }),
+    });
     const data = await response.json();
     if (response.status !== 200) {
-      const errorMessage = data.message || data.error || "Failed to track prompt";
+      const errorMessage =
+        data.message || data.error || "Failed to track prompt";
       if (throwOnError) {
         throw new Error(errorMessage);
       } else {
@@ -375,11 +397,12 @@ const promptLayerTrackPrompt = async (
 
 const promptLayerTrackGroup = async (
   apiKey: string,
+  baseURL: string,
   body: TrackGroup,
   throwOnError: boolean = true
 ): Promise<boolean> => {
   try {
-    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/track-group`, {
+    const response = await fetchWithRetry(`${baseURL}/track-group`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -391,7 +414,8 @@ const promptLayerTrackGroup = async (
     });
     const data = await response.json();
     if (response.status !== 200) {
-      const errorMessage = data.message || data.error || "Failed to track group";
+      const errorMessage =
+        data.message || data.error || "Failed to track group";
       if (throwOnError) {
         throw new Error(errorMessage);
       } else {
@@ -416,10 +440,11 @@ const promptLayerTrackGroup = async (
 
 const promptLayerCreateGroup = async (
   apiKey: string,
+  baseURL: string,
   throwOnError: boolean = true
 ): Promise<number | boolean> => {
   try {
-    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/create-group`, {
+    const response = await fetchWithRetry(`${baseURL}/create-group`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -430,7 +455,8 @@ const promptLayerCreateGroup = async (
     });
     const data = await response.json();
     if (response.status !== 200) {
-      const errorMessage = data.message || data.error || "Failed to create group";
+      const errorMessage =
+        data.message || data.error || "Failed to create group";
       if (throwOnError) {
         throw new Error(errorMessage);
       } else {
@@ -455,14 +481,13 @@ const promptLayerCreateGroup = async (
 
 const getPromptTemplate = async (
   apiKey: string,
+  baseURL: string,
   promptName: string,
   params?: Partial<GetPromptTemplateParams>,
   throwOnError: boolean = true
 ): Promise<GetPromptTemplateResponse | null> => {
   try {
-    const url = new URL(
-      `${URL_API_PROMPTLAYER}/prompt-templates/${promptName}`
-    );
+    const url = new URL(`${baseURL}/prompt-templates/${promptName}`);
     const response = await fetchWithRetry(url, {
       method: "POST",
       headers: {
@@ -473,7 +498,8 @@ const getPromptTemplate = async (
     });
     const data = await response.json();
     if (response.status !== 200) {
-      const errorMessage = data.message || data.error || "Failed to fetch prompt template";
+      const errorMessage =
+        data.message || data.error || "Failed to fetch prompt template";
       if (throwOnError) {
         throw new Error(errorMessage);
       } else {
@@ -502,27 +528,26 @@ const getPromptTemplate = async (
 
 const publishPromptTemplate = async (
   apiKey: string,
+  baseURL: string,
   body: PublishPromptTemplate,
   throwOnError: boolean = true
 ): Promise<PublishPromptTemplateResponse> => {
-  const response = await fetchWithRetry(
-    `${URL_API_PROMPTLAYER}/rest/prompt-templates`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-KEY": apiKey,
-      },
-      body: JSON.stringify({
-        prompt_template: { ...body },
-        prompt_version: { ...body },
-        release_labels: body.release_labels ? body.release_labels : undefined,
-      }),
-    }
-  );
+  const response = await fetchWithRetry(`${baseURL}/rest/prompt-templates`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-KEY": apiKey,
+    },
+    body: JSON.stringify({
+      prompt_template: { ...body },
+      prompt_version: { ...body },
+      release_labels: body.release_labels ? body.release_labels : undefined,
+    }),
+  });
   const data = await response.json();
   if (response.status !== 200 && response.status !== 201) {
-    const errorMessage = data.message || data.error || "Failed to publish prompt template";
+    const errorMessage =
+      data.message || data.error || "Failed to publish prompt template";
     if (throwOnError) {
       throw new Error(errorMessage);
     } else {
@@ -537,10 +562,11 @@ const publishPromptTemplate = async (
 
 const getAllPromptTemplates = async (
   apiKey: string,
+  baseURL: string,
   params?: Partial<Pagination>,
   throwOnError: boolean = true
 ): Promise<Array<ListPromptTemplatesResponse>> => {
-  const url = new URL(`${URL_API_PROMPTLAYER}/prompt-templates`);
+  const url = new URL(`${baseURL}/prompt-templates`);
   Object.entries(params || {}).forEach(([key, value]) =>
     url.searchParams.append(key, value.toString())
   );
@@ -552,7 +578,8 @@ const getAllPromptTemplates = async (
   });
   const data = await response.json();
   if (response.status !== 200) {
-    const errorMessage = data.message || data.error || "Failed to fetch prompt templates";
+    const errorMessage =
+      data.message || data.error || "Failed to fetch prompt templates";
     if (throwOnError) {
       throw new Error(errorMessage);
     } else {
@@ -566,6 +593,63 @@ const getAllPromptTemplates = async (
   return (data.items ?? []) as Array<ListPromptTemplatesResponse>;
 };
 
+const waitForWorkflowCompletionCentrifugo = async (
+  params: WaitForWorkflowCompletionParams
+): Promise<any> => {
+  const url = new URL(`${params.baseURL}/connection/websocket`);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+
+  const client = new Centrifuge(url.toString(), { token: params.token });
+  const sub = client.newSubscription(params.channelName);
+
+  return new Promise((resolve, reject) => {
+    const cleanupWithResolve = (data: any) => {
+      cleanup();
+      resolve(data);
+    };
+
+    const listener = makeMessageListener(
+      params.baseURL,
+      { resolve: cleanupWithResolve, reject },
+      params.executionId,
+      params.returnAllOutputs,
+      params.headers
+    );
+
+    sub.on("publication", (message) => {
+      listener({
+        name: message.data.message_name,
+        data: message.data.data,
+      });
+    });
+
+    const timeout = setTimeout(() => {
+      reject(
+        new Error("Workflow execution did not complete properly (timeout)")
+      );
+    }, params.timeout);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      sub.unsubscribe();
+      client.disconnect();
+    };
+
+    sub.on("error", (err) => {
+      cleanup();
+      reject(`Centrifugo subscription error: ${err}`);
+    });
+
+    client.on("error", (err) => {
+      cleanup();
+      reject(`Centrifugo client error: ${err}`);
+    });
+
+    sub.subscribe();
+    client.connect();
+  });
+};
+
 export const runWorkflowRequest = async ({
   workflow_name,
   input_variables,
@@ -575,6 +659,7 @@ export const runWorkflowRequest = async ({
   return_all_outputs = false,
   api_key,
   timeout = 3600000, // Default timeout is 1 hour in milliseconds
+  baseURL,
 }: RunWorkflowRequestParams): Promise<WorkflowResponse> => {
   const payload = {
     input_variables,
@@ -591,9 +676,7 @@ export const runWorkflowRequest = async ({
 
   try {
     const response = await fetchWithRetry(
-      `${URL_API_PROMPTLAYER}/workflows/${encodeURIComponent(
-        workflow_name
-      )}/run`,
+      `${baseURL}/workflows/${encodeURIComponent(workflow_name)}/run`,
       {
         method: "POST",
         headers: headers,
@@ -623,7 +706,7 @@ export const runWorkflowRequest = async ({
 
     const channel_name = `workflow_updates:${execution_id}`;
     const ws_response = await fetchWithRetry(
-      `${URL_API_PROMPTLAYER}/ws-token-request-library?capability=${channel_name}`,
+      `${baseURL}/ws-token-request-library?capability=${channel_name}`,
       {
         method: "POST",
         headers: headers,
@@ -631,15 +714,20 @@ export const runWorkflowRequest = async ({
     );
 
     const ws_token_response = await ws_response.json();
-    const ably_token = ws_token_response.token_details.token;
-    return await waitForWorkflowCompletion({
-      token: ably_token,
+    const token = ws_token_response.token_details.token;
+
+    const params: WaitForWorkflowCompletionParams = {
+      token,
       channelName: channel_name,
       executionId: execution_id,
       returnAllOutputs: return_all_outputs,
       headers: headers,
       timeout: timeout,
-    });
+      baseURL: baseURL,
+    };
+    if (ws_token_response.messaging_backend === "centrifugo")
+      return waitForWorkflowCompletionCentrifugo(params);
+    return await waitForWorkflowCompletion(params);
   } catch (error) {
     console.error(
       `Failed to run workflow: ${
@@ -881,6 +969,7 @@ const cleaned_result = (
 
 async function* proxyGenerator<Item>(
   apiKey: string,
+  baseURL: string,
   generator: AsyncIterable<Item>,
   body: TrackRequest,
   throwOnError: boolean = true
@@ -893,6 +982,7 @@ async function* proxyGenerator<Item>(
   const request_response = cleaned_result(results, body.function_name);
   const response = await promptLayerApiRequest(
     apiKey,
+    baseURL,
     {
       ...body,
       request_response,
@@ -917,9 +1007,13 @@ const warnOnBadResponse = (request_response: any, main_message: string) => {
   }
 };
 
-const trackRequest = async (body: TrackRequest, throwOnError: boolean = true) => {
+const trackRequest = async (
+  baseURL: string,
+  body: TrackRequest,
+  throwOnError: boolean = true
+) => {
   try {
-    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/track-request`, {
+    const response = await fetchWithRetry(`${baseURL}/track-request`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -928,7 +1022,8 @@ const trackRequest = async (body: TrackRequest, throwOnError: boolean = true) =>
     });
     const data = await response.json();
     if (response.status !== 200) {
-      const errorMessage = data.message || data.error || "Failed to track request";
+      const errorMessage =
+        data.message || data.error || "Failed to track request";
       if (throwOnError) {
         throw new Error(errorMessage);
       } else {
@@ -1315,11 +1410,12 @@ const anthropicRequest = async (
 
 const utilLogRequest = async (
   apiKey: string,
+  baseURL: string,
   body: LogRequest,
   throwOnError: boolean = true
 ): Promise<RequestLog | null> => {
   try {
-    const response = await fetchWithRetry(`${URL_API_PROMPTLAYER}/log-request`, {
+    const response = await fetchWithRetry(`${baseURL}/log-request`, {
       method: "POST",
       headers: {
         "X-API-KEY": apiKey,
@@ -1329,7 +1425,8 @@ const utilLogRequest = async (
     });
     const data = await response.json();
     if (response.status !== 201) {
-      const errorMessage = data.message || data.error || "Failed to log request";
+      const errorMessage =
+        data.message || data.error || "Failed to log request";
       if (throwOnError) {
         throw new Error(errorMessage);
       } else {
@@ -1756,6 +1853,15 @@ const mistralRequest = async (
   }
   delete kwargs.stream;
   return await client.chat.complete(kwargs);
+};
+
+export const readEnv = (env: string): string | undefined => {
+  if (typeof (globalThis as any).process !== "undefined")
+    return (globalThis as any).process.env?.[env]?.trim() ?? undefined;
+
+  if (typeof (globalThis as any).Deno !== "undefined")
+    return (globalThis as any).Deno.env?.get?.(env)?.trim();
+  return undefined;
 };
 
 export {

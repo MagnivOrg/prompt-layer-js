@@ -5,6 +5,7 @@ const tracer = getTracer();
 
 export const promptLayerBase = (
   apiKey: string,
+  baseURL: string,
   llm: object,
   function_name = "",
   provider = "openai"
@@ -66,18 +67,23 @@ export const promptLayerBase = (
                   return new Promise((resolve, reject) => {
                     response
                       .then(async (request_response) => {
-                        const response = await promptlayerApiHandler(apiKey, {
-                          api_key: apiKey,
-                          provider_type,
-                          function_name,
-                          request_start_time,
-                          request_end_time: new Date().toISOString(),
-                          request_response,
-                          kwargs: args[0],
-                          return_pl_id,
-                          tags: pl_tags,
-                          span_id: spanId,
-                        }, !pl_warn_on_error);
+                        const response = await promptlayerApiHandler(
+                          apiKey,
+                          baseURL,
+                          {
+                            api_key: apiKey,
+                            provider_type,
+                            function_name,
+                            request_start_time,
+                            request_end_time: new Date().toISOString(),
+                            request_response,
+                            kwargs: args[0],
+                            return_pl_id,
+                            tags: pl_tags,
+                            span_id: spanId,
+                          },
+                          !pl_warn_on_error
+                        );
 
                         span.setAttribute(
                           "function_output",

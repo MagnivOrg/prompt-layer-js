@@ -11,19 +11,27 @@ import {
 
 export class TemplateManager {
   apiKey: string;
+  baseURL: string;
   throwOnError: boolean;
 
-  constructor(apiKey: string, throwOnError: boolean = true) {
+  constructor(apiKey: string, baseURL: string, throwOnError: boolean = true) {
     this.apiKey = apiKey;
+    this.baseURL = baseURL;
     this.throwOnError = throwOnError;
   }
 
   get = (promptName: string, params?: Partial<GetPromptTemplateParams>) =>
-    getPromptTemplate(this.apiKey, promptName, params, this.throwOnError);
+    getPromptTemplate(
+      this.apiKey,
+      this.baseURL,
+      promptName,
+      params,
+      this.throwOnError
+    );
 
   publish = (body: PublishPromptTemplate) =>
-    publishPromptTemplate(this.apiKey, body, this.throwOnError);
+    publishPromptTemplate(this.apiKey, this.baseURL, body, this.throwOnError);
 
   all = (params?: Pagination) =>
-    getAllPromptTemplates(this.apiKey, params, this.throwOnError);
+    getAllPromptTemplates(this.apiKey, this.baseURL, params, this.throwOnError);
 }

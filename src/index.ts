@@ -21,6 +21,7 @@ import {
   googleRequest,
   mistralRequest,
   openaiRequest,
+  readEnv,
   runWorkflowRequest,
   streamResponse,
   trackRequest,
@@ -45,6 +46,7 @@ export interface ClientOptions {
   enableTracing?: boolean;
   workspaceId?: number;
   throwOnError?: boolean;
+  baseURL?: string;
 }
 
 const isWorkflowResultsDict = (obj: any): boolean => {
@@ -69,6 +71,7 @@ const isWorkflowResultsDict = (obj: any): boolean => {
 
 export class PromptLayer {
   apiKey: string;
+  baseURL: string;
   templates: TemplateManager;
   group: GroupManager;
   track: TrackManager;
@@ -77,7 +80,8 @@ export class PromptLayer {
   wrapWithSpan: typeof wrapWithSpan;
 
   constructor({
-    apiKey = process.env.PROMPTLAYER_API_KEY,
+    apiKey = readEnv("PROMPTLAYER_API_KEY"),
+    baseURL = readEnv("PROMPTLAYER_BASE_URL"),
     enableTracing = false,
     throwOnError = true,
   }: ClientOptions = {}) {
@@ -88,22 +92,33 @@ export class PromptLayer {
     }
 
     this.apiKey = apiKey;
+    this.baseURL = baseURL || "https://api.promptlayer.com";
     this.enableTracing = enableTracing;
     this.throwOnError = throwOnError;
-    this.templates = new TemplateManager(apiKey, this.throwOnError);
-    this.group = new GroupManager(apiKey, this.throwOnError);
-    this.track = new TrackManager(apiKey, this.throwOnError);
+    this.templates = new TemplateManager(
+      apiKey,
+      this.baseURL,
+      this.throwOnError
+    );
+    this.group = new GroupManager(apiKey, this.baseURL, this.throwOnError);
+    this.track = new TrackManager(apiKey, this.baseURL, this.throwOnError);
     this.wrapWithSpan = wrapWithSpan;
 
     if (enableTracing) {
-      setupTracing(enableTracing, apiKey);
+      setupTracing(enableTracing, apiKey, this.baseURL);
     }
   }
 
   get Anthropic() {
     try {
       const module = require("@anthropic-ai/sdk").default;
-      return promptLayerBase(this.apiKey, module, "anthropic", "anthropic");
+      return promptLayerBase(
+        this.apiKey,
+        this.baseURL,
+        module,
+        "anthropic",
+        "anthropic"
+      );
     } catch (e) {
       console.error(
         "To use the Anthropic module, you must install the @anthropic-ai/sdk package."
@@ -114,7 +129,13 @@ export class PromptLayer {
   get OpenAI() {
     try {
       const module = require("openai").default;
-      return promptLayerBase(this.apiKey, module, "openai", "openai");
+      return promptLayerBase(
+        this.apiKey,
+        this.baseURL,
+        module,
+        "openai",
+        "openai"
+      );
     } catch (e) {
       console.error(
         "To use the OpenAI module, you must install the @openai/api package."
@@ -171,7 +192,7 @@ export class PromptLayer {
         if (!promptBlueprint) {
           throw new Error(
             `Cannot proceed: prompt template '${promptName}' could not be fetched. ` +
-            `Check the warnings above for the actual error.`
+              `Check the warnings above for the actual error.`
           );
         }
 
@@ -231,6 +252,7 @@ export class PromptLayer {
         const _trackRequest = (body: object) => {
           const request_end_time = new Date().toISOString();
           return trackRequest(
+            this.baseURL,
             {
               function_name,
               provider_type,
@@ -299,6 +321,7 @@ export class PromptLayer {
         workflow_version_number: workflowVersion,
         return_all_outputs: returnAllOutputs,
         api_key: this.apiKey,
+        baseURL: this.baseURL,
       });
 
       if (!returnAllOutputs) {
@@ -335,6 +358,6 @@ export class PromptLayer {
   }
 
   async logRequest(body: LogRequest) {
-    return utilLogRequest(this.apiKey, body, this.throwOnError);
+    return utilLogRequest(this.apiKey, this.baseURL, body, this.throwOnError);
   }
 }
