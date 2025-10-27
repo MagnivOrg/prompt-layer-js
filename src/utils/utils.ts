@@ -181,7 +181,7 @@ export const fetchWithRetry = async (
     async () => {
       const response = await fetch(input, init);
 
-      if (response.status >= 500 && response.status < 600) {
+      if ((response.status >= 500 && response.status < 600) || (response.status === 429)) {
         throw new Error(
           `Server error: ${response.status} ${response.statusText}`
         );
@@ -192,11 +192,11 @@ export const fetchWithRetry = async (
     {
       retries: 3, // Retry up to 3 times (4 total attempts)
       factor: 2, // Exponential backoff factor
-      minTimeout: 1000, // First retry after 1 second
-      maxTimeout: 8000, // Cap at 8 seconds (gives us ~1s, ~2s, ~4s progression with randomization)
+      minTimeout: 2000, // First retry after 2 seconds
+      maxTimeout: 15000, // Cap at 15 seconds (gives us ~2s, ~4s, ~8s progression with randomization)
       randomize: true, // Add jitter to avoid thundering herd
       onFailedAttempt: (error) => {
-        console.warn(
+        console.info(
           `PromptLayer API request attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`
         );
       },
