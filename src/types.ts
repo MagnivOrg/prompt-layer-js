@@ -95,11 +95,14 @@ export type ImageUrl = {
 };
 
 export type TextContent = {
+  id?: string;
   type: "text";
   text: string;
+  annotations?: Record<string, unknown>[];
 };
 
 export type ThinkingContent = {
+  id?: string;
   signature?: string;
   type: "thinking";
   thinking: string;
@@ -140,6 +143,8 @@ export type Function_ = {
 };
 
 export type Tool = {
+  id: string;
+  tool_id?: string;
   type: "function";
   function: Function_;
 };
@@ -250,6 +255,7 @@ export type ChatPromptTemplate = {
 export type PromptTemplate = CompletionPromptTemplate | ChatPromptTemplate;
 
 export type Model = {
+  api_type?: string;
   provider: string;
   name: string;
   parameters: Record<string, unknown>;
