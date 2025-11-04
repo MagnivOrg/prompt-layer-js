@@ -1,24 +1,34 @@
-const _buildToolCall = (id: string, name: string, input: any) => {
-  return {
+const _buildToolCall = (id: string, name: string, input: any, tool_id?: string) => {
+  const toolCall = {
     id,
     function: {
       name,
       input,
     },
   };
+  if (tool_id) {
+    (toolCall as any).tool_id = tool_id;
+  }
+  return toolCall;
 };
 
 const _buildContentBlock = ({
   type,
+  item_id,
   ...rest
 }: {
   type: string;
+  item_id?: string;
   [key: string]: any;
 }) => {
-  return {
+  const contentBlock: any = {
     type,
     ...rest,
   };
+  if (item_id) {
+    contentBlock.item_id = item_id;
+  }
+  return contentBlock;
 };
 
 const _buildAssistantMessage = (content: any[], tool_calls: any[]) => {
@@ -197,6 +207,236 @@ export const buildPromptBlueprintFromOpenAIEvent = (
   return _buildPromptTemplate(assistantMessage, metadata);
 };
 
+export const buildPromptBlueprintFromOpenAIResponsesEvent = (
+  event: any,
+  metadata: any
+) => {
+  const assistantContent: any[] = [];
+  const tool_calls: any[] = [];
+
+  const event_type: string | undefined = event?.type;
+
+  if (event_type === "response.reasoning_summary_text.delta") {
+    const delta: string = event?.delta ?? "";
+    const item_id: string = event?.item_id ?? "";
+    if (delta) {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "thinking",
+          item_id: item_id,
+          thinking: delta,
+          signature: "",
+        })
+      );
+    }
+  } else if (event_type === "response.reasoning_summary_text.done") {
+    const final_text: string = event?.text ?? "";
+    const item_id: string = event?.item_id ?? "";
+    if (final_text) {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "thinking",
+          item_id: item_id,
+          thinking: final_text,
+          signature: "",
+        })
+      );
+    }
+  } else if (event_type === "response.reasoning_summary_part.added") {
+    const part = event?.part ?? {};
+    const item_id: string = event?.item_id ?? "";
+    if (part?.type === "summary_text") {
+      const text: string = part?.text ?? "";
+      assistantContent.push(
+        _buildContentBlock({
+          type: "thinking",
+          item_id: item_id,
+          thinking: text,
+          signature: "",
+        })
+      );
+    }
+  } else if (event_type === "response.reasoning_summary_part.done") {
+    const part = event?.part ?? {};
+    const item_id: string = event?.item_id ?? "";
+    if (part?.type === "summary_text") {
+      const text: string = part?.text ?? "";
+      if (text) {
+        assistantContent.push(
+          _buildContentBlock({
+            type: "thinking",
+            item_id: item_id,
+            thinking: text,
+            signature: "",
+          })
+        );
+      }
+    }
+  } else if (event_type === "response.function_call_arguments.delta") {
+    const item_id: string = event?.item_id ?? "";
+    const delta: string = event?.delta ?? "";
+    if (delta) {
+      tool_calls.push(_buildToolCall("", "", delta, item_id));
+    }
+  } else if (event_type === "response.function_call_arguments.done") {
+    const item_id: string = event?.item_id ?? "";
+    const final_arguments: string = event?.arguments ?? "";
+    if (final_arguments) {
+      tool_calls.push(_buildToolCall("", "", final_arguments, item_id));
+    }
+  } else if (event_type === "response.output_item.added") {
+    const item = event?.item ?? {};
+    const item_type: string | undefined = item?.type;
+    const item_id: string = item?.id ?? "";
+
+    if (item_type === "reasoning") {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "thinking",
+          thinking: "",
+          signature: "",
+          item_id: item_id,
+        })
+      );
+    } else if (item_type === "function_call") {
+      tool_calls.push(
+        _buildToolCall(item?.call_id || "", item?.name || "", "", item_id)
+      );
+    } else if (item_type === "message") {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "text",
+          item_id: item_id,
+          text: "",
+        })
+      );
+    }
+  } else if (event_type === "response.content_part.added") {
+    const part = event?.part ?? {};
+    const part_type: string = part?.type ?? "output_text";
+    const item_id: string = event?.item_id ?? "";
+
+    if (part_type === "output_text") {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "text",
+          item_id: item_id,
+          text: part?.text ?? "",
+          annotations: part?.annotations || [],
+        })
+      );
+    }
+  } else if (event_type === "response.output_text.annotation.added") {
+    const annotation = event?.annotation || {};
+    const atype = annotation?.type;
+    let mapped_annotation = null;
+
+    if (atype === "url_citation") {
+      mapped_annotation = {
+        type: "url_citation",
+        title: annotation?.title,
+        url: annotation?.url,
+        start_index: annotation?.start_index,
+        end_index: annotation?.end_index,
+      }
+    }
+    else if (atype == "file_citation") {
+      mapped_annotation = {
+        type: "file_citation",
+        index: annotation?.index,
+        file_id: annotation?.file_id,
+        filename: annotation?.filename,
+      }
+    }
+    else {
+      mapped_annotation = annotation
+    }
+
+    assistantContent.push(
+      _buildContentBlock({
+        type: "text",
+        item_id: event?.item_id ?? "",
+        text: "",
+        annotations: [mapped_annotation],
+      })
+    );
+  } else if (event_type === "response.output_text.delta") {
+    const delta_text: string = event?.delta ?? "";
+
+    if (delta_text) {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "text",
+          item_id: event?.item_id ?? "",
+          text: delta_text,
+        })
+      );
+    }
+  } else if (event_type === "response.output_text.done") {
+    const final_text: string = event?.text ?? "";
+
+    if (final_text) {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "text",
+          item_id: event?.item_id ?? "",
+          text: final_text,
+        })
+      );
+    }
+  } else if (event_type === "response.output_item.done") {
+    const item = event?.item ?? {};
+    const item_type: string | undefined = item?.type;
+    const item_id: string = item?.id ?? "";
+
+    if (item_type === "reasoning") {
+      const summary: any[] = item?.summary ?? [];
+      for (const summary_part of summary) {
+        if (summary_part?.type === "summary_text") {
+          const text: string = summary_part?.text ?? "";
+          if (text) {
+            assistantContent.push(
+              _buildContentBlock({
+                type: "thinking",
+                item_id: item_id,
+                thinking: text,
+                signature: "",
+              })
+            );
+          }
+        }
+      }
+    } else if (item_type === "function_call") {
+      tool_calls.push(
+        _buildToolCall(
+          item?.call_id || "",
+          item?.name || "",
+          item?.arguments || "",
+          item_id
+        )
+      );
+    } else if (item_type === "message") {
+      const content: any[] = item?.content ?? [];
+      for (const content_part of content) {
+        if (content_part?.type === "output_text") {
+          const text: string = content_part?.text ?? "";
+          if (text) {
+            assistantContent.push(
+              _buildContentBlock({
+                type: "text",
+                item_id: item_id,
+                text,
+              })
+            );
+          }
+        }
+      }
+    }
+  }
+
+  const assistantMessage = _buildAssistantMessage(assistantContent, tool_calls || []);
+  return _buildPromptTemplate(assistantMessage, metadata);
+};
 
 export const buildPromptBlueprintFromBedrockEvent = (
   event: any,

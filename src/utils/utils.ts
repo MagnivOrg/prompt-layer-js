@@ -17,27 +17,16 @@ import {
 } from "@/types";
 import type { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import type TypeAnthropic from "@anthropic-ai/sdk";
-import {
-  Completion as AnthropicCompletion,
-  Message,
-} from "@anthropic-ai/sdk/resources";
-import { MessageStreamEvent } from "@anthropic-ai/sdk/resources/messages";
 import type { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import Ably from "ably";
 import { Centrifuge } from "centrifuge";
 import type TypeOpenAI from "openai";
-import {
-  ChatCompletion,
-  ChatCompletionChunk,
-  Completion,
-} from "openai/resources";
 import pRetry from "p-retry";
 import {
-  buildPromptBlueprintFromAnthropicEvent,
-  buildPromptBlueprintFromBedrockEvent,
-  buildPromptBlueprintFromGoogleEvent,
-  buildPromptBlueprintFromOpenAIEvent,
-} from "./blueprint-builder";
+  MAP_PROVIDER_TO_FUNCTION_NAME,
+  cleaned_result,
+  STREAMING_PROVIDERS_WITH_USAGE,
+} from "./streaming";
 
 export const SET_WORKFLOW_COMPLETE_MESSAGE = "SET_WORKFLOW_COMPLETE";
 
@@ -738,235 +727,6 @@ export const runWorkflowRequest = async ({
   }
 };
 
-const openaiStreamChat = (results: ChatCompletionChunk[]): ChatCompletion => {
-  let content: ChatCompletion.Choice["message"]["content"] = null;
-  let functionCall: ChatCompletion.Choice["message"]["function_call"] =
-    undefined;
-  const response: ChatCompletion = {
-    id: "",
-    choices: [],
-    created: Date.now(),
-    model: "",
-    object: "chat.completion",
-  };
-  const lastResult = results.at(-1);
-  if (!lastResult) return response;
-  let toolCalls: ChatCompletion.Choice["message"]["tool_calls"] = undefined;
-  for (const result of results) {
-    if (result.choices.length === 0) continue;
-    const delta = result.choices[0].delta;
-
-    if (delta.content) {
-      content = `${content || ""}${delta.content || ""}`;
-    }
-    if (delta.function_call) {
-      functionCall = {
-        name: `${functionCall ? functionCall.name : ""}${
-          delta.function_call.name || ""
-        }`,
-        arguments: `${functionCall ? functionCall.arguments : ""}${
-          delta.function_call.arguments || ""
-        }`,
-      };
-    }
-    const toolCall = delta.tool_calls?.[0];
-    if (toolCall) {
-      toolCalls = toolCalls || [];
-      const lastToolCall = toolCalls.at(-1);
-      if (!lastToolCall || toolCall.id) {
-        toolCalls.push({
-          id: toolCall.id || "",
-          type: toolCall.type || "function",
-          function: {
-            name: toolCall.function?.name || "",
-            arguments: toolCall.function?.arguments || "",
-          },
-        });
-        continue;
-      }
-      lastToolCall.function.name = `${lastToolCall.function.name}${
-        toolCall.function?.name || ""
-      }`;
-      lastToolCall.function.arguments = `${lastToolCall.function.arguments}${
-        toolCall.function?.arguments || ""
-      }`;
-    }
-  }
-  const firstChoice = results[0].choices.at(0);
-  response.choices.push({
-    finish_reason: firstChoice?.finish_reason ?? "stop",
-    index: firstChoice?.index ?? 0,
-    logprobs: firstChoice?.logprobs ?? null,
-    message: {
-      role: "assistant",
-      content,
-      function_call: functionCall ? functionCall : undefined,
-      tool_calls: toolCalls ? toolCalls : undefined,
-      refusal: firstChoice?.delta.refusal ?? null,
-    },
-  });
-  response.id = lastResult.id;
-  response.model = lastResult.model;
-  response.created = lastResult.created;
-  response.system_fingerprint = lastResult.system_fingerprint;
-  response.usage = lastResult.usage ?? undefined;
-  return response;
-};
-
-const anthropicStreamMessage = (results: MessageStreamEvent[]): Message => {
-  let response: Message = {
-    id: "",
-    model: "",
-    content: [],
-    role: "assistant",
-    type: "message",
-    stop_reason: "stop_sequence",
-    stop_sequence: null,
-    usage: {
-      input_tokens: 0,
-      output_tokens: 0,
-      cache_creation_input_tokens: 0,
-      cache_read_input_tokens: 0,
-      server_tool_use: null,
-      service_tier: null,
-    },
-  };
-  const lastResult = results.at(-1);
-  if (!lastResult) return response;
-  let currentBlock: any = null;
-  let currentSignature = "";
-  let currentThinking = "";
-  let currentText = "";
-  let currentToolInputJson = "";
-
-  for (const event of results) {
-    if (event.type === "message_start") {
-      response = { ...event.message };
-    } else if (event.type === "content_block_start") {
-      currentBlock = { ...event.content_block };
-      if (currentBlock.type === "thinking") {
-        currentSignature = "";
-        currentThinking = "";
-      } else if (currentBlock.type === "text") {
-        currentText = "";
-      } else if (
-        currentBlock.type === "tool_use" ||
-        currentBlock.type === "server_tool_use"
-      ) {
-        currentToolInputJson = "";
-      }
-    } else if (event.type === "content_block_delta" && currentBlock !== null) {
-      if (currentBlock.type === "thinking") {
-        if ("signature" in event.delta) {
-          currentSignature = event.delta.signature || "";
-        }
-        if ("thinking" in event.delta) {
-          currentThinking += event.delta.thinking || "";
-        }
-      } else if (currentBlock.type === "text") {
-        if ("text" in event.delta) {
-          currentText += event.delta.text || "";
-        }
-      } else if (
-        currentBlock.type === "tool_use" ||
-        currentBlock.type === "server_tool_use"
-      ) {
-        if (event.delta.type === "input_json_delta") {
-          const inputJsonDelta = event.delta as any;
-          currentToolInputJson += inputJsonDelta.partial_json || "";
-        }
-      }
-    } else if (event.type === "content_block_stop" && currentBlock !== null) {
-      if (currentBlock.type === "thinking") {
-        currentBlock.signature = currentSignature;
-        currentBlock.thinking = currentThinking;
-      } else if (currentBlock.type === "text") {
-        currentBlock.text = currentText;
-        currentBlock.citations = null;
-      } else if (
-        currentBlock.type === "tool_use" ||
-        currentBlock.type === "server_tool_use"
-      ) {
-        try {
-          currentBlock.input = currentToolInputJson
-            ? JSON.parse(currentToolInputJson)
-            : {};
-        } catch (e) {
-          currentBlock.input = {};
-        }
-      }
-      response.content!.push(currentBlock);
-      currentBlock = null;
-      currentSignature = "";
-      currentThinking = "";
-      currentText = "";
-      currentToolInputJson = "";
-    } else if (event.type === "message_delta") {
-      if ("usage" in event && event.usage) {
-        response.usage = {
-          ...response.usage,
-          output_tokens: event.usage.output_tokens ?? 0,
-        };
-      }
-      if ("delta" in event && event.delta) {
-        if (
-          "stop_reason" in event.delta &&
-          event.delta.stop_reason !== undefined
-        ) {
-          response.stop_reason = event.delta.stop_reason;
-        }
-        if (
-          "stop_sequence" in event.delta &&
-          event.delta.stop_sequence !== undefined
-        ) {
-          response.stop_sequence = event.delta.stop_sequence;
-        }
-      }
-    }
-  }
-
-  return response;
-};
-
-const cleaned_result = (
-  results: any[],
-  function_name = "openai.chat.completions.create"
-) => {
-  if ("completion" in results[0]) {
-    return results.reduce(
-      (prev, current) => ({
-        ...current,
-        completion: `${prev.completion}${current.completion}`,
-      }),
-      {}
-    );
-  }
-
-  if (function_name === "anthropic.messages.create")
-    return anthropicStreamMessage(results);
-
-  if ("text" in results[0].choices[0]) {
-    let response = "";
-    for (const result of results) {
-      response = `${response}${result.choices[0].text}`;
-    }
-    const final_result = structuredClone(results.at(-1));
-    final_result.choices[0].text = response;
-    return final_result;
-  }
-
-  if ("delta" in results[0].choices[0]) {
-    const response = openaiStreamChat(results);
-    response.choices[0] = {
-      ...response.choices[0],
-      ...response.choices[0].message,
-    };
-    return response;
-  }
-
-  return "";
-};
-
 async function* proxyGenerator<Item>(
   apiKey: string,
   baseURL: string,
@@ -1045,293 +805,12 @@ const trackRequest = async (
   return {};
 };
 
-const openaiStreamCompletion = (results: Completion[]) => {
-  const response: Completion = {
-    id: "",
-    choices: [
-      {
-        finish_reason: "stop",
-        index: 0,
-        text: "",
-        logprobs: null,
-      },
-    ],
-    created: Date.now(),
-    model: "",
-    object: "text_completion",
-  };
-  const lastResult = results.at(-1);
-  if (!lastResult) return response;
-  let text = "";
-  for (const result of results) {
-    if (result.choices.length > 0 && result.choices[0].text) {
-      text = `${text}${result.choices[0].text}`;
-    }
-  }
-  response.choices[0].text = text;
-  response.id = lastResult.id;
-  response.created = lastResult.created;
-  response.model = lastResult.model;
-  response.system_fingerprint = lastResult.system_fingerprint;
-  response.usage = lastResult.usage;
-  return response;
-};
-
-const anthropicStreamCompletion = (results: AnthropicCompletion[]) => {
-  const response: AnthropicCompletion = {
-    completion: "",
-    id: "",
-    model: "",
-    stop_reason: "",
-    type: "completion",
-  };
-  const lastResult = results.at(-1);
-  if (!lastResult) return response;
-  let completion = "";
-  for (const result of results) {
-    completion = `${completion}${result.completion}`;
-  }
-  response.completion = completion;
-  response.id = lastResult.id;
-  response.model = lastResult.model;
-  response.stop_reason = lastResult.stop_reason;
-  return response;
-};
-
-const mistralStreamChat = (results: any[]) => {
-  let content: ChatCompletion.Choice["message"]["content"] = null;
-  const response: ChatCompletion = {
-    id: "",
-    choices: [],
-    created: Date.now(),
-    model: "",
-    object: "chat.completion",
-  };
-  const lastResult = results.at(-1).data;
-  if (!lastResult) return response;
-  let toolCalls: ChatCompletion.Choice["message"]["tool_calls"] = undefined;
-
-  for (const result of results) {
-    if (result.data.choices.length === 0) continue;
-    const delta = result.data.choices[0].delta;
-
-    if (delta.content) {
-      content = `${content || ""}${delta.content || ""}`;
-    }
-
-    const toolCall = delta.toolCalls?.[0];
-    if (toolCall) {
-      toolCalls = toolCalls || [];
-      const lastToolCall = toolCalls.at(-1);
-      if (!lastToolCall || toolCall.id) {
-        toolCalls.push({
-          id: toolCall.id || "",
-          type: toolCall.type || "function",
-          function: {
-            name: toolCall.function?.name || "",
-            arguments: toolCall.function?.arguments || "",
-          },
-        });
-        continue;
-      }
-      lastToolCall.function.name = `${lastToolCall.function.name}${
-        toolCall.function?.name || ""
-      }`;
-      lastToolCall.function.arguments = `${lastToolCall.function.arguments}${
-        toolCall.function?.arguments || ""
-      }`;
-    }
-  }
-  const firstChoice = results[0].data.choices.at(0);
-  response.choices.push({
-    finish_reason: firstChoice?.finish_reason ?? "stop",
-    index: firstChoice?.index ?? 0,
-    logprobs: firstChoice?.logprobs ?? null,
-    message: {
-      role: "assistant",
-      content,
-      tool_calls: toolCalls ? toolCalls : undefined,
-      refusal: firstChoice?.delta.refusal ?? null,
-    },
-  });
-  response.id = lastResult.id;
-  response.model = lastResult.model;
-  response.created = lastResult.created;
-  response.usage = lastResult.usage ?? undefined;
-  return response;
-};
-
-const bedrockStreamMessage = (results: any[]) => {
-  const response: any = {
-    ResponseMetadata: {},
-    output: { message: {} },
-    stopReason: "end_turn",
-    metrics: {},
-    usage: {},
-  };
-
-  const content_blocks: any[] = [];
-  let current_tool_call: any = null;
-  let current_tool_input = "";
-  let current_text = "";
-  let current_signature = "";
-  let current_thinking = "";
-
-  for (const event of results) {
-    if ("contentBlockStart" in event) {
-      const content_block = event["contentBlockStart"];
-      if ("start" in content_block && "toolUse" in content_block["start"]) {
-        const tool_use = content_block["start"]["toolUse"];
-        current_tool_call = {
-          toolUse: {
-            toolUseId: tool_use["toolUseId"],
-            name: tool_use["name"],
-          },
-        };
-        current_tool_input = "";
-      }
-    } else if ("contentBlockDelta" in event) {
-      const delta = event["contentBlockDelta"]["delta"];
-      if ("text" in delta) {
-        current_text += delta["text"];
-      } else if ("reasoningContent" in delta) {
-        const reasoning_content = delta["reasoningContent"];
-        if ("text" in reasoning_content) {
-          current_thinking += reasoning_content["text"];
-        } else if ("signature" in reasoning_content) {
-          current_signature += reasoning_content["signature"];
-        }
-      } else if ("toolUse" in delta) {
-        if ("input" in delta["toolUse"]) {
-          const input_chunk = delta["toolUse"]["input"];
-          current_tool_input += input_chunk;
-          if (!input_chunk.trim()) {
-            continue;
-          }
-        }
-      }
-    } else if ("contentBlockStop" in event) {
-      if (current_tool_call && current_tool_input) {
-        try {
-          current_tool_call.toolUse.input = JSON.parse(current_tool_input);
-        } catch {
-          current_tool_call.toolUse.input = {};
-        }
-        content_blocks.push(current_tool_call);
-        current_tool_call = null;
-        current_tool_input = "";
-      } else if (current_text) {
-        content_blocks.push({ text: current_text });
-        current_text = "";
-      } else if (current_thinking && current_signature) {
-        content_blocks.push({
-          reasoningContent: {
-            reasoningText: {
-              text: current_thinking,
-              signature: current_signature,
-            },
-          },
-        });
-        current_thinking = "";
-        current_signature = "";
-      }
-    } else if ("messageStop" in event) {
-      response.stopReason = event["messageStop"]["stopReason"];
-    } else if ("metadata" in event) {
-      const metadata = event["metadata"];
-      response.usage = metadata?.usage || {};
-      response.metrics = metadata?.metrics || {};
-    }
-  }
-
-  response.output.message = { role: "assistant", content: content_blocks };
-  return response;
-};
-
-async function* streamResponse<Item>(
-  generator: AsyncIterable<Item> | any,
-  afterStream: (body: object) => any,
-  mapResults: any,
-  metadata: any
-) {
-  const data: {
-    request_id: number | null;
-    raw_response: any;
-    prompt_blueprint: any;
-  } = {
-    request_id: null,
-    raw_response: null,
-    prompt_blueprint: null,
-  };
-  let response_metadata: any = {};
-  const provider = metadata.model.provider;
-  if (provider == "amazon.bedrock") {
-    response_metadata = generator?.$metadata;
-    generator = generator?.stream;
-  }
-  const results = [];
-  for await (const result of generator) {
-    results.push(result);
-    data.raw_response = result;
-
-    // Build prompt blueprint for Anthropic streaming events
-    if (result && typeof result === "object" && "type" in result) {
-      data.prompt_blueprint = buildPromptBlueprintFromAnthropicEvent(
-        result as MessageStreamEvent,
-        metadata
-      );
-    }
-
-    // Build prompt blueprint for Google streaming events
-    if (result && typeof result === "object" && "candidates" in result) {
-      data.prompt_blueprint = buildPromptBlueprintFromGoogleEvent(
-        result,
-        metadata
-      );
-    }
-
-    // Build prompt blueprint for OpenAI streaming events
-    if (result && typeof result === "object" && "choices" in result) {
-      data.prompt_blueprint = buildPromptBlueprintFromOpenAIEvent(
-        result,
-        metadata
-      );
-    }
-
-    // Build prompt blueprint for Mistral streaming events
-    if (result && typeof result === "object" && "data" in result) {
-      data.prompt_blueprint = buildPromptBlueprintFromOpenAIEvent(
-        result.data,
-        metadata
-      );
-    }
-
-    // Build prompt blueprint for Amazon Bedrock events
-    if (provider === "amazon.bedrock") {
-      data.prompt_blueprint = buildPromptBlueprintFromBedrockEvent(
-        result,
-        metadata
-      );
-    }
-
-    yield data;
-  }
-  const request_response = mapResults(results);
-  if (provider === "amazon.bedrock") {
-    request_response.ResponseMetadata = response_metadata;
-  }
-  const response = await afterStream({ request_response });
-  data.request_id = response.request_id;
-  data.prompt_blueprint = response.prompt_blueprint;
-  yield data;
-}
-
 const openaiChatRequest = async (client: TypeOpenAI, kwargs: any) => {
-  return client.chat.completions.create(kwargs);
+  return await client.chat.completions.create(kwargs);
 };
 
 const openaiCompletionsRequest = async (client: TypeOpenAI, kwargs: any) => {
-  return client.completions.create(kwargs);
+  return await client.completions.create(kwargs);
 };
 
 const MAP_TYPE_TO_OPENAI_FUNCTION = {
@@ -1352,9 +831,14 @@ const openaiRequest = async (
   delete kwargs?.apiKey;
   delete kwargs?.baseURL;
 
-  const requestToMake =
-    MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
-  return requestToMake(client, kwargs);
+  const api_type = promptBlueprint.metadata?.model?.api_type;
+  if (api_type === "chat-completions") {
+    const requestToMake =
+      MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
+    return await requestToMake(client, kwargs);
+  } else {
+    return await client.responses.create(kwargs);
+  }
 };
 
 const azureOpenAIRequest = async (
@@ -1370,9 +854,15 @@ const azureOpenAIRequest = async (
   delete kwargs?.baseURL;
   delete kwargs?.apiVersion;
   delete kwargs?.apiKey;
-  const requestToMake =
-    MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
-  return requestToMake(client, kwargs);
+
+  const api_type = promptBlueprint.metadata?.model?.api_type;
+
+  if (api_type === "chat-completions") {
+    const requestToMake = MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
+    return await requestToMake(client, kwargs);
+  } else {
+    return await client.responses.create(kwargs);
+  }
 };
 
 const anthropicChatRequest = async (
@@ -1447,88 +937,6 @@ const utilLogRequest = async (
     );
     return null;
   }
-};
-
-const buildGoogleResponseFromParts = (
-  thoughtContent: string,
-  regularContent: string,
-  functionCalls: any[],
-  lastResult: any
-) => {
-  const response = { ...lastResult };
-  const finalParts = [];
-
-  if (thoughtContent) {
-    const thoughtPart = {
-      text: thoughtContent,
-      thought: true,
-    };
-    finalParts.push(thoughtPart);
-  }
-
-  if (regularContent) {
-    const textPart = {
-      text: regularContent,
-      thought: null,
-    };
-    finalParts.push(textPart);
-  }
-
-  for (const functionCall of functionCalls) {
-    const functionPart = {
-      function_call: functionCall,
-    };
-    finalParts.push(functionPart);
-  }
-
-  if (finalParts.length > 0 && response.candidates?.[0]?.content) {
-    response.candidates[0].content.parts = finalParts;
-  }
-
-  return response;
-};
-
-const googleStreamResponse = (results: any[]) => {
-  const { GenerateContentResponse } = require("@google/genai");
-
-  if (!results.length) {
-    return new GenerateContentResponse();
-  }
-
-  let thoughtContent = "";
-  let regularContent = "";
-  const functionCalls: any[] = [];
-
-  for (const result of results) {
-    if (result.candidates && result.candidates[0]?.content?.parts) {
-      for (const part of result.candidates[0].content.parts) {
-        if (part.text) {
-          if (part.thought === true) {
-            thoughtContent += part.text;
-          } else {
-            regularContent += part.text;
-          }
-        } else if (part.functionCall) {
-          functionCalls.push(part.functionCall);
-        }
-      }
-    }
-  }
-
-  return buildGoogleResponseFromParts(
-    thoughtContent,
-    regularContent,
-    functionCalls,
-    results[results.length - 1]
-  );
-};
-
-const googleStreamChat = (results: any[]) => {
-  return googleStreamResponse(results);
-};
-
-const googleStreamCompletion = (results: any[]) => {
-  return googleStreamResponse(results);
 };
 
 const googleChatRequest = async (model_client: any, kwargs: any) => {
@@ -1621,81 +1029,6 @@ const convertKeysToCamelCase = <T>(
   ) as T;
 };
 
-const STREAMING_PROVIDERS_WITH_USAGE = ["openai", "openai.azure"] as const;
-
-const MAP_PROVIDER_TO_FUNCTION_NAME = {
-  openai: {
-    chat: {
-      function_name: "openai.chat.completions.create",
-      stream_function: openaiStreamChat,
-    },
-    completion: {
-      function_name: "openai.completions.create",
-      stream_function: openaiStreamCompletion,
-    },
-  },
-  anthropic: {
-    chat: {
-      function_name: "anthropic.messages.create",
-      stream_function: anthropicStreamMessage,
-    },
-    completion: {
-      function_name: "anthropic.completions.create",
-      stream_function: anthropicStreamCompletion,
-    },
-  },
-  "openai.azure": {
-    chat: {
-      function_name: "openai.AzureOpenAI.chat.completions.create",
-      stream_function: openaiStreamChat,
-    },
-    completion: {
-      function_name: "openai.AzureOpenAI.completions.create",
-      stream_function: openaiStreamCompletion,
-    },
-  },
-  google: {
-    chat: {
-      function_name: "google.convo.send_message",
-      stream_function: googleStreamChat,
-    },
-    completion: {
-      function_name: "google.model.generate_content",
-      stream_function: googleStreamCompletion,
-    },
-  },
-  "amazon.bedrock": {
-    chat: {
-      function_name: "boto3.bedrock-runtime.converse",
-      stream_function: bedrockStreamMessage,
-    },
-    completion: {
-      function_name: "boto3.bedrock-runtime.converse",
-      stream_function: bedrockStreamMessage,
-    },
-  },
-  "anthropic.bedrock": {
-    chat: {
-      function_name: "anthropic.messages.create",
-      stream_function: anthropicStreamMessage,
-    },
-    completion: {
-      function_name: "anthropic.completions.create",
-      stream_function: anthropicStreamCompletion,
-    },
-  },
-  mistral: {
-    chat: {
-      function_name: "mistral.client.chat",
-      stream_function: mistralStreamChat,
-    },
-    completion: {
-      function_name: "",
-      stream_function: null,
-    },
-  },
-};
-
 const configureProviderSettings = (
   promptBlueprint: any,
   customProvider: any,
@@ -1704,6 +1037,7 @@ const configureProviderSettings = (
 ) => {
   const provider_type =
     customProvider?.client ?? promptBlueprint.metadata?.model?.provider;
+  const api_type = promptBlueprint.metadata?.model?.api_type;
 
   if (!provider_type) {
     throw new Error(
@@ -1736,7 +1070,7 @@ const configureProviderSettings = (
     }
   });
 
-  if (stream && STREAMING_PROVIDERS_WITH_USAGE.includes(provider_type as any)) {
+  if (stream && STREAMING_PROVIDERS_WITH_USAGE.includes(provider_type as any) && api_type === "chat-completions") {
     kwargs.stream_options = { include_usage: true };
   }
 
@@ -1868,21 +1202,14 @@ export {
   amazonBedrockRequest,
   anthropicBedrockRequest,
   anthropicRequest,
-  anthropicStreamCompletion,
-  anthropicStreamMessage,
   azureOpenAIRequest,
   configureProviderSettings,
   getAllPromptTemplates,
   getPromptTemplate,
   getProviderConfig,
   googleRequest,
-  googleStreamChat,
-  googleStreamCompletion,
   mistralRequest,
-  mistralStreamChat,
   openaiRequest,
-  openaiStreamChat,
-  openaiStreamCompletion,
   promptlayerApiHandler,
   promptLayerApiRequest,
   promptLayerCreateGroup,
@@ -1891,7 +1218,6 @@ export {
   promptLayerTrackPrompt,
   promptLayerTrackScore,
   publishPromptTemplate,
-  streamResponse,
   trackRequest,
   utilLogRequest,
   vertexaiRequest,

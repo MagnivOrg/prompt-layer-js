@@ -23,11 +23,11 @@ import {
   openaiRequest,
   readEnv,
   runWorkflowRequest,
-  streamResponse,
   trackRequest,
   utilLogRequest,
   vertexaiRequest,
 } from "@/utils/utils";
+import { streamResponse } from "@/utils/streaming";
 import * as opentelemetry from "@opentelemetry/api";
 
 const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
@@ -231,6 +231,11 @@ export class PromptLayer {
         );
 
         let provider_type_config = provider_type;
+        if (provider_type === "openai" || provider_type === "openai.azure") {
+          const api_type = promptBlueprintModel.api_type;
+          provider_type_config = `${provider_type}:${api_type}`;
+        }
+
         if (promptBlueprintModel.name.startsWith("gemini")) {
           provider_type_config = "google";
         } else if (promptBlueprintModel.name.startsWith("claude")) {
