@@ -108,6 +108,13 @@ export type ThinkingContent = {
   thinking: string;
 };
 
+export type CodeContent = {
+  id?: string;
+  container_id?: string;
+  type: "code";
+  code: string;
+};
+
 export type ImageContent = {
   type: "image_url";
   image_url: ImageUrl;
@@ -132,6 +139,7 @@ export type MediaVariable = {
 export type Content =
   | TextContent
   | ThinkingContent
+  | CodeContent
   | ImageContent
   | MediaContent
   | MediaVariable;

@@ -1,18 +1,10 @@
 {
   "name": "promptlayer",
   "license": "MIT",
-  "version": "1.0.56",
+  "version": "1.0.57",
   "main": "dist/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/esm/index.js",
-      "require": "./dist/index.js"
-    },
-    "./package.json": "./package.json"
-  },
   "private": false,
   "repository": {
     "type": "git",
@@ -33,9 +25,9 @@
     "@types/ably": "^1.0.0",
     "@types/node": "^20.8.0",
     "openai": "^6.7.0",
-    "zod": "^3.25.0",
-    "tsup": "^7.2.0",
-    "typescript": "^5.2.2"
+    "tsup": "^8.5.1",
+    "typescript": "^5.2.2",
+    "zod": "^3.25.0"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
