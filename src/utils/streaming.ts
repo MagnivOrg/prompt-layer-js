@@ -119,6 +119,14 @@ export const openaiResponsesStreamChat = (results: any[]) => {
           content: [],
           status: item.status ?? "in_progress",
         };
+      } else if (item_type === "code_interpreter_call") {
+        current_items[item_id] = {
+          type: "code_interpreter_call",
+          id: item_id,
+          container_id: item.container_id,
+          code: item.code ?? "",
+          status: item.status ?? "in_progress",
+        };
       }
       continue;
     }

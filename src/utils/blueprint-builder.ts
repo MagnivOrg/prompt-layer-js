@@ -310,12 +310,35 @@ export const buildPromptBlueprintFromOpenAIResponsesEvent = (
           text: "",
         })
       );
+    } else if (item_type === "code_interpreter_call") {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "code",
+          item_id: item_id,
+          code: item?.code ?? "",
+          container_id: item?.container_id ?? "",
+        })
+      );
     }
   } else if (event_type === "response.content_part.added") {
     const part = event?.part ?? {};
     const part_type: string = part?.type ?? "output_text";
     const item_id: string = event?.item_id ?? "";
 
+    if (part_type === "output_text") {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "text",
+          item_id: item_id,
+          text: part?.text ?? "",
+          annotations: part?.annotations || [],
+        })
+      );
+    }
+  } else if (event_type === "response.content_part.done") {
+    const part = event?.part ?? {};
+    const part_type: string = part?.type ?? "output_text";
+    const item_id: string = event?.item_id ?? "";
     if (part_type === "output_text") {
       assistantContent.push(
         _buildContentBlock({
@@ -360,6 +383,24 @@ export const buildPromptBlueprintFromOpenAIResponsesEvent = (
         annotations: [mapped_annotation],
       })
     );
+  } else if (event_type === "response.code_interpreter_call.in_progress") {
+    assistantContent.push(
+      _buildContentBlock({
+        type: "code",
+        item_id: event?.item_id ?? "",
+        code: event?.code ?? "",
+        container_id: event?.container_id ?? "",
+      })
+    );
+  } else if (event_type === "response.code_interpreter_call_code.delta") {
+    assistantContent.push(
+      _buildContentBlock({
+        type: "code",
+        item_id: event?.item_id ?? "",
+        code: event?.delta ?? "",
+        container_id: event?.container_id ?? "",
+      })
+    );
   } else if (event_type === "response.output_text.delta") {
     const delta_text: string = event?.delta ?? "";
 
@@ -391,21 +432,15 @@ export const buildPromptBlueprintFromOpenAIResponsesEvent = (
 
     if (item_type === "reasoning") {
       const summary: any[] = item?.summary ?? [];
-      for (const summary_part of summary) {
-        if (summary_part?.type === "summary_text") {
-          const text: string = summary_part?.text ?? "";
-          if (text) {
-            assistantContent.push(
-              _buildContentBlock({
-                type: "thinking",
-                item_id: item_id,
-                thinking: text,
-                signature: "",
-              })
-            );
-          }
-        }
-      }
+      const summary_text: string = summary.map(summary_part => summary_part?.text ?? "").join("");
+      assistantContent.push(
+        _buildContentBlock({
+          type: "thinking",
+          item_id: item_id,
+          thinking: summary_text,
+          signature: "",
+        })
+      );
     } else if (item_type === "function_call") {
       tool_calls.push(
         _buildToolCall(
@@ -430,6 +465,98 @@ export const buildPromptBlueprintFromOpenAIResponsesEvent = (
             );
           }
         }
+      }
+    } else if (item_type === "code_interpreter_call") {
+      assistantContent.push(
+        _buildContentBlock({
+          type: "code",
+          item_id: item_id,
+          code: item?.code ?? "",
+          container_id: item?.container_id ?? "",
+        })
+      );
+    }
+  } else if (event_type === "response.code_interpreter_call_code.done") {
+    assistantContent.push(
+      _buildContentBlock({
+        type: "code",
+        item_id: event?.item_id ?? "",
+        code: event?.code ?? "",
+        container_id: event?.container_id ?? "",
+      })
+    );
+  } else if (event_type === "response.code_interpreter_call.interpreting") {
+    assistantContent.push(
+      _buildContentBlock({
+        type: "code",
+        item_id: event?.item_id ?? "",
+        code: event?.code ?? "",
+        container_id: event?.container_id ?? "",
+      })
+    );
+  } else if (event_type === "response.code_interpreter_call.completed") {
+    assistantContent.push(
+      _buildContentBlock({
+        type: "code",
+        item_id: event?.item_id ?? "",
+        code: event?.code ?? "",
+        container_id: event?.container_id ?? "",
+      })
+    );
+  } else if (event_type === "response.completed") {
+    const response = event?.response ?? {};
+    const output: any[] = response?.output ?? [];
+
+    for (const item of output) {
+      const item_type: string | undefined = item?.type;
+      const item_id: string = item?.id ?? "";
+
+      if (item_type === "reasoning") {
+        const summary: any[] = item?.summary ?? [];
+        const summary_text: string = summary.map(summary_part => summary_part?.text ?? "").join("");
+        assistantContent.push(
+          _buildContentBlock({
+            type: "thinking",
+            item_id: item_id,
+            thinking: summary_text,
+            signature: "",
+          })
+        );
+      } else if (item_type === "function_call") {
+        tool_calls.push(
+          _buildToolCall(
+            item?.call_id || "",
+            item?.name || "",
+            item?.arguments || "",
+            item_id
+          )
+        );
+      } else if (item_type === "message") {
+        const content: any[] = item?.content ?? [];
+        for (const content_part of content) {
+          if (content_part?.type === "output_text") {
+            const text: string = content_part?.text ?? "";
+            if (text) {
+              assistantContent.push(
+                _buildContentBlock({
+                  type: "text",
+                  item_id: item_id,
+                  text: text,
+                  annotations: content_part?.annotations || [],
+                })
+              );
+            }
+          }
+        }
+      } else if (item_type === "code_interpreter_call") {
+        assistantContent.push(
+          _buildContentBlock({
+            type: "code",
+            item_id: item_id,
+            code: item?.code ?? "",
+            container_id: item?.container_id ?? "",
+          })
+        );
       }
     }
   }
