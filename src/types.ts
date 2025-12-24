@@ -352,6 +352,7 @@ export interface LogRequest {
   score?: number;
   prompt_id?: number;
   score_name?: string;
+  api_type?: string;
 }
 
 export interface RequestLog {
