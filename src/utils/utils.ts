@@ -28,6 +28,30 @@ import {
   STREAMING_PROVIDERS_WITH_USAGE,
 } from "./streaming";
 
+// SDK version - keep in sync with package.json
+export const SDK_VERSION = "1.0.59";
+
+// Get Node.js version (major.minor format)
+const getNodeVersion = (): string => {
+  if (typeof process !== "undefined" && process.versions?.node) {
+    const parts = process.versions.node.split(".");
+    return `${parts[0]}.${parts[1]}`;
+  }
+  return "unknown";
+};
+
+const _NODE_VERSION = getNodeVersion();
+const _PROMPTLAYER_USER_AGENT = `promptlayer-js/${SDK_VERSION} (node ${_NODE_VERSION})`;
+
+/**
+ * Returns common headers to be included in all PromptLayer API requests.
+ * Includes the SDK version and user agent for tracking and debugging purposes.
+ */
+export const getCommonHeaders = (): Record<string, string> => ({
+  "User-Agent": _PROMPTLAYER_USER_AGENT,
+  "X-SDK-Version": SDK_VERSION,
+});
+
 export const SET_WORKFLOW_COMPLETE_MESSAGE = "SET_WORKFLOW_COMPLETE";
 
 export enum FinalOutputCode {
@@ -43,7 +67,7 @@ async function getFinalOutput(
 ): Promise<any> {
   const response = await fetchWithRetry(
     `${baseURL}/workflow-version-execution-results?workflow_version_execution_id=${executionId}&return_all_outputs=${returnAllOutputs}`,
-    { headers }
+    { headers, ...getCommonHeaders() }
   );
   if (!response.ok) {
     throw new Error("Failed to fetch final output");
@@ -223,9 +247,7 @@ const promptLayerApiRequest = async (
   try {
     const response = await fetchWithRetry(`${baseURL}/track-request`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json", ...getCommonHeaders() },
       body: JSON.stringify(body),
     });
     const data = await response.json();
@@ -264,9 +286,7 @@ const promptLayerTrackMetadata = async (
   try {
     const response = await fetchWithRetry(`${baseURL}/library-track-metadata`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json", ...getCommonHeaders() },
       body: JSON.stringify({
         ...body,
         api_key: apiKey,
@@ -307,9 +327,7 @@ const promptLayerTrackScore = async (
   try {
     const response = await fetchWithRetry(`${baseURL}/library-track-score`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json", ...getCommonHeaders() },
       body: JSON.stringify({
         ...body,
         api_key: apiKey,
@@ -350,9 +368,7 @@ const promptLayerTrackPrompt = async (
   try {
     const response = await fetchWithRetry(`${baseURL}/library-track-prompt`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json", ...getCommonHeaders() },
       body: JSON.stringify({
         ...body,
         api_key: apiKey,
@@ -393,9 +409,7 @@ const promptLayerTrackGroup = async (
   try {
     const response = await fetchWithRetry(`${baseURL}/track-group`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json", ...getCommonHeaders() },
       body: JSON.stringify({
         ...body,
         api_key: apiKey,
@@ -435,9 +449,7 @@ const promptLayerCreateGroup = async (
   try {
     const response = await fetchWithRetry(`${baseURL}/create-group`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json", ...getCommonHeaders() },
       body: JSON.stringify({
         api_key: apiKey,
       }),
@@ -482,6 +494,7 @@ const getPromptTemplate = async (
       headers: {
         "Content-Type": "application/json",
         "X-API-KEY": apiKey,
+        ...getCommonHeaders(),
       },
       body: JSON.stringify(params),
     });
@@ -523,10 +536,7 @@ const publishPromptTemplate = async (
 ): Promise<PublishPromptTemplateResponse> => {
   const response = await fetchWithRetry(`${baseURL}/rest/prompt-templates`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-KEY": apiKey,
-    },
+    headers: { "Content-Type": "application/json", "X-API-KEY": apiKey, ...getCommonHeaders() },
     body: JSON.stringify({
       prompt_template: { ...body },
       prompt_version: { ...body },
@@ -560,10 +570,7 @@ const getAllPromptTemplates = async (
     url.searchParams.append(key, value.toString())
   );
   const response = await fetchWithRetry(url, {
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-KEY": apiKey,
-    },
+    headers: { "Content-Type": "application/json", "X-API-KEY": apiKey, ...getCommonHeaders() },
   });
   const data = await response.json();
   if (response.status !== 200) {
@@ -658,10 +665,7 @@ export const runWorkflowRequest = async ({
     return_all_outputs,
   };
 
-  const headers = {
-    "X-API-KEY": api_key,
-    "Content-Type": "application/json",
-  };
+  const headers = { "Content-Type": "application/json", "X-API-KEY": api_key, ...getCommonHeaders() };
 
   try {
     const response = await fetchWithRetry(
@@ -775,9 +779,7 @@ const trackRequest = async (
   try {
     const response = await fetchWithRetry(`${baseURL}/track-request`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json", ...getCommonHeaders() },
       body: JSON.stringify(body),
     });
     const data = await response.json();
@@ -907,10 +909,7 @@ const utilLogRequest = async (
   try {
     const response = await fetchWithRetry(`${baseURL}/log-request`, {
       method: "POST",
-      headers: {
-        "X-API-KEY": apiKey,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json", "X-API-KEY": apiKey, ...getCommonHeaders() },
       body: JSON.stringify(body),
     });
     const data = await response.json();

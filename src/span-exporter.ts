@@ -1,4 +1,4 @@
-import { fetchWithRetry } from "@/utils/utils";
+import { fetchWithRetry, getCommonHeaders } from "@/utils/utils";
 import { Attributes, SpanKind, SpanStatusCode } from "@opentelemetry/api";
 import { ExportResultCode } from "@opentelemetry/core";
 import { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
@@ -91,6 +91,7 @@ class PromptLayerSpanExporter implements SpanExporter {
       headers: {
         "Content-Type": "application/json",
         "X-API-KEY": this.apiKey || "",
+        ...getCommonHeaders(),
       },
       body: JSON.stringify({
         spans: requestData,
