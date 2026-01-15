@@ -28,8 +28,9 @@ import {
   STREAMING_PROVIDERS_WITH_USAGE,
 } from "./streaming";
 
-// SDK version - keep in sync with package.json
-export const SDK_VERSION = "1.0.59";
+// SDK version - injected at build time from package.json
+declare const __SDK_VERSION__: string;
+export const SDK_VERSION = __SDK_VERSION__;
 
 // Get Node.js version (major.minor format)
 const getNodeVersion = (): string => {

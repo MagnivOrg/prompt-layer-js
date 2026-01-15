@@ -11,7 +11,7 @@
     "url": "https://github.com/MagnivOrg/prompt-layer-js"
   },
   "scripts": {
-    "build": "tsup-node src/index.ts --format cjs,esm --minify --dts --clean --sourcemap --legacy-output",
+    "build": "tsup-node",
     "lint": "tsc",
     "release": "npm run build && npm publish"
   },
