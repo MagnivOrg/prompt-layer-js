@@ -13,6 +13,7 @@
   "scripts": {
     "build": "tsup-node",
     "lint": "tsc",
+    "test": "vitest run",
     "release": "npm run build && npm publish"
   },
   "devDependencies": {
@@ -27,6 +28,7 @@
     "openai": "^6.7.0",
     "tsup": "^8.5.1",
     "typescript": "^5.2.2",
+    "vitest": "^2.1.9",
     "zod": "^3.25.0"
   },
   "dependencies": {
