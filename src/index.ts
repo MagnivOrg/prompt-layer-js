@@ -27,6 +27,7 @@ import {
   utilLogRequest,
   vertexaiRequest,
 } from "@/utils/utils";
+import { categorizeError } from "@/utils/errors";
 import { streamResponse } from "@/utils/streaming";
 import * as opentelemetry from "@opentelemetry/api";
 
@@ -252,8 +253,6 @@ export class PromptLayer {
           );
         }
 
-        const response = await request_function(promptBlueprint!, kwargs);
-
         const _trackRequest = (body: object) => {
           const request_end_time = new Date().toISOString();
           return trackRequest(
@@ -279,6 +278,22 @@ export class PromptLayer {
             this.throwOnError
           );
         };
+
+        let response: any;
+        try {
+          response = await request_function(promptBlueprint!, kwargs);
+        } catch (llmError: unknown) {
+          const errorType = categorizeError(llmError);
+          const errorMessage =
+            llmError instanceof Error ? llmError.message : String(llmError);
+          await _trackRequest({
+            request_response: {},
+            status: "ERROR",
+            error_type: errorType,
+            error_message: errorMessage,
+          });
+          throw llmError;
+        }
 
         if (stream)
           return streamResponse(

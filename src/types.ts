@@ -34,6 +34,9 @@ export interface TrackRequest {
   return_data?: boolean;
   group_id?: number;
   span_id?: string;
+  status?: "SUCCESS" | "WARNING" | "ERROR";
+  error_type?: string;
+  error_message?: string;
   [k: string]: unknown;
 }
 
@@ -353,6 +356,9 @@ export interface LogRequest {
   prompt_id?: number;
   score_name?: string;
   api_type?: string;
+  status?: "SUCCESS" | "WARNING" | "ERROR";
+  error_type?: string;
+  error_message?: string;
 }
 
 export interface RequestLog {
