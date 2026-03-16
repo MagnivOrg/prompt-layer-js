@@ -13,6 +13,7 @@ import {
   buildPromptBlueprintFromBedrockEvent,
   buildPromptBlueprintFromGoogleEvent,
   buildPromptBlueprintFromOpenAIEvent,
+  buildPromptBlueprintFromOpenAIImagesEvent,
   buildPromptBlueprintFromOpenAIResponsesEvent,
 } from "./blueprint-builder";
 
@@ -47,6 +48,7 @@ export const openaiResponsesStreamChat = (results: any[]) => {
   };
 
   const current_items: Record<string, any> = {};
+  const output_index_to_item_id: Record<number, string> = {};
 
   for (const chunk of results as any[]) {
     const event_type = chunk?.type;
@@ -94,6 +96,10 @@ export const openaiResponsesStreamChat = (results: any[]) => {
       const item = chunk.item || {};
       const item_id = item.id;
       const item_type = item.type;
+      const output_index = chunk.output_index;
+      if (output_index != null && item_id) {
+        output_index_to_item_id[output_index] = item_id;
+      }
 
       if (item_type === "reasoning") {
         current_items[item_id] = {
@@ -125,6 +131,90 @@ export const openaiResponsesStreamChat = (results: any[]) => {
           id: item_id,
           container_id: item.container_id,
           code: item.code ?? "",
+          status: item.status ?? "in_progress",
+        };
+      } else if (item_type === "image_generation_call") {
+        current_items[item_id] = {
+          type: "image_generation_call",
+          id: item_id,
+          status: item.status ?? "in_progress",
+          revised_prompt: item.revised_prompt ?? "",
+          result: item.result ?? "",
+          background: item.background,
+          size: item.size,
+          quality: item.quality,
+          output_format: item.output_format,
+        };
+      } else if (item_type === "web_search_call") {
+        current_items[item_id] = {
+          type: "web_search_call",
+          id: item_id,
+          status: item.status ?? "in_progress",
+        };
+      } else if (item_type === "file_search_call") {
+        current_items[item_id] = {
+          type: "file_search_call",
+          id: item_id,
+          status: item.status ?? "in_progress",
+        };
+      } else if (item_type === "mcp_list_tools") {
+        current_items[item_id] = {
+          type: "mcp_list_tools",
+          id: item_id,
+          server_label: item.server_label ?? "",
+          tools: item.tools ?? [],
+          error: item.error ?? null,
+        };
+      } else if (item_type === "mcp_call") {
+        current_items[item_id] = {
+          type: "mcp_call",
+          id: item_id,
+          name: item.name ?? "",
+          server_label: item.server_label ?? "",
+          arguments: item.arguments ?? "",
+          output: item.output ?? null,
+          error: item.error ?? null,
+          approval_request_id: item.approval_request_id ?? null,
+          status: item.status ?? "in_progress",
+        };
+      } else if (item_type === "mcp_approval_request") {
+        current_items[item_id] = {
+          type: "mcp_approval_request",
+          id: item_id,
+          name: item.name ?? "",
+          arguments: item.arguments ?? "",
+          server_label: item.server_label ?? "",
+        };
+      } else if (item_type === "shell_call") {
+        current_items[item_id] = {
+          type: "shell_call",
+          id: item_id,
+          call_id: item.call_id ?? "",
+          action: item.action ?? {},
+          status: item.status ?? "in_progress",
+        };
+      } else if (item_type === "shell_call_output") {
+        current_items[item_id] = {
+          type: "shell_call_output",
+          id: item_id,
+          call_id: item.call_id ?? "",
+          output: item.output ?? [],
+          status: item.status ?? "in_progress",
+        };
+      } else if (item_type === "apply_patch_call") {
+        current_items[item_id] = {
+          type: "apply_patch_call",
+          id: item_id,
+          call_id: item.call_id ?? "",
+          operation: item.operation ?? {},
+          status: item.status ?? "in_progress",
+        };
+      } else if (item_type === "apply_patch_call_output") {
+        current_items[item_id] = {
+          type: "apply_patch_call_output",
+          id: item_id,
+          call_id: item.call_id ?? "",
+          output: item.output ?? "",
           status: item.status ?? "in_progress",
         };
       }
@@ -269,8 +359,177 @@ export const openaiResponsesStreamChat = (results: any[]) => {
           current_items[item_id].content =
             item.content ?? current_items[item_id].content;
           current_items[item_id].role = item.role ?? current_items[item_id].role;
+        } else if (item.type === "image_generation_call") {
+          current_items[item_id].result =
+            item.result ?? current_items[item_id].result;
+          current_items[item_id].revised_prompt =
+            item.revised_prompt ?? current_items[item_id].revised_prompt;
+          current_items[item_id].background =
+            item.background ?? current_items[item_id].background;
+          current_items[item_id].size =
+            item.size ?? current_items[item_id].size;
+          current_items[item_id].quality =
+            item.quality ?? current_items[item_id].quality;
+          current_items[item_id].output_format =
+            item.output_format ?? current_items[item_id].output_format;
+        } else if (item.type === "code_interpreter_call") {
+          current_items[item_id].code =
+            item.code ?? current_items[item_id].code;
+          current_items[item_id].container_id =
+            item.container_id ?? current_items[item_id].container_id;
+        } else if (item.type === "mcp_list_tools") {
+          current_items[item_id].tools =
+            item.tools ?? current_items[item_id].tools;
+          current_items[item_id].error =
+            item.error ?? current_items[item_id].error;
+        } else if (item.type === "mcp_call") {
+          current_items[item_id].name =
+            item.name ?? current_items[item_id].name;
+          current_items[item_id].arguments =
+            item.arguments ?? current_items[item_id].arguments;
+          current_items[item_id].output =
+            item.output ?? current_items[item_id].output;
+          current_items[item_id].error =
+            item.error ?? current_items[item_id].error;
+          current_items[item_id].server_label =
+            item.server_label ?? current_items[item_id].server_label;
+        } else if (item.type === "mcp_approval_request") {
+          current_items[item_id].name =
+            item.name ?? current_items[item_id].name;
+          current_items[item_id].arguments =
+            item.arguments ?? current_items[item_id].arguments;
+          current_items[item_id].server_label =
+            item.server_label ?? current_items[item_id].server_label;
+        } else if (item.type === "shell_call") {
+          current_items[item_id].action =
+            item.action ?? current_items[item_id].action;
+          current_items[item_id].call_id =
+            item.call_id ?? current_items[item_id].call_id;
+        } else if (item.type === "shell_call_output") {
+          current_items[item_id].output =
+            item.output ?? current_items[item_id].output;
+          current_items[item_id].call_id =
+            item.call_id ?? current_items[item_id].call_id;
+        } else if (item.type === "apply_patch_call") {
+          current_items[item_id].operation =
+            item.operation ?? current_items[item_id].operation;
+          current_items[item_id].call_id =
+            item.call_id ?? current_items[item_id].call_id;
+        } else if (item.type === "apply_patch_call_output") {
+          current_items[item_id].output =
+            item.output ?? current_items[item_id].output;
+          current_items[item_id].call_id =
+            item.call_id ?? current_items[item_id].call_id;
+        } else if (item.type === "web_search_call") {
+          current_items[item_id].action = item.action;
+        } else if (item.type === "file_search_call") {
+          current_items[item_id].action = item.action;
         }
         response_data.output.push(current_items[item_id]);
+      }
+      continue;
+    }
+
+    if (event_type === "response.image_generation_call.in_progress") {
+      const item_id = chunk.item_id;
+      if (item_id in current_items) {
+        current_items[item_id].status = "in_progress";
+      }
+      continue;
+    }
+
+    if (event_type === "response.image_generation_call.generating") {
+      const item_id = chunk.item_id;
+      if (item_id in current_items) {
+        current_items[item_id].status = "generating";
+      }
+      continue;
+    }
+
+    if (event_type === "response.image_generation_call.partial_image") {
+      const item_id = chunk.item_id;
+      if (item_id in current_items) {
+        current_items[item_id].result = chunk.partial_image_b64 ?? current_items[item_id].result;
+        current_items[item_id].background = chunk.background ?? current_items[item_id].background;
+        current_items[item_id].size = chunk.size ?? current_items[item_id].size;
+        current_items[item_id].quality = chunk.quality ?? current_items[item_id].quality;
+        current_items[item_id].output_format = chunk.output_format ?? current_items[item_id].output_format;
+      }
+      continue;
+    }
+
+    if (event_type === "response.shell_call_command.added") {
+      const item_id = output_index_to_item_id[chunk.output_index];
+      if (item_id && item_id in current_items) {
+        const action = current_items[item_id].action || { commands: [] };
+        if (!action.commands) action.commands = [];
+        action.commands[chunk.command_index] = chunk.command ?? "";
+        current_items[item_id].action = action;
+      }
+      continue;
+    }
+
+    if (event_type === "response.shell_call_command.delta") {
+      const item_id = output_index_to_item_id[chunk.output_index];
+      if (item_id && item_id in current_items) {
+        const action = current_items[item_id].action || { commands: [] };
+        if (!action.commands) action.commands = [];
+        const idx = chunk.command_index ?? 0;
+        action.commands[idx] = (action.commands[idx] ?? "") + (chunk.delta ?? "");
+        current_items[item_id].action = action;
+      }
+      continue;
+    }
+
+    if (event_type === "response.shell_call_command.done") {
+      const item_id = output_index_to_item_id[chunk.output_index];
+      if (item_id && item_id in current_items) {
+        const action = current_items[item_id].action || { commands: [] };
+        if (!action.commands) action.commands = [];
+        action.commands[chunk.command_index] = chunk.command ?? "";
+        current_items[item_id].action = action;
+      }
+      continue;
+    }
+
+    if (event_type === "response.shell_call_output_content.delta") {
+      const item_id = chunk.item_id;
+      if (item_id && item_id in current_items) {
+        if (!current_items[item_id].output) current_items[item_id].output = [];
+        const idx = chunk.command_index ?? 0;
+        const existing = current_items[item_id].output[idx] ?? { stdout: "", stderr: "" };
+        const delta = chunk.delta ?? {};
+        if (delta.stdout) existing.stdout = (existing.stdout ?? "") + delta.stdout;
+        if (delta.stderr) existing.stderr = (existing.stderr ?? "") + delta.stderr;
+        current_items[item_id].output[idx] = existing;
+      }
+      continue;
+    }
+
+    if (event_type === "response.shell_call_output_content.done") {
+      const item_id = chunk.item_id;
+      if (item_id && item_id in current_items) {
+        current_items[item_id].output = chunk.output ?? current_items[item_id].output;
+      }
+      continue;
+    }
+
+    if (event_type === "response.apply_patch_call_operation_diff.delta") {
+      const item_id = chunk.item_id;
+      if (item_id && item_id in current_items) {
+        const operation = current_items[item_id].operation || {};
+        operation.diff = (operation.diff ?? "") + (chunk.delta ?? "");
+        current_items[item_id].operation = operation;
+      }
+      continue;
+    }
+
+    if (event_type === "response.apply_patch_call_operation_diff.done") {
+      const item_id = chunk.item_id;
+      if (item_id && item_id in current_items) {
+        const operation = current_items[item_id].operation || {};
+        operation.diff = chunk.diff ?? operation.diff;
+        current_items[item_id].operation = operation;
       }
       continue;
     }
@@ -418,16 +677,19 @@ export const anthropicStreamMessage = (results: MessageStreamEvent[]): Message =
   const lastResult = results.at(-1);
   if (!lastResult) return response;
   let currentBlock: any = null;
+  let currentBlockIndex: number | null = null;
   let currentSignature = "";
   let currentThinking = "";
   let currentText = "";
   let currentToolInputJson = "";
+  const citationsByBlockIndex: Record<number, any[]> = {};
 
   for (const event of results) {
     if (event.type === "message_start") {
       response = { ...event.message };
     } else if (event.type === "content_block_start") {
       currentBlock = { ...event.content_block };
+      currentBlockIndex = "index" in event && typeof event.index === "number" ? event.index : null;
       if (currentBlock.type === "thinking") {
         currentSignature = "";
         currentThinking = "";
@@ -439,25 +701,50 @@ export const anthropicStreamMessage = (results: MessageStreamEvent[]): Message =
       ) {
         currentToolInputJson = "";
       }
-    } else if (event.type === "content_block_delta" && currentBlock !== null) {
-      if (currentBlock.type === "thinking") {
-        if ("signature" in event.delta) {
-          currentSignature = event.delta.signature || "";
+    } else if (event.type === "content_block_delta") {
+      const delta = event.delta as unknown as Record<string, unknown> | undefined;
+      const eventIndex = "index" in event && typeof event.index === "number" ? event.index : null;
+
+      if (delta?.type === "citations_delta") {
+        const citation = delta.citation as Record<string, unknown> | undefined;
+        if (
+          citation &&
+          typeof citation === "object" &&
+          citation.type === "web_search_result_location" &&
+          eventIndex !== null
+        ) {
+          const annotation = {
+            type: "url_citation",
+            url: citation.url ?? "",
+            title: citation.title ?? "",
+            start_index: citation.start_index ?? 0,
+            end_index: citation.end_index ?? 0,
+            ...(citation.cited_text != null ? { cited_text: citation.cited_text } : {}),
+            ...(citation.encrypted_index != null ? { encrypted_index: citation.encrypted_index } : {}),
+          };
+          if (!citationsByBlockIndex[eventIndex]) citationsByBlockIndex[eventIndex] = [];
+          citationsByBlockIndex[eventIndex].push(annotation);
         }
-        if ("thinking" in event.delta) {
-          currentThinking += event.delta.thinking || "";
-        }
-      } else if (currentBlock.type === "text") {
-        if ("text" in event.delta) {
-          currentText += event.delta.text || "";
-        }
-      } else if (
-        currentBlock.type === "tool_use" ||
-        currentBlock.type === "server_tool_use"
-      ) {
-        if (event.delta.type === "input_json_delta") {
-          const inputJsonDelta = event.delta as any;
-          currentToolInputJson += inputJsonDelta.partial_json || "";
+      } else if (currentBlock !== null) {
+        if (currentBlock.type === "thinking") {
+          if (delta && "signature" in delta) {
+            currentSignature = (delta.signature as string) || "";
+          }
+          if (delta && "thinking" in delta) {
+            currentThinking += (delta.thinking as string) || "";
+          }
+        } else if (currentBlock.type === "text") {
+          if (delta && "text" in delta) {
+            currentText += (delta.text as string) || "";
+          }
+        } else if (
+          currentBlock.type === "tool_use" ||
+          currentBlock.type === "server_tool_use"
+        ) {
+          if (delta?.type === "input_json_delta") {
+            const inputJsonDelta = delta as { partial_json?: string };
+            currentToolInputJson += inputJsonDelta.partial_json || "";
+          }
         }
       }
     } else if (event.type === "content_block_stop" && currentBlock !== null) {
@@ -467,6 +754,9 @@ export const anthropicStreamMessage = (results: MessageStreamEvent[]): Message =
       } else if (currentBlock.type === "text") {
         currentBlock.text = currentText;
         currentBlock.citations = null;
+        if (currentBlockIndex !== null && citationsByBlockIndex[currentBlockIndex]?.length) {
+          currentBlock.annotations = citationsByBlockIndex[currentBlockIndex];
+        }
       } else if (
         currentBlock.type === "tool_use" ||
         currentBlock.type === "server_tool_use"
@@ -481,6 +771,7 @@ export const anthropicStreamMessage = (results: MessageStreamEvent[]): Message =
       }
       response.content!.push(currentBlock);
       currentBlock = null;
+      currentBlockIndex = null;
       currentSignature = "";
       currentThinking = "";
       currentText = "";
@@ -687,36 +978,61 @@ const buildGoogleResponseFromParts = (
   thoughtContent: string,
   regularContent: string,
   functionCalls: any[],
-  lastResult: any
+  inlineDataParts: any[],
+  executableCodeParts: any[],
+  codeExecutionResultParts: any[],
+  lastResult: any,
+  lastThoughtSignature: string | null,
+  lastRegularThoughtSignature: string | null
 ) => {
   const response = { ...lastResult };
-  const finalParts = [];
+  const finalParts: any[] = [];
 
   if (thoughtContent) {
-    const thoughtPart = {
-      text: thoughtContent,
-      thought: true,
-    };
-    finalParts.push(thoughtPart);
+    const part: any = { text: thoughtContent, thought: true };
+    if (lastThoughtSignature) part.thoughtSignature = lastThoughtSignature;
+    finalParts.push(part);
   }
 
   if (regularContent) {
-    const textPart = {
-      text: regularContent,
-      thought: null,
-    };
-    finalParts.push(textPart);
+    const part: any = { text: regularContent, thought: null };
+    if (lastRegularThoughtSignature) part.thoughtSignature = lastRegularThoughtSignature;
+    finalParts.push(part);
+  }
+
+  for (const executableCode of executableCodeParts) {
+    finalParts.push({ executableCode });
+  }
+
+  for (const codeExecutionResult of codeExecutionResultParts) {
+    finalParts.push({ codeExecutionResult });
+  }
+
+  for (const inlineData of inlineDataParts) {
+    finalParts.push({ inlineData });
   }
 
   for (const functionCall of functionCalls) {
-    const functionPart = {
-      function_call: functionCall,
-    };
-    finalParts.push(functionPart);
+    finalParts.push({ functionCall });
   }
 
   if (finalParts.length > 0 && response.candidates?.[0]?.content) {
     response.candidates[0].content.parts = finalParts;
+  }
+
+  const lastCandidate = lastResult?.candidates?.[0];
+  if (lastCandidate) {
+    if (!response.candidates) response.candidates = [];
+    if (!response.candidates[0]) response.candidates[0] = { content: { parts: [] } };
+    if (lastCandidate.groundingMetadata != null) {
+      response.candidates[0].groundingMetadata = lastCandidate.groundingMetadata;
+    }
+    if (lastCandidate.urlContextMetadata != null) {
+      response.candidates[0].urlContextMetadata = lastCandidate.urlContextMetadata;
+    }
+    if (lastCandidate.citationMetadata != null) {
+      response.candidates[0].citationMetadata = lastCandidate.citationMetadata;
+    }
   }
 
   return response;
@@ -732,18 +1048,41 @@ const googleStreamResponse = (results: any[]) => {
   let thoughtContent = "";
   let regularContent = "";
   const functionCalls: any[] = [];
+  const inlineDataParts: any[] = [];
+  const executableCodeParts: any[] = [];
+  const codeExecutionResultParts: any[] = [];
+  let lastThoughtSignature: string | null = null;
+  let lastRegularThoughtSignature: string | null = null;
 
   for (const result of results) {
     if (result.candidates && result.candidates[0]?.content?.parts) {
       for (const part of result.candidates[0].content.parts) {
-        if (part.text) {
+        if (part.text != null) {
           if (part.thought === true) {
             thoughtContent += part.text;
+            if (part.thoughtSignature) lastThoughtSignature = part.thoughtSignature;
           } else {
             regularContent += part.text;
+            if (part.thoughtSignature) lastRegularThoughtSignature = part.thoughtSignature;
           }
         } else if (part.functionCall) {
           functionCalls.push(part.functionCall);
+        } else if (part.inlineData) {
+          const raw = part.inlineData;
+          inlineDataParts.push({
+            data: raw.data ?? "",
+            mimeType: raw.mimeType ?? "image/png",
+          });
+        } else if (part.executableCode) {
+          executableCodeParts.push({
+            code: part.executableCode.code ?? "",
+            language: part.executableCode.language,
+          });
+        } else if (part.codeExecutionResult) {
+          codeExecutionResultParts.push({
+            output: part.codeExecutionResult.output ?? "",
+            outcome: part.codeExecutionResult.outcome ?? "OUTCOME_OK",
+          });
         }
       }
     }
@@ -753,7 +1092,12 @@ const googleStreamResponse = (results: any[]) => {
     thoughtContent,
     regularContent,
     functionCalls,
-    results[results.length - 1]
+    inlineDataParts,
+    executableCodeParts,
+    codeExecutionResultParts,
+    results[results.length - 1],
+    lastThoughtSignature,
+    lastRegularThoughtSignature
   );
 };
 
@@ -765,13 +1109,74 @@ export const googleStreamCompletion = (results: any[]) => {
   return googleStreamResponse(results);
 };
 
+const _RESPONSE_METADATA_KEYS = ["size", "quality", "background", "output_format"] as const;
+
+export const openaiImagesStream = (results: any[]) => {
+  const response_data: any = {
+    created: null,
+    data: [],
+    usage: null,
+  };
+
+  const partial_images_by_index: Record<number, string> = {};
+  let output_format = "png";
+
+  for (const chunk of results as any[]) {
+    const event_type = chunk?.type ?? "";
+
+    if (event_type === "image_generation.partial_image") {
+      const b64 = chunk.b64_json;
+      if (b64 != null) {
+        const idx = chunk.partial_image_index ?? 0;
+        partial_images_by_index[idx] = b64;
+      }
+    } else if (event_type === "image_generation.completed") {
+      const b64 = chunk.b64_json;
+      if (b64 != null) {
+        const idx = chunk.partial_image_index ?? 0;
+        partial_images_by_index[idx] = b64;
+      }
+      response_data.created = chunk.created_at ?? response_data.created;
+      response_data.usage = chunk.usage ?? response_data.usage;
+      for (const key of _RESPONSE_METADATA_KEYS) {
+        if (chunk[key] != null) response_data[key] = chunk[key];
+      }
+      if (chunk.output_format) output_format = chunk.output_format;
+    }
+  }
+
+  if (!response_data.output_format) {
+    response_data.output_format = output_format;
+  }
+
+  const indices = Object.keys(partial_images_by_index)
+    .map(Number)
+    .sort((a, b) => a - b);
+  if (indices.length > 0) {
+    response_data.data = indices.map((idx) => ({
+      b64_json: partial_images_by_index[idx],
+    }));
+  }
+
+  return response_data;
+};
+
 export const cleaned_result = (
   results: any[],
   function_name = "openai.chat.completions.create"
 ) => {
-  // Handle OpenAI Responses API streaming events
-  if ( function_name === "openai.responses.create" || function_name === "openai.AzureOpenAI.responses.create") {
+  if (
+    function_name === "openai.responses.create" ||
+    function_name === "openai.AzureOpenAI.responses.create"
+  ) {
     return openaiResponsesStreamChat(results);
+  }
+
+  if (
+    function_name === "openai.images.generate" ||
+    function_name === "openai.AzureOpenAI.images.generate"
+  ) {
+    return openaiImagesStream(results);
   }
 
   if ("completion" in results[0]) {
@@ -810,12 +1215,16 @@ export const cleaned_result = (
 };
 
 
-const buildStreamBlueprint = (result: any, metadata: any) => {
+const buildStreamBlueprint = (
+  result: any,
+  metadata: any,
+  streamContext?: { anthropicBlockTypeByIndex?: Record<number, string> }
+) => {
   const provider = metadata.model.provider;
   const model = metadata.model.name;
 
   if (provider === "anthropic" || provider === "anthropic.bedrock" || (provider === "vertexai" && model.startsWith("claude"))) {
-    return buildPromptBlueprintFromAnthropicEvent(result, metadata);
+    return buildPromptBlueprintFromAnthropicEvent(result, metadata, streamContext?.anthropicBlockTypeByIndex);
   }
 
   if (provider === "google" || (provider === "vertexai" && model.startsWith("gemini"))) {
@@ -834,6 +1243,9 @@ const buildStreamBlueprint = (result: any, metadata: any) => {
     const api_type = metadata.model.api_type || "chat-completions";
     if (api_type === "responses") {
       return buildPromptBlueprintFromOpenAIResponsesEvent(result, metadata);
+    }
+    if (api_type === "images") {
+      return buildPromptBlueprintFromOpenAIImagesEvent(result, metadata);
     }
     return buildPromptBlueprintFromOpenAIEvent(result, metadata);
   }
@@ -863,10 +1275,15 @@ export async function* streamResponse<Item>(
     generator = generator?.stream;
   }
   const results = [];
+  const isAnthropic = provider === "anthropic" || provider === "anthropic.bedrock" || (provider === "vertexai" && metadata.model?.name?.startsWith?.("claude"));
+  const anthropicBlockTypeByIndex: Record<number, string> = {};
   for await (const result of generator) {
     results.push(result);
+    if (isAnthropic && result?.type === "content_block_start" && result.content_block) {
+      anthropicBlockTypeByIndex[result.index] = result.content_block.type;
+    }
     data.raw_response = result;
-    data.prompt_blueprint = buildStreamBlueprint(result, metadata);
+    data.prompt_blueprint = buildStreamBlueprint(result, metadata, { anthropicBlockTypeByIndex });
 
     yield data;
   }
@@ -874,6 +1291,9 @@ export async function* streamResponse<Item>(
   if (provider === "amazon.bedrock") {
     request_response.ResponseMetadata = response_metadata;
   }
+  data.raw_response = request_response;
+  data.prompt_blueprint = buildStreamBlueprint(request_response, metadata);
+  yield data;
   const response = await afterStream({ request_response });
   data.request_id = response.request_id;
   data.prompt_blueprint = response.prompt_blueprint;
@@ -896,9 +1316,11 @@ export const MAP_PROVIDER_TO_FUNCTION_NAME = {
       function_name: "openai.responses.create",
       stream_function: openaiResponsesStreamChat,
     },
+  },
+  "openai:images": {
     completion: {
-      function_name: "openai.responses.create",
-      stream_function: openaiResponsesStreamChat,
+      function_name: "openai.images.generate",
+      stream_function: openaiImagesStream,
     },
   },
   anthropic: {
@@ -929,6 +1351,12 @@ export const MAP_PROVIDER_TO_FUNCTION_NAME = {
     completion: {
       function_name: "openai.AzureOpenAI.responses.create",
       stream_function: openaiResponsesStreamChat,
+    },
+  },
+  "openai.azure:images": {
+    completion: {
+      function_name: "openai.AzureOpenAI.images.generate",
+      stream_function: openaiImagesStream,
     },
   },
   google: {

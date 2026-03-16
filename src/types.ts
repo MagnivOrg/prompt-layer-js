@@ -93,15 +93,59 @@ const templateFormat = ["f-string", "jinja2"] as const;
 
 export type TemplateFormat = (typeof templateFormat)[number];
 
+export type FileAnnotation = {
+  type: "file_citation";
+  index: number;
+  file_id: string;
+  filename: string;
+};
+
+export type WebAnnotation = {
+  type: "url_citation";
+  title: string;
+  url: string;
+  start_index: number;
+  end_index: number;
+  cited_text?: string;
+  encrypted_index?: string;
+};
+
+export type MapAnnotation = {
+  type: "map_citation";
+  title: string;
+  url: string;
+  place_id?: string;
+  start_index: number;
+  end_index: number;
+  cited_text?: string;
+};
+
+export type ContainerFileAnnotation = {
+  type: "container_file_citation";
+  container_id: string;
+  start_index?: number;
+  end_index?: number;
+  filename?: string;
+  file_id?: string;
+};
+
+export type Annotation =
+  | WebAnnotation
+  | FileAnnotation
+  | MapAnnotation
+  | ContainerFileAnnotation;
+
 export type ImageUrl = {
   url: string;
+  detail?: string;
 };
 
 export type TextContent = {
   id?: string;
   type: "text";
   text: string;
-  annotations?: Record<string, unknown>[];
+  annotations?: Annotation[];
+  thought_signature?: string;
 };
 
 export type ThinkingContent = {
@@ -116,17 +160,20 @@ export type CodeContent = {
   container_id?: string;
   type: "code";
   code: string;
+  language?: string;
 };
 
 export type ImageContent = {
   type: "image_url";
   image_url: ImageUrl;
+  image_variable?: string;
 };
 
 export type Media = {
   title: string;
   type: string;
-  url: string;
+  url?: string;
+  format?: "base64" | "url" | "neither";
 };
 
 export type MediaContent = {
@@ -139,31 +186,269 @@ export type MediaVariable = {
   name: string;
 };
 
+export type OutputMediaContent = {
+  type: "output_media";
+  id?: string;
+  url: string;
+  mime_type?: string;
+  media_type?: "image" | "video" | "audio";
+  provider_metadata?: Record<string, unknown>;
+};
+
+export type ServerToolUseContent = {
+  type: "server_tool_use";
+  id: string;
+  name: string;
+  input?: Record<string, unknown>;
+};
+
+export type WebSearchResult = {
+  type: "web_search_result";
+  url?: string;
+  title?: string;
+  encrypted_content?: string;
+  page_age?: string;
+};
+
+export type WebSearchToolResultContent = {
+  type: "web_search_tool_result";
+  tool_use_id: string;
+  content?: WebSearchResult[];
+};
+
+export type CodeExecutionResultContent = {
+  type: "code_execution_result";
+  output: string;
+  outcome?: string;
+};
+
+export type McpListToolsContent = {
+  type: "mcp_list_tools";
+  id?: string;
+  server_label?: string;
+  tools?: Record<string, unknown>[];
+  error?: string | Record<string, unknown>;
+};
+
+export type McpCallContent = {
+  type: "mcp_call";
+  id?: string;
+  name?: string;
+  server_label?: string;
+  arguments?: string;
+  output?: string;
+  error?: string | Record<string, unknown>;
+  approval_request_id?: string;
+};
+
+export type McpApprovalRequestContent = {
+  type: "mcp_approval_request";
+  id?: string;
+  name?: string;
+  arguments?: string;
+  server_label?: string;
+};
+
+export type McpApprovalResponseContent = {
+  type: "mcp_approval_response";
+  approval_request_id: string;
+  approve: boolean;
+};
+
+export type BashCodeExecutionToolResultContent = {
+  type: "bash_code_execution_tool_result";
+  tool_use_id: string;
+  content?: Record<string, unknown>;
+};
+
+export type TextEditorCodeExecutionToolResultContent = {
+  type: "text_editor_code_execution_tool_result";
+  tool_use_id: string;
+  content?: Record<string, unknown>;
+};
+
+export type ShellCallContent = {
+  type: "shell_call";
+  id?: string;
+  call_id?: string;
+  action?: Record<string, unknown>;
+  status?: string;
+};
+
+export type ShellCallOutputContent = {
+  type: "shell_call_output";
+  id?: string;
+  call_id?: string;
+  output?: Record<string, unknown>[];
+  status?: string;
+};
+
+export type ApplyPatchCallContent = {
+  type: "apply_patch_call";
+  id?: string;
+  call_id?: string;
+  operation?: Record<string, unknown>;
+  status?: string;
+};
+
+export type ApplyPatchCallOutputContent = {
+  type: "apply_patch_call_output";
+  id?: string;
+  call_id?: string;
+  output?: string;
+  status?: string;
+};
+
 export type Content =
   | TextContent
   | ThinkingContent
   | CodeContent
   | ImageContent
   | MediaContent
-  | MediaVariable;
+  | MediaVariable
+  | OutputMediaContent
+  | ServerToolUseContent
+  | WebSearchToolResultContent
+  | CodeExecutionResultContent
+  | McpListToolsContent
+  | McpCallContent
+  | McpApprovalRequestContent
+  | McpApprovalResponseContent
+  | BashCodeExecutionToolResultContent
+  | TextEditorCodeExecutionToolResultContent
+  | ShellCallContent
+  | ShellCallOutputContent
+  | ApplyPatchCallContent
+  | ApplyPatchCallOutputContent;
 
 export type Function_ = {
   name: string;
   description: string;
+  strict?: boolean;
   parameters: Record<string, unknown>;
-};
-
-export type Tool = {
-  id: string;
-  tool_id?: string;
-  type: "function";
-  function: Function_;
 };
 
 export type FunctionCall = {
   name: string;
   arguments: string;
 };
+
+export type WebSearchToolFilters = {
+  allowed_domains?: string[];
+};
+
+export type WebSearchToolUserLocation = {
+  city?: string;
+  country?: string;
+  region?: string;
+  timezone?: string;
+  type: "approximate";
+};
+
+export type OpenAIWebSearchToolConfig = {
+  type: "web_search" | "web_search_2025_08_26";
+  filters?: WebSearchToolFilters;
+  search_context_size?: "low" | "medium" | "high";
+  user_location?: WebSearchToolUserLocation;
+};
+
+export type ComparisonFilter = {
+  key: string;
+  value: string | number | boolean;
+  operation: "eq" | "ne" | "gt" | "gte" | "lt" | "lte";
+};
+
+export type CompoundFilter = {
+  operator: "and" | "or";
+  operands: (ComparisonFilter | CompoundFilter)[];
+};
+
+export type RankingOptions = {
+  ranker?: "auto" | "default-2024-11-15";
+  score_threshold?: number;
+};
+
+export type FileSearchToolConfig = {
+  type: "file_search";
+  vector_store_ids: string[];
+  filters?: ComparisonFilter | CompoundFilter;
+  max_num_results?: number;
+  ranking_options?: RankingOptions;
+};
+
+export type CodeInterpreterToolConfig = {
+  type: "code_interpreter";
+  container?: Record<string, unknown>;
+};
+
+export type ImageGenerationToolConfig = {
+  type: "image_generation";
+};
+
+export type ShellToolConfig = {
+  type: "shell";
+  environment?: Record<string, unknown>;
+};
+
+export type ApplyPatchToolConfig = {
+  type: "apply_patch";
+};
+
+export type McpToolApprovalFilter = {
+  tool_names?: string[];
+};
+
+export type McpToolApproval = {
+  never?: McpToolApprovalFilter;
+  always?: McpToolApprovalFilter;
+};
+
+export type McpToolConfig = {
+  type: "mcp";
+  server_label: string;
+  server_url?: string;
+  server_description?: string;
+  connector_id?: string;
+  authorization?: string;
+  allowed_tools?: string[];
+  require_approval?: string | McpToolApproval;
+};
+
+export type BuiltInToolConfig =
+  | OpenAIWebSearchToolConfig
+  | FileSearchToolConfig
+  | CodeInterpreterToolConfig
+  | ImageGenerationToolConfig
+  | McpToolConfig
+  | ShellToolConfig
+  | ApplyPatchToolConfig;
+
+export type FunctionTool = {
+  type: "function";
+  function: Function_;
+};
+
+export type BuiltInTool = {
+  id: string;
+  name: string;
+  description: string;
+  provider: string;
+  type:
+    | "web_search"
+    | "file_search"
+    | "code_interpreter"
+    | "image_generation"
+    | "google_maps"
+    | "url_context"
+    | "mcp"
+    | "bash"
+    | "shell"
+    | "apply_patch"
+    | "text_editor";
+  config: BuiltInToolConfig;
+};
+
+export type Tool = FunctionTool | BuiltInTool;
 
 export type SystemMessage = {
   role: "system";
@@ -183,6 +468,7 @@ export type UserMessage = {
 
 export type ToolCall = {
   id: string;
+  tool_id?: string;
   type: "function";
   function: FunctionCall;
 };
@@ -209,7 +495,7 @@ export type ToolMessage = {
   role: "tool";
   input_variables?: string[];
   template_format?: TemplateFormat;
-  content: Content[];
+  content?: Content[];
   tool_call_id: string;
   name?: string;
 };
@@ -268,8 +554,11 @@ export type PromptTemplate = CompletionPromptTemplate | ChatPromptTemplate;
 export type Model = {
   api_type?: string;
   provider: string;
+  model_config_display_name?: string;
+  base_model?: string;
   name: string;
   parameters: Record<string, unknown>;
+  display_params?: Record<string, string | boolean | null>;
 };
 
 export type Metadata = {
@@ -285,6 +574,10 @@ export type PromptBlueprint = {
   prompt_template: PromptTemplate;
   commit_message?: string;
   metadata?: Metadata;
+  provider_base_url_name?: string;
+  report_id?: number;
+  inference_client_name?: string;
+  provider_id?: number;
 };
 
 export type PublishPromptTemplate = BasePromptTemplate &

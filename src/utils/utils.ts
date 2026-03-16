@@ -839,6 +839,8 @@ const openaiRequest = async (
     const requestToMake =
       MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
     return await requestToMake(client, kwargs);
+  } else if (api_type === "images") {
+    return await client.images.generate(kwargs);
   } else {
     return await client.responses.create(kwargs);
   }
@@ -863,6 +865,8 @@ const azureOpenAIRequest = async (
   if (api_type === "chat-completions") {
     const requestToMake = MAP_TYPE_TO_OPENAI_FUNCTION[promptBlueprint.prompt_template.type];
     return await requestToMake(client, kwargs);
+  } else if (api_type === "images") {
+    return await client.images.generate(kwargs);
   } else {
     return await client.responses.create(kwargs);
   }
