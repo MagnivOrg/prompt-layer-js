@@ -95,6 +95,15 @@ openai.chat.completions.create({
 
 After making your first few requests, you should be able to see them in the PromptLayer dashboard!
 
+## Optional Extensions
+
+OpenAI Agents telemetry support is available as an optional extension of the
+base library.
+
+```bash
+npm install promptlayer @openai/agents
+```
+
 ## Contributing
 
 We welcome contributions to our open source project, including new features, infrastructure improvements, and better documentation. For more information or any questions, contact us at [hello@promptlayer.com](mailto:hello@promptlayer.com).
