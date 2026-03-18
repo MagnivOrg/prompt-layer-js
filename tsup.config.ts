@@ -6,6 +6,7 @@ const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 export default defineConfig({
   entry: {
     index: "src/index.ts",
+    "claude-agents": "src/claude-agents.ts",
     "openai-agents": "src/openai-agents.ts",
   },
   format: ["cjs", "esm"],
