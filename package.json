@@ -1,15 +1,27 @@
 {
   "name": "promptlayer",
   "license": "MIT",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "dist/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "vendor/claude-agents",
+    "vendor/claude-agents/trace/.claude-plugin",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "require": "./dist/index.js",
       "import": "./dist/esm/index.js"
+    },
+    "./claude-agents": {
+      "types": "./dist/claude-agents.d.ts",
+      "require": "./dist/claude-agents.js",
+      "import": "./dist/esm/claude-agents.js"
     },
     "./openai-agents": {
       "types": "./dist/openai-agents.d.ts",
@@ -26,6 +38,7 @@
     "build": "tsup-node",
     "lint": "tsc",
     "test": "vitest run",
+    "vendor:claude-agents": "node scripts/vendor-claude-agents-plugin.mjs",
     "release": "npm run build && npm publish"
   },
   "devDependencies": {
@@ -53,9 +66,13 @@
     "p-retry": "^6.2.0"
   },
   "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.1",
     "@openai/agents": "^0.7.2"
   },
   "peerDependenciesMeta": {
+    "@anthropic-ai/claude-agent-sdk": {
+      "optional": true
+    },
     "@openai/agents": {
       "optional": true
     }

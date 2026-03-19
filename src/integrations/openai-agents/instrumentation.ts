@@ -1,6 +1,6 @@
 import { PromptLayerOpenAIAgentsProcessor } from "@/integrations/openai-agents/processor";
 import { trimTrailingSlashes } from "@/integrations/openai-agents/url";
-import { readEnv } from "@/utils/utils";
+import { readEnv, requirePromptLayerApiKey } from "@/utils/utils";
 
 export interface InstrumentOpenAIAgentsOptions {
   apiKey?: string;
@@ -16,23 +16,19 @@ const resolveBaseURL = (baseURL?: string): string => {
 };
 
 export const instrumentOpenAIAgents = async ({
-  apiKey = readEnv("PROMPTLAYER_API_KEY"),
+  apiKey,
   baseURL,
   exclusive = true,
   includeRawPayloads = true,
 }: InstrumentOpenAIAgentsOptions = {}): Promise<PromptLayerOpenAIAgentsProcessor> => {
-  if (!apiKey) {
-    throw new Error(
-      "PromptLayer API key not provided. Please set PROMPTLAYER_API_KEY or pass apiKey."
-    );
-  }
+  const resolvedApiKey = requirePromptLayerApiKey(apiKey);
 
   const agentsModule: typeof import("@openai/agents") = await import(
     "@openai/agents"
   );
 
   const processor = new PromptLayerOpenAIAgentsProcessor({
-    apiKey,
+    apiKey: resolvedApiKey,
     baseURL: resolveBaseURL(baseURL),
     includeRawPayloads,
   });

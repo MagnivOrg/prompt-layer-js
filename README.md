@@ -104,6 +104,28 @@ base library.
 npm install promptlayer @openai/agents
 ```
 
+Claude Agents plugin support is available as an optional extension of the base
+library on macOS and Linux.
+
+```bash
+npm install promptlayer @anthropic-ai/claude-agent-sdk
+```
+
+```ts
+import { ClaudeAgentOptions } from "@anthropic-ai/claude-agent-sdk";
+import { getClaudeConfig } from "promptlayer/claude-agents";
+
+const plClaudeConfig = getClaudeConfig();
+
+const options = new ClaudeAgentOptions({
+  model: "claude-sonnet-4-5",
+  plugins: [plClaudeConfig.plugin],
+  env: {
+    ...plClaudeConfig.env,
+  },
+});
+```
+
 ## Contributing
 
 We welcome contributions to our open source project, including new features, infrastructure improvements, and better documentation. For more information or any questions, contact us at [hello@promptlayer.com](mailto:hello@promptlayer.com).

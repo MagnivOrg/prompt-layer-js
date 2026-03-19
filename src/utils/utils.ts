@@ -1202,6 +1202,27 @@ export const readEnv = (env: string): string | undefined => {
   return undefined;
 };
 
+export const requirePromptLayerApiKey = (apiKey?: string): string => {
+  if (apiKey !== undefined) {
+    const explicitApiKey = apiKey.trim();
+    if (!explicitApiKey) {
+      throw new Error(
+        "PromptLayer API key not provided. Please set PROMPTLAYER_API_KEY or pass apiKey."
+      );
+    }
+    return explicitApiKey;
+  }
+
+  const envApiKey = readEnv("PROMPTLAYER_API_KEY");
+  if (!envApiKey) {
+    throw new Error(
+      "PromptLayer API key not provided. Please set PROMPTLAYER_API_KEY or pass apiKey."
+    );
+  }
+
+  return envApiKey;
+};
+
 export {
   amazonBedrockRequest,
   anthropicBedrockRequest,
