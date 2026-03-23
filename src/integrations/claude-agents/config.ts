@@ -26,6 +26,7 @@ export interface PromptLayerClaudeAgentsConfig {
 
 const REQUIRED_PLUGIN_FILES = [
   ".claude-plugin/plugin.json",
+  "setup.sh",
   "hooks/hooks.json",
   "hooks/lib.sh",
   "hooks/session_start.sh",
@@ -33,8 +34,15 @@ const REQUIRED_PLUGIN_FILES = [
   "hooks/post_tool_use.sh",
   "hooks/stop_hook.sh",
   "hooks/session_end.sh",
-  "hooks/hook_utils.py",
-  "hooks/parse_stop_transcript.py",
+  "hooks/py/__init__.py",
+  "hooks/py/cli.py",
+  "hooks/py/context.py",
+  "hooks/py/handlers.py",
+  "hooks/py/otlp.py",
+  "hooks/py/settings.py",
+  "hooks/py/state.py",
+  "hooks/py/stop_parser.py",
+  "hooks/py/traceparent.py",
 ] as const;
 
 const VENDORED_PLUGIN_RELATIVE_PATH = path.join("vendor", "claude-agents", "trace");
