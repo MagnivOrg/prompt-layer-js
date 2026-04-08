@@ -13,7 +13,7 @@ import {
 export interface CreateSkillCollectionRequestBody {
   name: CreateSkillCollection["name"];
   folder_id?: CreateSkillCollection["folderId"];
-  provider?: CreateSkillCollection["provider"];
+  provider: CreateSkillCollection["provider"];
   files?: InitialSkillFileUpdate[];
   commit_message?: CreateSkillCollection["commitMessage"];
 }

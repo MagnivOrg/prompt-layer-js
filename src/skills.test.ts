@@ -90,7 +90,7 @@ describe("skills", () => {
     await client.skills.publish({
       name: "Docs Skill",
       folderId: 12,
-      provider: "cursor",
+      provider: "claude_code",
       files: [{ path: "SKILL.md", content: "hello" }],
       commitMessage: "Initial import",
     });
@@ -103,7 +103,7 @@ describe("skills", () => {
     expect(JSON.parse(init?.body as string)).toEqual({
       name: "Docs Skill",
       folder_id: 12,
-      provider: "cursor",
+      provider: "claude_code",
       files: [{ path: "SKILL.md", content: "hello" }],
       commit_message: "Initial import",
     });
@@ -125,7 +125,7 @@ describe("skills", () => {
       zipFile: new Blob(["zip-bytes"], { type: "application/zip" }),
       fileName: "zip-skill.zip",
       folderId: 9,
-      provider: "cursor",
+      provider: "claude_code",
       commitMessage: "Import zip",
     });
 
@@ -143,10 +143,33 @@ describe("skills", () => {
       JSON.stringify({
         name: "Zip Skill",
         folder_id: 9,
-        provider: "cursor",
+        provider: "claude_code",
         commit_message: "Import zip",
       }),
     );
+  });
+
+  it("requires provider when publishing a skill collection", async () => {
+    await expect(
+      client.skills.publish({
+        name: "Missing Provider Skill",
+        files: [{ path: "SKILL.md", content: "hello" }],
+      } as any),
+    ).rejects.toThrow("provider is required when publishing a skill collection.");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid provider values when publishing a skill collection", async () => {
+    await expect(
+      client.skills.publish({
+        name: "Invalid Provider Skill",
+        provider: "cursor" as any,
+        files: [{ path: "SKILL.md", content: "hello" }],
+      }),
+    ).rejects.toThrow("provider must be one of: claude_code, openai, openclaw.");
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns binary data when pulling a zip", async () => {

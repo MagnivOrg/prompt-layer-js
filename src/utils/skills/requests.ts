@@ -1,5 +1,6 @@
 import {
   PublishSkillCollection,
+  SkillCollectionProvider,
   PublishSkillCollectionResponse,
   PullSkillCollectionParams,
   PullSkillCollectionResponse,
@@ -28,6 +29,30 @@ import {
   SaveSkillCollectionVersionRequestBody,
   UpdateSkillCollectionRequestBody,
 } from "./types";
+
+const SKILL_COLLECTION_PROVIDERS: SkillCollectionProvider[] = [
+  "claude_code",
+  "openai",
+  "openclaw",
+];
+
+const assertValidSkillCollectionProvider = (
+  provider: string | undefined,
+  operation: "publishing" | "updating"
+) => {
+  if (!provider) {
+    if (operation === "publishing") {
+      throw new Error("provider is required when publishing a skill collection.");
+    }
+    return;
+  }
+
+  if (!SKILL_COLLECTION_PROVIDERS.includes(provider as SkillCollectionProvider)) {
+    throw new Error(
+      `provider must be one of: ${SKILL_COLLECTION_PROVIDERS.join(", ")}.`
+    );
+  }
+};
 
 export const pullSkillCollection = async (
   apiKey: string,
@@ -75,6 +100,8 @@ export const publishSkillCollection = async (
   body: PublishSkillCollection,
   throwOnError: boolean = true
 ): Promise<PublishSkillCollectionResponse | null> => {
+  assertValidSkillCollectionProvider(body.provider, "publishing");
+
   const publishBody = isZipPublishRequest(body)
     ? (() => {
         const formData = new FormData();
@@ -182,6 +209,8 @@ export const saveSkillCollectionVersion = async (
   body: SaveSkillCollectionVersion,
   throwOnError: boolean = true
 ): Promise<UpdateSkillCollectionResponse | null> => {
+  assertValidSkillCollectionProvider(body.provider, "updating");
+
   const requestBody: SaveSkillCollectionVersionRequestBody = omitUndefined({
     file_updates: body.fileUpdates,
     moves: body.moves,

@@ -90,10 +90,15 @@ export interface SkillFileMove {
   [k: string]: unknown;
 }
 
+export type SkillCollectionProvider =
+  | "claude_code"
+  | "openai"
+  | "openclaw";
+
 export interface CreateSkillCollection {
   name: string;
   folderId?: number;
-  provider?: string;
+  provider: SkillCollectionProvider;
   files?: InitialSkillFileUpdate[];
   commitMessage?: string;
 }
@@ -105,7 +110,7 @@ export interface PublishSkillCollectionFromZip {
   zipFile: SkillCollectionZipSource;
   fileName?: string;
   folderId?: number;
-  provider?: string;
+  provider: SkillCollectionProvider;
   commitMessage?: string;
 }
 
@@ -119,7 +124,7 @@ export interface SaveSkillCollectionVersion {
   deletes?: string[];
   commitMessage?: string;
   releaseLabel?: string;
-  provider?: string;
+  provider?: SkillCollectionProvider;
 }
 
 export interface UpdateSkillCollection extends SaveSkillCollectionVersion {
@@ -129,7 +134,7 @@ export interface UpdateSkillCollection extends SaveSkillCollectionVersion {
 export interface SkillCollection {
   id: string | number;
   name: string;
-  provider?: string | null;
+  provider?: SkillCollectionProvider | null;
   folder_id?: number | null;
   created_at?: string;
   updated_at?: string;
@@ -139,7 +144,7 @@ export interface SkillCollection {
 export interface SkillCollectionVersion {
   id?: string | number;
   version?: number;
-  provider?: string | null;
+  provider?: SkillCollectionProvider | null;
   release_label?: string | null;
   commit_message?: string | null;
   created_at?: string;
