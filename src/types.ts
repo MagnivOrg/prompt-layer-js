@@ -70,6 +70,106 @@ export interface Pagination {
   label?: string;
 }
 
+export interface PullSkillCollectionParams {
+  label?: string;
+  version?: number;
+  format?: string;
+}
+
+export interface InitialSkillFileUpdate {
+  path: string;
+  content: string;
+  [k: string]: unknown;
+}
+
+export interface SkillFileUpdate extends InitialSkillFileUpdate {}
+
+export interface SkillFileMove {
+  from: string;
+  to: string;
+  [k: string]: unknown;
+}
+
+export interface CreateSkillCollection {
+  name: string;
+  folderId?: number;
+  provider?: string;
+  files?: InitialSkillFileUpdate[];
+  commitMessage?: string;
+}
+
+export type SkillCollectionZipSource = Blob | ArrayBuffer | Uint8Array;
+
+export interface PublishSkillCollectionFromZip {
+  name: string;
+  zipFile: SkillCollectionZipSource;
+  fileName?: string;
+  folderId?: number;
+  provider?: string;
+  commitMessage?: string;
+}
+
+export type PublishSkillCollection =
+  | CreateSkillCollection
+  | PublishSkillCollectionFromZip;
+
+export interface SaveSkillCollectionVersion {
+  fileUpdates?: SkillFileUpdate[];
+  moves?: SkillFileMove[];
+  deletes?: string[];
+  commitMessage?: string;
+  releaseLabel?: string;
+  provider?: string;
+}
+
+export interface UpdateSkillCollection extends SaveSkillCollectionVersion {
+  name?: string;
+}
+
+export interface SkillCollection {
+  id: string | number;
+  name: string;
+  provider?: string | null;
+  folder_id?: number | null;
+  created_at?: string;
+  updated_at?: string;
+  [k: string]: unknown;
+}
+
+export interface SkillCollectionVersion {
+  id?: string | number;
+  version?: number;
+  provider?: string | null;
+  release_label?: string | null;
+  commit_message?: string | null;
+  created_at?: string;
+  [k: string]: unknown;
+}
+
+export interface CreateSkillCollectionResponse {
+  success: boolean;
+  skill_collection: SkillCollection;
+  version?: SkillCollectionVersion | null;
+  [k: string]: unknown;
+}
+
+export type PublishSkillCollectionResponse = CreateSkillCollectionResponse;
+
+export interface PullSkillCollectionResponse {
+  success: boolean;
+  skill_collection: SkillCollection;
+  files: Record<string, string>;
+  version: SkillCollectionVersion | null;
+  [k: string]: unknown;
+}
+
+export interface UpdateSkillCollectionResponse {
+  success: boolean;
+  skill_collection: SkillCollection;
+  version?: SkillCollectionVersion | null;
+  [k: string]: unknown;
+}
+
 export interface CustomProvider {
   id: number;
   name: string;
