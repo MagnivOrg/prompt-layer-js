@@ -1,13 +1,29 @@
 import { GroupManager } from "@/groups";
 import { promptLayerBase } from "@/promptlayer";
+import { SkillManager } from "@/skills";
 import { wrapWithSpan } from "@/span-wrapper";
 import { TemplateManager } from "@/templates";
 import { getTracer, setupTracing } from "@/tracing";
 import { TrackManager } from "@/track";
 import {
+  CreateSkillCollection,
+  CreateSkillCollectionResponse,
   GetPromptTemplateParams,
+  InitialSkillFileUpdate,
   LogRequest,
+  PublishSkillCollection,
+  PublishSkillCollectionFromZip,
+  PublishSkillCollectionResponse,
+  PullSkillCollectionParams,
+  PullSkillCollectionResponse,
   RunRequest,
+  SaveSkillCollectionVersion,
+  SkillCollection,
+  SkillCollectionVersion,
+  SkillFileMove,
+  SkillFileUpdate,
+  UpdateSkillCollection,
+  UpdateSkillCollectionResponse,
   WorkflowRequest,
   WorkflowResponse,
 } from "@/types";
@@ -74,6 +90,7 @@ export class PromptLayer {
   apiKey: string;
   baseURL: string;
   templates: TemplateManager;
+  skills: SkillManager;
   group: GroupManager;
   track: TrackManager;
   enableTracing: boolean;
@@ -101,6 +118,7 @@ export class PromptLayer {
       this.baseURL,
       this.throwOnError
     );
+    this.skills = new SkillManager(apiKey, this.baseURL, this.throwOnError);
     this.group = new GroupManager(apiKey, this.baseURL, this.throwOnError);
     this.track = new TrackManager(apiKey, this.baseURL, this.throwOnError);
     this.wrapWithSpan = wrapWithSpan;
@@ -381,3 +399,21 @@ export class PromptLayer {
     return utilLogRequest(this.apiKey, this.baseURL, body, this.throwOnError);
   }
 }
+
+export type {
+  CreateSkillCollection,
+  CreateSkillCollectionResponse,
+  InitialSkillFileUpdate,
+  PublishSkillCollection,
+  PublishSkillCollectionFromZip,
+  PublishSkillCollectionResponse,
+  PullSkillCollectionParams,
+  PullSkillCollectionResponse,
+  SaveSkillCollectionVersion,
+  SkillCollection,
+  SkillCollectionVersion,
+  SkillFileMove,
+  SkillFileUpdate,
+  UpdateSkillCollection,
+  UpdateSkillCollectionResponse,
+};

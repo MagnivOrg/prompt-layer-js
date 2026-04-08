@@ -1246,4 +1246,5 @@ export {
   trackRequest,
   utilLogRequest,
   vertexaiRequest,
+  warnOnBadResponse,
 };
