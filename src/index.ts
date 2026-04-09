@@ -2,6 +2,7 @@ import { GroupManager } from "@/groups";
 import { promptLayerBase } from "@/promptlayer";
 import { wrapWithSpan } from "@/span-wrapper";
 import { TemplateManager } from "@/templates";
+import { PromptTemplateCache } from "@/utils/template-cache";
 import { getTracer, setupTracing } from "@/tracing";
 import { TrackManager } from "@/track";
 import {
@@ -48,6 +49,12 @@ export interface ClientOptions {
   workspaceId?: number;
   throwOnError?: boolean;
   baseURL?: string;
+  /**
+   * When > 0, enables in-memory TTL caching of prompt templates.
+   * Templates are fetched unrendered and substituted locally, reducing
+   * API calls. Default: 0 (disabled).
+   */
+  cacheTtlSeconds?: number;
 }
 
 const isWorkflowResultsDict = (obj: any): boolean => {
@@ -85,6 +92,7 @@ export class PromptLayer {
     baseURL = readEnv("PROMPTLAYER_BASE_URL"),
     enableTracing = false,
     throwOnError = true,
+    cacheTtlSeconds = 0,
   }: ClientOptions = {}) {
     if (apiKey === undefined) {
       throw new Error(
@@ -96,10 +104,12 @@ export class PromptLayer {
     this.baseURL = baseURL || "https://api.promptlayer.com";
     this.enableTracing = enableTracing;
     this.throwOnError = throwOnError;
+    const cache = cacheTtlSeconds > 0 ? new PromptTemplateCache(cacheTtlSeconds) : null;
     this.templates = new TemplateManager(
       apiKey,
       this.baseURL,
-      this.throwOnError
+      this.throwOnError,
+      cache
     );
     this.group = new GroupManager(apiKey, this.baseURL, this.throwOnError);
     this.track = new TrackManager(apiKey, this.baseURL, this.throwOnError);
