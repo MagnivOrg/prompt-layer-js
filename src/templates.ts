@@ -7,6 +7,7 @@ import {
 import {
   getAllPromptTemplates,
   getPromptTemplate,
+  PromptLayerRetryableHttpError,
   publishPromptTemplate,
 } from "@/utils/utils";
 import {
@@ -18,6 +19,7 @@ import {
 } from "@/utils/template-cache";
 
 function isTransientError(error: unknown): boolean {
+  if (error instanceof PromptLayerRetryableHttpError) return true;
   // Network-level failures (fetch TypeError)
   if (error instanceof TypeError) return true;
   const msg =

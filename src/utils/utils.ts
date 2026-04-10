@@ -60,6 +60,18 @@ export enum FinalOutputCode {
   EXCEEDS_SIZE_LIMIT = "EXCEEDS_SIZE_LIMIT",
 }
 
+export class PromptLayerRetryableHttpError extends Error {
+  status: number;
+  statusText: string;
+
+  constructor(status: number, statusText: string) {
+    super(`Server error: ${status} ${statusText}`);
+    this.name = "PromptLayerRetryableHttpError";
+    this.status = status;
+    this.statusText = statusText;
+  }
+}
+
 async function getFinalOutput(
   baseURL: string,
   executionId: number,
@@ -196,8 +208,9 @@ export const fetchWithRetry = async (
       const response = await fetch(input, init);
 
       if ((response.status >= 500 && response.status < 600) || (response.status === 429)) {
-        throw new Error(
-          `Server error: ${response.status} ${response.statusText}`
+        throw new PromptLayerRetryableHttpError(
+          response.status,
+          response.statusText
         );
       }
 
