@@ -120,6 +120,10 @@ export class PromptLayer {
     }
   }
 
+  invalidate(promptName?: string): void {
+    this.templates.invalidate(promptName);
+  }
+
   get Anthropic() {
     try {
       const module = require("@anthropic-ai/sdk").default;

@@ -163,6 +163,15 @@ export class TemplateManager {
     return result;
   };
 
+  invalidate = (promptName?: string): void => {
+    if (!this._cache) return;
+    if (promptName) {
+      this._cache.invalidate(promptName);
+    } else {
+      this._cache.clear();
+    }
+  };
+
   all = (params?: Pagination) =>
     getAllPromptTemplates(this.apiKey, this.baseURL, params, this.throwOnError);
 }
