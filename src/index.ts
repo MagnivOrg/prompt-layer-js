@@ -7,12 +7,11 @@ import { PromptTemplateCache } from "@/utils/template-cache";
 import { getTracer, setupTracing } from "@/tracing";
 import { TrackManager } from "@/track";
 import {
-  CreateSkillCollection,
-  CreateSkillCollectionResponse,
   GetPromptTemplateParams,
   InitialSkillFileUpdate,
   LogRequest,
   PublishSkillCollection,
+  PublishSkillCollectionFromFiles,
   PublishSkillCollectionFromZip,
   PublishSkillCollectionResponse,
   PullSkillCollectionParams,
@@ -415,10 +414,9 @@ export class PromptLayer {
 }
 
 export type {
-  CreateSkillCollection,
-  CreateSkillCollectionResponse,
   InitialSkillFileUpdate,
   PublishSkillCollection,
+  PublishSkillCollectionFromFiles,
   PublishSkillCollectionFromZip,
   PublishSkillCollectionResponse,
   PullSkillCollectionParams,

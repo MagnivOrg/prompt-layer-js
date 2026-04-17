@@ -95,7 +95,7 @@ export type SkillCollectionProvider =
   | "openai"
   | "openclaw";
 
-export interface CreateSkillCollection {
+export interface PublishSkillCollectionFromFiles {
   name: string;
   folderId?: number;
   provider: SkillCollectionProvider;
@@ -115,7 +115,7 @@ export interface PublishSkillCollectionFromZip {
 }
 
 export type PublishSkillCollection =
-  | CreateSkillCollection
+  | PublishSkillCollectionFromFiles
   | PublishSkillCollectionFromZip;
 
 export interface SaveSkillCollectionVersion {
@@ -151,14 +151,12 @@ export interface SkillCollectionVersion {
   [k: string]: unknown;
 }
 
-export interface CreateSkillCollectionResponse {
+export interface PublishSkillCollectionResponse {
   success: boolean;
   skill_collection: SkillCollection;
   version?: SkillCollectionVersion | null;
   [k: string]: unknown;
 }
-
-export type PublishSkillCollectionResponse = CreateSkillCollectionResponse;
 
 export interface PullSkillCollectionResponse {
   success: boolean;
