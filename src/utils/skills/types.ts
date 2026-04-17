@@ -1,7 +1,7 @@
 import {
-  CreateSkillCollection,
   InitialSkillFileUpdate,
   PublishSkillCollection,
+  PublishSkillCollectionFromFiles,
   PublishSkillCollectionFromZip,
   PullSkillCollectionResponse,
   SaveSkillCollectionVersion,
@@ -11,11 +11,11 @@ import {
 } from "@/types";
 
 export interface CreateSkillCollectionRequestBody {
-  name: CreateSkillCollection["name"];
-  folder_id?: CreateSkillCollection["folderId"];
-  provider: CreateSkillCollection["provider"];
+  name: PublishSkillCollectionFromFiles["name"];
+  folder_id?: PublishSkillCollectionFromFiles["folderId"];
+  provider: PublishSkillCollectionFromFiles["provider"];
   files?: InitialSkillFileUpdate[];
-  commit_message?: CreateSkillCollection["commitMessage"];
+  commit_message?: PublishSkillCollectionFromFiles["commitMessage"];
 }
 
 export interface SaveSkillCollectionVersionRequestBody {
