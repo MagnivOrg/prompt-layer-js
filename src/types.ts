@@ -552,7 +552,14 @@ export type BuiltInTool = {
   config: BuiltInToolConfig;
 };
 
-export type Tool = FunctionTool | BuiltInTool;
+export type RegistryTool = {
+  type: "registry";
+  tool_registry_id: number;
+  label?: string | null;
+  version_number?: number | null;
+};
+
+export type Tool = FunctionTool | BuiltInTool | RegistryTool;
 
 export type SystemMessage = {
   role: "system";
