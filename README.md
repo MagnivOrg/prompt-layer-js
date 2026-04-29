@@ -12,7 +12,7 @@
 
 <div align="left">
 
-This library provides convenient access to the PromptLayer API from applications written in JavaScript and TypeScript.
+This library provides convenient access to the PromptLayer API from applications written in JavaScript.
 
 ## Installation
 
@@ -46,27 +46,6 @@ const prompt = await pl.templates.get("support-reply", {
 });
 
 console.log(prompt?.prompt_template);
-```
-
-JavaScript client:
-
-```js
-const { PromptLayer } = require("promptlayer");
-
-async function main() {
-  const pl = new PromptLayer({ apiKey: "pl_xxxxx" });
-
-  const prompt = await pl.templates.get("support-reply", {
-    input_variables: {
-      customer_name: "Ada",
-      question: "How do I reset my password?",
-    },
-  });
-
-  console.log(prompt?.prompt_template);
-}
-
-main();
 ```
 
 SDK methods that make network requests return promises.
