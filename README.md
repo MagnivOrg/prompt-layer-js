@@ -36,36 +36,55 @@ Create a client and fetch a prompt template from PromptLayer:
 ```ts
 import { PromptLayer } from "promptlayer";
 
-const pl = new PromptLayer({ apiKey: "pl_xxxxx" });
+async function main() {
+  const pl = new PromptLayer({
+    apiKey: process.env.PROMPTLAYER_API_KEY,
+  });
 
-const prompt = await pl.templates.get("support-reply", {
-  input_variables: {
-    customer_name: "Ada",
-    question: "How do I reset my password?",
-  },
-});
+  const prompt = await pl.templates.get("support-reply", {
+    input_variables: {
+      customer_name: "Ada",
+      question: "How do I reset my password?",
+    },
+  });
 
-console.log(prompt?.prompt_template);
+  console.log(prompt?.prompt_template);
+}
+
+main();
 ```
 
 SDK methods that make network requests return promises.
 
 You can also use the client as a proxy around supported provider SDKs:
 
+```bash
+npm install openai
+```
+
 ```ts
-import BaseOpenAI from "openai";
+import OpenAI from "openai";
 import { PromptLayer } from "promptlayer";
 
-const pl = new PromptLayer({ apiKey: "pl_xxxxx" });
-const OpenAI: typeof BaseOpenAI = pl.OpenAI;
-const openai = new OpenAI();
+async function main() {
+  const pl = new PromptLayer({
+    apiKey: process.env.PROMPTLAYER_API_KEY,
+  });
 
-const response = await openai.chat.completions.create({
-  model: "gpt-4.1-mini",
-  messages: [{ role: "user", content: "Say hello in one short sentence." }],
-  // @ts-ignore PromptLayer proxy option
-  pl_tags: ["proxy-example"],
-});
+  const PromptLayerOpenAI: typeof OpenAI = pl.OpenAI;
+  const openai = new PromptLayerOpenAI();
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [{ role: "user", content: "Say hello in one short sentence." }],
+    // @ts-ignore PromptLayer proxy option
+    pl_tags: ["proxy-example"],
+  });
+
+  console.log(response);
+}
+
+main();
 ```
 
 ## Configuration
@@ -126,7 +145,7 @@ The SDK throws JavaScript `Error` instances for validation failures, missing API
 | Validation failure | Some resource methods validate inputs before making a request, such as score ranges and skill collection providers. |
 | PromptLayer API error | Non-success PromptLayer responses throw with the API error message when `throwOnError` is enabled. |
 | Provider SDK error | Provider SDK calls made through `client.run()` or a provider proxy surface the underlying provider error. |
-| Workflow failure | `client.runWorkflow()` throws when the workflow request fails, times out, or returns no successful output node. |
+| Workflow failure | `client.runWorkflow()` can return `{ success: false, message }` for some workflow-start failures, and throws for errors such as timeouts or no successful output node. |
 
 By default, the client throws these errors. If you initialize `PromptLayer` with `throwOnError: false`, many resource methods return `null`, `false`, an empty result, or the original provider response instead of throwing on PromptLayer API errors.
 
