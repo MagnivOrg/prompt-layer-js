@@ -2,9 +2,9 @@
 
 # 🍰 PromptLayer
 
-**The first platform built for <span style="background-color: rgb(219, 234, 254);">prompt engineers</span>**
+**Version, test, and monitor every prompt and agent with robust evals, tracing, and regression sets.**
 
-<a href="https://nodejs.org"><img alt="Node" src="https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white"></a>
+<a href="https://nodejs.org/"><img alt="Node.js" src="https://img.shields.io/badge/-Node.js 18+-43853D?style=for-the-badge&logo=node.js&logoColor=white"></a>
 <a href="https://docs.promptlayer.com"><img alt="Docs" src="https://custom-icon-badges.herokuapp.com/badge/docs-PL-green.svg?logo=cake&style=for-the-badge"></a>
 <a href="https://www.loom.com/share/196c42e43acd4a369d75e9a7374a0850"><img alt="Demo with Loom" src="https://img.shields.io/badge/Demo-loom-552586.svg?logo=loom&style=for-the-badge&labelColor=gray"></a>
 
@@ -12,124 +12,150 @@
 
 <div align="left">
 
-[PromptLayer](https://promptlayer.com/) is the first platform that allows you to track, manage, and share your GPT prompt engineering. PromptLayer acts a middleware between your code and OpenAI’s JavaScript library.
+This library provides convenient access to the PromptLayer API from applications written in JavaScript.
 
-PromptLayer records all your OpenAI API requests, allowing you to search and explore request history in the PromptLayer dashboard.
-
-This repo contains the JavaScript wrapper library for PromptLayer.
-
-## Quickstart ⚡
-
-### Install PromptLayer
+## Installation
 
 ```bash
 npm install promptlayer
 ```
 
-### Installing PromptLayer Locally
-
-Use `npm install .` to install locally.
-
-### Using PromptLayer
-
-To get started, create an account by clicking “_Log in_” on [PromptLayer](https://promptlayer.com/). Once logged in, click the button to create an API key and save this in a secure location ([Guide to Using Env Vars](https://nodejs.dev/en/learn/how-to-read-environment-variables-from-nodejs/)).
-
-```bash
-export OPENAI_API_KEY=sk_xxxxxx
-export PROMPTLAYER_API_KEY=pl_xxxxxx
-```
-
-Once you have that all set up, install PromptLayer using `npm`.
-
-In the JavaScript file where you use OpenAI APIs, add the following. This allows us to keep track of your requests without needing any other code changes.
-
-```js
-import BaseOpenAI from "openai";
-import { PromptLayer } from "promptlayer";
-
-const promptlayer = new PromptLayer({
-  apiKey: process.env.PROMPTLAYER_API_KEY,
-});
-// Typescript
-const OpenAI: typeof BaseOpenAI = promptlayer.OpenAI;
-const openai = new OpenAI();
-```
-
-**You can then use `openai` as you would if you had imported it directly.**
-
-<aside>
-💡 Your OpenAI API Key is **never** sent to our servers. All OpenAI requests are made locally from your machine, PromptLayer just logs the request.
-</aside>
-
-### Adding PromptLayer tags: `pl_tags`
-
-PromptLayer allows you to add tags through the `pl_tags` argument. This allows you to track and group requests in the dashboard.
-
-_Tags are not required but we recommend them!_
-
-```js
-openai.chat.completions.create({
-  messages: [{ role: "user", content: "Say this is a test" }],
-  model: "gpt-3.5-turbo",
-  // @ts-ignore
-  pl_tags: ["test"],
-});
-```
-
-### Returning request id: `return_pl_id`
-
-PromptLayer allows you to return the request id through the `return_pl_id` argument. When you set this to `true`, a tuple is returned with the request id as the second element.
-
-```js
-openai.chat.completions.create({
-  messages: [{ role: "user", content: "Say this is a test" }],
-  model: "gpt-3.5-turbo",
-  // @ts-ignore
-  return_pl_id: true,
-});
-```
-
-<aside>
-  Notice the `ts-ignore` comment. This is because the `pl_tags` and `return_pl_id` arguments are not part of the OpenAI API. We are working on a way to make this more seamless.
-</aside>
-
-After making your first few requests, you should be able to see them in the PromptLayer dashboard!
-
-## Optional Extensions
-
-OpenAI Agents telemetry support is available as an optional extension of the
-base library.
+Optional peer dependencies [(learn more)](#integration-modules):
 
 ```bash
 npm install promptlayer @openai/agents
-```
-
-Claude Agents plugin support is available as an optional extension of the base
-library on macOS and Linux.
-
-```bash
 npm install promptlayer @anthropic-ai/claude-agent-sdk
 ```
 
+## Quick Start
+
+To follow along, you need a [PromptLayer](https://www.promptlayer.com/) API key. Once logged in, go to Settings to generate a key.
+
+Create a client and fetch a prompt template from PromptLayer:
+
 ```ts
-import { ClaudeAgentOptions } from "@anthropic-ai/claude-agent-sdk";
-import { getClaudeConfig } from "promptlayer/claude-agents";
+import { PromptLayer } from "promptlayer";
 
-const plClaudeConfig = getClaudeConfig();
+async function main() {
+  const pl = new PromptLayer({
+    apiKey: process.env.PROMPTLAYER_API_KEY,
+  });
 
-const options = new ClaudeAgentOptions({
-  model: "claude-sonnet-4-5",
-  plugins: [plClaudeConfig.plugin],
-  env: {
-    ...plClaudeConfig.env,
-  },
-});
+  const prompt = await pl.templates.get("support-reply", {
+    input_variables: {
+      customer_name: "Ada",
+      question: "How do I reset my password?",
+    },
+  });
+
+  console.log(prompt?.prompt_template);
+}
+
+main();
 ```
 
-## Contributing
+SDK methods that make network requests return promises.
 
-We welcome contributions to our open source project, including new features, infrastructure improvements, and better documentation. For more information or any questions, contact us at [hello@promptlayer.com](mailto:hello@promptlayer.com).
+You can also use the client as a proxy around supported provider SDKs:
 
-## Requirements
+```bash
+npm install openai
+```
 
-- Node.js 18.x or higher
+```ts
+import OpenAI from "openai";
+import { PromptLayer } from "promptlayer";
+
+async function main() {
+  const pl = new PromptLayer({
+    apiKey: process.env.PROMPTLAYER_API_KEY,
+  });
+
+  const PromptLayerOpenAI: typeof OpenAI = pl.OpenAI;
+  const openai = new PromptLayerOpenAI();
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4.1-mini",
+    messages: [{ role: "user", content: "Say hello in one short sentence." }],
+    // @ts-ignore PromptLayer proxy option
+    pl_tags: ["proxy-example"],
+  });
+
+  console.log(response);
+}
+
+main();
+```
+
+## Configuration
+
+### Client Options
+
+`PromptLayer(...)` accepts these parameters:
+
+- `apiKey: string | undefined`: Your PromptLayer API key. If omitted, the SDK looks for `PROMPTLAYER_API_KEY`.
+- `enableTracing: boolean = false`: Enables OpenTelemetry tracing export to PromptLayer.
+- `baseURL: string | undefined`: Overrides the PromptLayer API base URL. If omitted, the SDK uses `PROMPTLAYER_BASE_URL` or the default API URL.
+- `throwOnError: boolean = true`: Controls whether SDK methods throw errors or return `null` or fallback values for many API errors.
+- `cacheTtlSeconds: number = 0`: Enables in-memory prompt-template caching when greater than `0`.
+
+### Environment Variables
+
+The SDK relies on the following environment variables:
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `PROMPTLAYER_API_KEY` | Yes, unless passed as `apiKey` | API key used to authenticate requests to PromptLayer. |
+| `PROMPTLAYER_BASE_URL` | No | Overrides the PromptLayer API base URL. Defaults to `https://api.promptlayer.com`. |
+| `PROMPTLAYER_TRACEPARENT` | No | Optional trace context passed through the Claude Agents integration. |
+
+## Client Resources
+
+The main resources surfaced by `PromptLayer` are:
+
+| Resource | Description |
+| --- | --- |
+| `client.templates` | Prompt template retrieval, listing, publishing, and cache invalidation. |
+| `client.run()` and `client.runWorkflow()` | Helpers for running prompts and workflows. |
+| `client.logRequest()` | Manual request logging. |
+| `client.track` | Request annotation utilities for metadata, prompt linkage, scores, and groups. |
+| `client.group` | Group creation for organizing related requests. |
+| `client.wrapWithSpan()` | Helper for tracing your own functions and sending those spans to PromptLayer when tracing is enabled. |
+| `client.skills` | Skill collection pull, publish, and update operations. |
+| `client.OpenAI` and `client.Anthropic` | Provider proxies that wrap those SDKs and log requests to PromptLayer. |
+
+Note: When tracing is enabled, spans are exported to PromptLayer using OpenTelemetry.
+
+## Integration Modules
+
+Optional modules that are imported directly rather than accessed through the client:
+
+| Module | Description |
+| --- | --- |
+| `promptlayer/openai-agents` | Tracing utilities for the [OpenAI Agents SDK](https://www.npmjs.com/package/@openai/agents) that instrument agent runs and export their traces to PromptLayer. |
+| `promptlayer/claude-agents` | Configuration utilities for the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) that load the PromptLayer plugin and required environment settings so Claude agent runs send traces to PromptLayer. |
+
+## Error Handling
+
+The SDK throws JavaScript `Error` instances for validation failures, missing API keys, unsupported providers, and PromptLayer API errors.
+
+| Error case | Description |
+| --- | --- |
+| Missing API key | `PromptLayer` throws if no API key is passed and `PROMPTLAYER_API_KEY` is not set. |
+| Validation failure | Some resource methods validate inputs before making a request, such as score ranges and skill collection providers. |
+| PromptLayer API error | Non-success PromptLayer responses throw with the API error message when `throwOnError` is enabled. |
+| Provider SDK error | Provider SDK calls made through `client.run()` or a provider proxy surface the underlying provider error. |
+| Workflow failure | `client.runWorkflow()` can return `{ success: false, message }` for some workflow-start failures, and throws for errors such as timeouts or no successful output node. |
+
+By default, the client throws these errors. If you initialize `PromptLayer` with `throwOnError: false`, many resource methods return `null`, `false`, an empty result, or the original provider response instead of throwing on PromptLayer API errors.
+
+## Caching
+
+When enabled, the SDK caches fetched prompt templates in memory for faster repeat reads, locally re-renders them with new variables, and falls back to stale cache on temporary API failures.
+- Caching is disabled by default and is enabled by setting `cacheTtlSeconds` when creating `PromptLayer`.
+- The cache applies to prompt templates fetched through `client.templates.get(...)`.
+- Cached entries are stored in memory and keyed by prompt name, version, label, provider, and model.
+- Requests that include `metadata_filters` or `model_parameter_overrides` bypass the cache.
+- Templates that require server-side rendering behavior, such as placeholder messages or tool-variable expansion, are not cached for local rendering.
+- If a cached template is stale and PromptLayer returns a transient error, the SDK can serve the stale cached version as a fallback.
+- You can clear cached entries with `client.invalidate(...)` or `client.templates.invalidate(...)`.
