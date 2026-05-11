@@ -451,7 +451,7 @@ def build_stop_hook_span_specs(
             trace_id=trace_id,
             span_id=session_span_id,
             parent_span_id=session_parent_span_id,
-            name="Claude Code session",
+            name="LLM session",
             kind="1",
             start_ns=str(session_start_ns),
             end_ns=turn_end_ns,
