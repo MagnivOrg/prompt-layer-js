@@ -313,6 +313,8 @@ def parse_transcript(transcript_path, turn_start_fallback, pending_payloads, exp
             completion_item["tool_calls"] = tool_calls
         flatten_indexed("gen_ai.completion", [completion_item], attrs)
 
+        span_name = "LLM call"
+
         if emit_for_turn:
             llms.append(
                 {
