@@ -313,8 +313,6 @@ def parse_transcript(transcript_path, turn_start_fallback, pending_payloads, exp
             completion_item["tool_calls"] = tool_calls
         flatten_indexed("gen_ai.completion", [completion_item], attrs)
 
-        span_name = "LLM Call (User)" if saw_human_input else "LLM call"
-
         if emit_for_turn:
             llms.append(
                 {
@@ -376,7 +374,7 @@ def build_stop_hook_span_specs(
             attrs={
                 "source": "claude-code",
                 "hook": session_hook_attr,
-                "node_type": "WORKFLOW",
+                "node_type": "LLM_SESSION",
                 "session.lifecycle": session_lifecycle_attr,
             },
         )

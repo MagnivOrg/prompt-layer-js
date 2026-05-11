@@ -155,7 +155,7 @@ def handle_session_end(ctx, raw_input: str) -> str:
                 attrs={
                     "source": "claude-code",
                     "hook": "SessionEnd",
-                    "node_type": "WORKFLOW",
+                    "node_type": "LLM_SESSION",
                     "session.lifecycle": "complete",
                 },
             )
