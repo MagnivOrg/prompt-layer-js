@@ -55,6 +55,19 @@ export const getCommonHeaders = (): Record<string, string> => ({
 
 export const SET_WORKFLOW_COMPLETE_MESSAGE = "SET_WORKFLOW_COMPLETE";
 
+/**
+ * Encodes a value for use as a single URL path segment.
+ * Unlike `encodeURIComponent`, this double-encodes `/` characters so that
+ * a proxy or router decode pass leaves `%2F` in the segment (instead of
+ * splitting it into two path segments), allowing the destination server
+ * to decode it back to `/` inside a single named path variable.
+ *
+ * Example: `encodePathSegment("feature1/resolve_problem_2")`
+ *   → `"feature1%252Fresolve_problem_2"`
+ */
+export const encodePathSegment = (value: string): string =>
+  encodeURIComponent(value).replace(/%2F/gi, "%252F");
+
 export enum FinalOutputCode {
   OK = "OK",
   EXCEEDS_SIZE_LIMIT = "EXCEEDS_SIZE_LIMIT",
@@ -502,7 +515,8 @@ const getPromptTemplate = async (
   throwOnError: boolean = true
 ): Promise<GetPromptTemplateResponse | null> => {
   try {
-    const url = new URL(`${baseURL}/prompt-templates/${promptName}`);
+    const encodedName = encodePathSegment(promptName);
+    const url = new URL(`${baseURL}/prompt-templates/${encodedName}`);
     const response = await fetchWithRetry(url, {
       method: "POST",
       headers: {
@@ -683,7 +697,7 @@ export const runWorkflowRequest = async ({
 
   try {
     const response = await fetchWithRetry(
-      `${baseURL}/workflows/${encodeURIComponent(workflow_name)}/run`,
+      `${baseURL}/workflows/${encodePathSegment(workflow_name)}/run`,
       {
         method: "POST",
         headers: headers,
