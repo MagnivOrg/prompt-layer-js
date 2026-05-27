@@ -337,6 +337,33 @@ const normalizeResponseMessage = (
   return Object.keys(message).length > 0 ? message : null;
 };
 
+const extractReasoningSummary = (
+  item: Record<string, unknown>
+): string | undefined => {
+  const summary = item.summary;
+
+  if (typeof summary === "string") {
+    return summary;
+  }
+
+  if (!Array.isArray(summary)) {
+    return undefined;
+  }
+
+  const textParts = summary
+    .map((part) => {
+      if (!isPlainObject(part)) {
+        return null;
+      }
+
+      const text = part.text ?? part.content;
+      return text !== undefined && text !== null ? String(text) : null;
+    })
+    .filter((part): part is string => part !== null && part !== "");
+
+  return textParts.length > 0 ? textParts.join("\n\n") : undefined;
+};
+
 const RAW_TOOL_CALL_ITEM_TYPES = new Set([
   "function_call",
   "computer_call",
@@ -369,6 +396,11 @@ export const normalizeResponseItems = (items: unknown): NormalizedMessage[] => {
     .flatMap((item) => {
       if (!isPlainObject(item)) {
         return [];
+      }
+
+      if (item.type === "reasoning") {
+        const thinking = extractReasoningSummary(item);
+        return thinking ? [{ role: "assistant", thinking }] : [];
       }
 
       if (item.type === "message_output_item" && isPlainObject(item.rawItem)) {
@@ -420,6 +452,17 @@ const applyUsageAttributes = (attrs: AttributeMap, usage: unknown) => {
     "gen_ai.usage.output_tokens",
     usage.output_tokens ?? usage.completion_tokens
   );
+
+  const outputTokenDetails = isPlainObject(usage.output_tokens_details)
+    ? usage.output_tokens_details
+    : isPlainObject(usage.completion_tokens_details)
+      ? usage.completion_tokens_details
+      : undefined;
+  setNumberAttr(
+    attrs,
+    "gen_ai.usage.reasoning.output_tokens",
+    outputTokenDetails?.reasoning_tokens
+  );
 };
 
 const generationAttributes = (
@@ -427,6 +470,7 @@ const generationAttributes = (
   includeRawPayloads: boolean
 ): AttributeMap => {
   const attrs: AttributeMap = {
+    node_type: "LLM_CALL",
     "gen_ai.provider.name": "openai.responses",
   };
 
@@ -465,6 +509,7 @@ const responseAttributes = (
   includeRawPayloads: boolean
 ): AttributeMap => {
   const attrs: AttributeMap = {
+    node_type: "LLM_CALL",
     "gen_ai.provider.name": "openai.responses",
   };
   const responseObject = isPlainObject(spanData._response) ? spanData._response : {};
@@ -541,6 +586,7 @@ const agentAttributes = (
   includeRawPayloads: boolean
 ): AttributeMap => {
   const attrs: AttributeMap = {
+    node_type: "LLM_SESSION",
     "openai_agents.agent.name": spanData.name,
   };
 
@@ -621,9 +667,12 @@ export const spanKindFor = (span: Pick<AgentsSpan<any>, "spanData">): number => 
 export const spanNameFor = (span: Pick<AgentsSpan<any>, "spanData">): string => {
   switch (span.spanData.type) {
     case "function":
-      return `Function: ${span.spanData.name}`;
+      return `Tool: ${span.spanData.name}`;
+    case "generation":
+    case "response":
+      return "LLM call";
     case "agent":
-      return `Agent: ${span.spanData.name}`;
+      return "LLM session";
     case "guardrail":
       return `Guardrail: ${span.spanData.name}`;
     case "custom":
@@ -641,6 +690,7 @@ export const baseTraceAttributes = (
   includeRawPayloads: boolean
 ): AttributeMap => {
   const attrs: AttributeMap = {
+    node_type: "LLM_SESSION",
     "promptlayer.telemetry.source": "openai-agents-js",
     "promptlayer.telemetry.source_version": telemetrySourceVersion(),
     "openai_agents.trace_id_original": trace.traceId,

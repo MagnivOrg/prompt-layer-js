@@ -85,7 +85,7 @@ export class PromptLayerOpenAIAgentsProcessor implements TracingProcessor {
       rootSpan: {
         traceId,
         spanId: syntheticRootSpanId(trace.traceId),
-        name: trace.name || "OpenAI Agents Trace",
+        name: "OpenAI session",
         kind: 1,
         startTimeUnixNano: nowUnixNano(),
         parentSpanId: upstreamContext?.parentSpanId,
@@ -236,7 +236,7 @@ export class PromptLayerOpenAIAgentsProcessor implements TracingProcessor {
       rootSpan: {
         traceId,
         spanId: syntheticRootSpanId(span.traceId),
-        name: traceLike.name,
+        name: "OpenAI session",
         kind: 1,
         startTimeUnixNano: isoToUnixNano(span.startedAt) ?? nowUnixNano(),
         parentSpanId: upstreamContext?.parentSpanId,

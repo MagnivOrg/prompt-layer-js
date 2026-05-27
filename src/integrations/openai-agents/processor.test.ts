@@ -102,10 +102,19 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
 
     expect(spans).toHaveLength(2);
 
-    const generationSpan = spans.find((item: any) => item.name === "Generation");
+    const rootSpan = spans.find((item: any) => item.name === "OpenAI session");
+    const generationSpan = spans.find((item: any) => item.name === "LLM call");
+    expect(rootSpan).toBeDefined();
     expect(generationSpan).toBeDefined();
 
+    const rootAttrs = keyValuesToObject(rootSpan.attributes);
+    expect(rootAttrs.node_type).toBe("LLM_SESSION");
+    expect(rootAttrs["session.lifecycle"]).toBeUndefined();
+    expect(rootAttrs["openai_agents.workflow_name"]).toBe("Support workflow");
+
     const attrs = keyValuesToObject(generationSpan.attributes);
+    expect(attrs.node_type).toBe("LLM_CALL");
+    expect(attrs["gen_ai.operation.name"]).toBeUndefined();
     expect(attrs["gen_ai.provider.name"]).toBe("openai.responses");
     expect(attrs["gen_ai.request.model"]).toBe("gpt-4.1");
     expect(attrs["gen_ai.usage.input_tokens"]).toBe("3");
@@ -150,7 +159,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
     const [, request] = fetchWithRetryMock.mock.calls[0];
     const payload = JSON.parse(String(request?.body));
     const functionSpan = payload.resourceSpans[0].scopeSpans[0].spans.find(
-      (item: any) => item.name === "Function: weather"
+      (item: any) => item.name === "Tool: weather"
     );
 
     expect(functionSpan.status).toEqual({
@@ -226,10 +235,12 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
     const [, request] = fetchWithRetryMock.mock.calls[0];
     const payload = JSON.parse(String(request?.body));
     const responseSpan = payload.resourceSpans[0].scopeSpans[0].spans.find(
-      (item: any) => item.name === "Response"
+      (item: any) => item.name === "LLM call"
     );
     const attrs = keyValuesToObject(responseSpan.attributes);
 
+    expect(attrs.node_type).toBe("LLM_CALL");
+    expect(attrs["gen_ai.operation.name"]).toBeUndefined();
     expect(attrs["gen_ai.provider.name"]).toBe("openai.responses");
     expect(attrs["gen_ai.request.model"]).toBe("gpt-4.1");
     expect(attrs["gen_ai.response.model"]).toBe("gpt-4.1");
@@ -245,6 +256,126 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
     );
     expect(attrs["gen_ai.completion.0.content"]).toBe("Hi");
     expect(attrs["openai_agents.response.object"]).toBe("response");
+  });
+
+  it("exports response reasoning summaries and reasoning token usage", async () => {
+    const processor = new PromptLayerOpenAIAgentsProcessor({
+      apiKey: "pl_test",
+      baseURL: "https://api.promptlayer.dev",
+    });
+    const trace = {
+      traceId: "trace_0af7651916cd43dd8448eb211c80319c",
+      name: "Reasoning workflow",
+      groupId: null,
+      metadata: {},
+    } as any;
+    const span = {
+      traceId: trace.traceId,
+      spanId: "span_response_reasoning",
+      parentId: null,
+      startedAt: "2026-03-17T14:15:16.123456789Z",
+      endedAt: "2026-03-17T14:15:17.123456789Z",
+      error: null,
+      traceMetadata: {},
+      spanData: {
+        type: "response",
+        response_id: "resp_reasoning",
+        _input: "What is 19 times 23?",
+        _response: {
+          object: "response",
+          id: "resp_reasoning",
+          model: "gpt-5-mini",
+          usage: {
+            input_tokens: 11,
+            output_tokens: 18,
+            output_tokens_details: {
+              reasoning_tokens: 7,
+            },
+          },
+          output: [
+            {
+              type: "reasoning",
+              summary: [
+                {
+                  type: "summary_text",
+                  text: "I should compute the multiplication directly.",
+                },
+              ],
+            },
+            {
+              type: "message",
+              role: "assistant",
+              content: [{ type: "output_text", text: "19 times 23 is 437." }],
+            },
+          ],
+        },
+      },
+    } as any;
+
+    await processor.onTraceStart(trace);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const [, request] = fetchWithRetryMock.mock.calls[0];
+    const payload = JSON.parse(String(request?.body));
+    const responseSpan = payload.resourceSpans[0].scopeSpans[0].spans.find(
+      (item: any) => item.name === "LLM call"
+    );
+    const attrs = keyValuesToObject(responseSpan.attributes);
+
+    expect(attrs["gen_ai.prompt.0.content"]).toBe("What is 19 times 23?");
+    expect(attrs["gen_ai.completion.0.thinking"]).toBe(
+      "I should compute the multiplication directly."
+    );
+    expect(attrs["gen_ai.completion.1.content"]).toBe("19 times 23 is 437.");
+    expect(attrs["gen_ai.usage.reasoning.output_tokens"]).toBe("7");
+  });
+
+  it("exports agent spans as internal LLM sessions", async () => {
+    const processor = new PromptLayerOpenAIAgentsProcessor({
+      apiKey: "pl_test",
+      baseURL: "https://api.promptlayer.dev",
+    });
+    const trace = {
+      traceId: "trace_0af7651916cd43dd8448eb211c80319c",
+      name: "Agent workflow",
+      groupId: null,
+      metadata: {},
+    } as any;
+    const span = {
+      traceId: trace.traceId,
+      spanId: "span_agent_123",
+      parentId: null,
+      startedAt: "2026-03-17T14:15:16.123456789Z",
+      endedAt: "2026-03-17T14:15:17.123456789Z",
+      error: null,
+      traceMetadata: {},
+      spanData: {
+        type: "agent",
+        name: "Support agent",
+        output_type: "text",
+        handoffs: [],
+        tools: [{ name: "lookup_demo_metric" }],
+      },
+    } as any;
+
+    await processor.onTraceStart(trace);
+    await processor.onSpanStart(span);
+    await processor.onSpanEnd(span);
+    await processor.onTraceEnd(trace);
+
+    const [, request] = fetchWithRetryMock.mock.calls[0];
+    const payload = JSON.parse(String(request?.body));
+    const agentSpan = payload.resourceSpans[0].scopeSpans[0].spans.find(
+      (item: any) => item.parentSpanId && item.name === "LLM session"
+    );
+    const attrs = keyValuesToObject(agentSpan.attributes);
+
+    expect(agentSpan).toBeDefined();
+    expect(attrs.node_type).toBe("LLM_SESSION");
+    expect(attrs["openai_agents.agent.name"]).toBe("Support agent");
+    expect(attrs["openai_agents.agent.output_type"]).toBe("text");
   });
 
   it("preserves nested parent-child relationships in exported spans", async () => {
@@ -343,8 +474,8 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
     const [, request] = fetchWithRetryMock.mock.calls[0];
     const payload = JSON.parse(String(request?.body));
     const spans = payload.resourceSpans[0].scopeSpans[0].spans;
-    const rootSpan = spans.find((item: any) => item.name === "Traceparent workflow");
-    const generationSpan = spans.find((item: any) => item.name === "Generation");
+    const rootSpan = spans.find((item: any) => item.name === "OpenAI session");
+    const generationSpan = spans.find((item: any) => item.name === "LLM call");
 
     expect(rootSpan.traceId).toBe("11111111111111111111111111111111");
     expect(generationSpan.traceId).toBe("11111111111111111111111111111111");
@@ -398,11 +529,12 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
     const [, request] = fetchWithRetryMock.mock.calls[0];
     const payload = JSON.parse(String(request?.body));
     const rootSpan = payload.resourceSpans[0].scopeSpans[0].spans.find(
-      (item: any) => item.name === "Recovered workflow"
+      (item: any) => item.name === "OpenAI session"
     );
     const rootAttrs = keyValuesToObject(rootSpan.attributes);
 
     expect(rootSpan).toBeDefined();
+    expect(rootAttrs["openai_agents.workflow_name"]).toBe("Recovered workflow");
     expect(rootAttrs["openai_agents.group_id"]).toBe("group_456");
     expect(rootAttrs["openai_agents.metadata.tenant"]).toBe("acme");
   });
@@ -444,7 +576,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
     const [, request] = fetchWithRetryMock.mock.calls[0];
     const payload = JSON.parse(String(request?.body));
     const rootSpan = payload.resourceSpans[0].scopeSpans[0].spans.find(
-      (item: any) => item.name === "No traceparent workflow"
+      (item: any) => item.name === "OpenAI session"
     );
 
     expect(rootSpan.traceId).toBe("cccccccccccccccccccccccccccccccc");
