@@ -154,6 +154,36 @@ describe("openai agents mapping", () => {
     ]);
   });
 
+  it("normalizes response reasoning summaries as assistant thinking", () => {
+    expect(
+      normalizeResponseItems([
+        {
+          type: "reasoning",
+          summary: [
+            {
+              type: "summary_text",
+              text: "I should compute the multiplication directly.",
+            },
+          ],
+        },
+        {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "19 times 23 is 437." }],
+        },
+      ])
+    ).toEqual([
+      {
+        role: "assistant",
+        thinking: "I should compute the multiplication directly.",
+      },
+      {
+        role: "assistant",
+        content: "19 times 23 is 437.",
+      },
+    ]);
+  });
+
   it("maps generation data to canonical attrs", () => {
     const attrs = spanDataAttributes(
       {
@@ -167,6 +197,8 @@ describe("openai agents mapping", () => {
       true
     );
 
+    expect(attrs.node_type).toBe("LLM_CALL");
+    expect(attrs["gen_ai.operation.name"]).toBeUndefined();
     expect(attrs["gen_ai.provider.name"]).toBe("openai.responses");
     expect(attrs["gen_ai.request.model"]).toBe("gpt-4.1");
     expect(attrs["gen_ai.usage.input_tokens"]).toBe(3);
