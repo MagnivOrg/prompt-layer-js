@@ -12,9 +12,8 @@ export const setupTracing = (
   apiKey: string,
   baseURL: string
 ) => {
-  const provider = new NodeTracerProvider();
   const exporter = new PromptLayerSpanExporter(enableTracing, apiKey, baseURL);
   const processor = new SimpleSpanProcessor(exporter);
-  provider.addSpanProcessor(processor);
+  const provider = new NodeTracerProvider({ spanProcessors: [processor] });
   provider.register();
 };

@@ -60,7 +60,7 @@ class PromptLayerSpanExporter implements SpanExporter {
         trace_state: span.spanContext().traceState?.serialize() || "",
       },
       kind: this.spanKindToString(span.kind),
-      parent_id: span.parentSpanId || null,
+      parent_id: span.parentSpanContext?.spanId || null,
       start_time: this.toNanoseconds(span.startTime),
       end_time: this.toNanoseconds(span.endTime),
       status: {
