@@ -31,7 +31,7 @@ describe("predefined eval scorers", () => {
       title: "Compare",
       type: "COMPARE",
       config: {
-        sources: ["output", "expected"],
+        sources: ["Output", "Expected"],
         comparison_type: { type: "STRING" },
       },
     });
@@ -47,24 +47,24 @@ describe("predefined eval scorers", () => {
     expect(containsScorer({ value: "refund" })).toEqual({
       title: "Contains",
       type: "CONTAINS",
-      config: { source: "output", value: "refund" },
+      config: { source: "Output", value: "refund" },
     });
     expect(
       containsScorer({
         title: "Has expected",
         source: "answer",
-        valueSource: "expected",
+        valueSource: "Expected",
       }).config
-    ).toEqual({ source: "answer", value_source: "expected" });
+    ).toEqual({ source: "answer", value_source: "Expected" });
     expect(
       containsScorer({
         value: "refund",
-        valueSource: "expected",
+        valueSource: "Expected",
       }).config
     ).toEqual({
-      source: "output",
+      source: "Output",
       value: "refund",
-      value_source: "expected",
+      value_source: "Expected",
     });
   });
 
@@ -72,7 +72,7 @@ describe("predefined eval scorers", () => {
     expect(regexScorer({ regexPattern: "inv_\\d+" })).toEqual({
       title: "Regex",
       type: "REGEX",
-      config: { source: "output", regex_pattern: "inv_\\d+" },
+      config: { source: "Output", regex_pattern: "inv_\\d+" },
     });
   });
 
@@ -81,7 +81,7 @@ describe("predefined eval scorers", () => {
       title: "Count",
       type: "COUNT",
       config: {
-        source: "output",
+        source: "Output",
         type: "chars",
         min_count: 1,
         max_count: 500,
@@ -90,7 +90,7 @@ describe("predefined eval scorers", () => {
     expect(
       countScorer({ type: "words", minCount: 2, maxCount: 4 }).config
     ).toEqual({
-      source: "output",
+      source: "Output",
       type: "words",
       min_count: 2,
       max_count: 4,
@@ -101,7 +101,7 @@ describe("predefined eval scorers", () => {
     expect(assertValidScorer()).toEqual({
       title: "Assert valid",
       type: "ASSERT_VALID",
-      config: { source: "output", type: "object" },
+      config: { source: "Output", type: "object" },
     });
     expect(
       assertValidScorer({ type: "email", source: "contact" })
@@ -116,19 +116,19 @@ describe("predefined eval scorers", () => {
     expect(llmAssertionScorer({ prompt: "Is the answer helpful?" })).toEqual({
       title: "LLM assertion",
       type: "LLM_ASSERTION",
-      config: { source: "output", prompt: "Is the answer helpful?" },
+      config: { source: "Output", prompt: "Is the answer helpful?" },
     });
     expect(
       llmAssertionScorer({
         prompt: "Check",
         promptSource: "prompt_col",
-        variableMappings: { expected: "expected" },
+        variableMappings: { expected: "Expected" },
       }).config
     ).toEqual({
-      source: "output",
+      source: "Output",
       prompt: "Check",
       prompt_source: "prompt_col",
-      variable_mappings: { expected: "expected" },
+      variable_mappings: { expected: "Expected" },
     });
   });
 
@@ -216,7 +216,7 @@ describe("predefined eval scorers", () => {
 
   it("builds column-source TRAJECTORY payloads and diagnoses tool-list failures", () => {
     const scorer = trajectoryScorer({
-      expectedSource: "expected",
+      expectedSource: "Expected",
       title: "Trajectory assertions",
     });
     expect(scorer).toEqual({
@@ -224,7 +224,7 @@ describe("predefined eval scorers", () => {
       type: "TRAJECTORY",
       config: {
         trace_source: "Trace",
-        expected_source: "expected",
+        expected_source: "Expected",
         mode: "strict",
       },
       _sdkDiagnosis: "trajectory",
@@ -236,7 +236,7 @@ describe("predefined eval scorers", () => {
       type: "TRAJECTORY",
       config: {
         trace_source: "Trace",
-        expected_source: "expected",
+        expected_source: "Expected",
         mode: "strict",
       },
     });
@@ -248,7 +248,7 @@ describe("predefined eval scorers", () => {
         type: "TRAJECTORY",
         config: {
           trace_source: "Trace",
-          expected_source: "expected",
+          expected_source: "Expected",
           mode: "strict",
         },
         _sdk_diagnosis: "trajectory",
@@ -325,7 +325,7 @@ describe("predefined eval scorers", () => {
     expect(() => compareScorer({ sources: ["only_one"] })).toThrow(
       /exactly two sources/
     );
-    expect(() => containsScorer({ source: "output" })).toThrow(
+    expect(() => containsScorer({ source: "Output" })).toThrow(
       /value or valueSource/
     );
     expect(() => regexScorer({ regexPattern: "" })).toThrow(/regexPattern/);

@@ -13,13 +13,21 @@ import {
   collectFailedCellRowIndices,
   extractOverallScore,
 } from "./scores";
-import { BASE_TEXT_COLUMNS, TRACE_TEXT_COLUMNS } from "./utils";
+import {
+  BASE_TEXT_COLUMNS,
+  COLUMN_TITLE_ALIASES,
+  EXPECTED_TRACE_COLUMN,
+  TRACE_RESERVED_COLUMN_TITLES,
+  TRACE_TEXT_COLUMNS,
+  findColumnByTitle,
+} from "./utils";
 import type { EvalResult } from "@/types";
 
 const RESERVED_EVAL_COLUMN_TITLES = new Set<string>([
   ...BASE_TEXT_COLUMNS,
-  ...TRACE_TEXT_COLUMNS,
-  "expected_trace",
+  ...TRACE_RESERVED_COLUMN_TITLES,
+  EXPECTED_TRACE_COLUMN,
+  ...Object.keys(COLUMN_TITLE_ALIASES),
 ]);
 
 const NAMED_SOURCE_KEYS = [
@@ -430,7 +438,7 @@ export const scorerDependenciesFromConfig = (
 
   const requireColumn = (title: unknown): Column | null => {
     if (typeof title !== "string" || !title.trim()) return null;
-    const column = columnsByTitleMap[title];
+    const column = findColumnByTitle(columnsByTitleMap, title);
     if (!column) {
       missing.push(title);
       return null;
@@ -451,7 +459,7 @@ export const scorerDependenciesFromConfig = (
     const uniqueMissing = [...new Set(missing)].sort().join(", ");
     throw validationError(
       `Eval ${label} source column(s) not found: ${uniqueMissing}. ` +
-        "Use exact column titles (e.g. 'output' or 'Trace'), or declare " +
+        "Use exact column titles (e.g. 'Output' or 'Trace'), or declare " +
         "supporting columns before they are referenced."
     );
   }
@@ -461,7 +469,7 @@ export const scorerDependenciesFromConfig = (
 /**
  * Return a copy of config with source column titles rewritten to column IDs.
  *
- * Authoring APIs keep human-readable titles (e.g. `source: "output"`). The
+ * Authoring APIs keep human-readable titles (e.g. `source: "Output"`). The
  * scorecard UI and backing-column dependency wiring expect UUIDs in
  * `primitive_config`, so rewrite titles once columns exist.
  */
@@ -480,7 +488,8 @@ export const resolveConfigSourcesToColumnIds = (
     if (typeof reference !== "string" || !reference.trim()) {
       return reference;
     }
-    const column = columnsByTitleMap[reference] ?? byId.get(reference);
+    const column =
+      findColumnByTitle(columnsByTitleMap, reference) ?? byId.get(reference);
     if (!column) return reference;
     return String(column.id);
   };

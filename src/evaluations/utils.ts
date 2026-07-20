@@ -9,13 +9,53 @@ import {
 } from "@/types";
 import { extractRows } from "@/tables/helpers";
 
-export const BASE_TEXT_COLUMNS = ["input", "expected", "output"] as const;
-export const TRACE_TEXT_COLUMNS = [
-  "Trace link",
+export const BASE_TEXT_COLUMNS = ["Input", "Expected", "Output"] as const;
+export const EXPECTED_TRACE_COLUMN = "Expected Trace";
+export const TRACE_TEXT_COLUMNS = ["Trace"] as const;
+export const TRACE_RESERVED_COLUMN_TITLES = [
   "Trace",
+  "Trace.price",
+  "Trace.latency",
+  "Trace link",
   "total_trace_time",
   "total_price",
 ] as const;
+
+export const COLUMN_TITLE_ALIASES: Record<string, string> = {
+  input: "Input",
+  expected: "Expected",
+  output: "Output",
+  expected_trace: EXPECTED_TRACE_COLUMN,
+  trace: "Trace",
+};
+
+const LEGACY_COLUMN_TITLES: Record<string, string> = Object.fromEntries(
+  Object.entries(COLUMN_TITLE_ALIASES).map(([alias, canonical]) => [
+    canonical,
+    alias,
+  ])
+);
+
+export const resolveColumnTitle = (title: string): string =>
+  COLUMN_TITLE_ALIASES[title] ?? title;
+
+export const findColumnByTitle = (
+  columnsByTitleMap: Record<string, Column>,
+  title: string
+): Column | undefined => {
+  if (!title) return undefined;
+  const direct = columnsByTitleMap[title];
+  if (direct) return direct;
+  const canonical = COLUMN_TITLE_ALIASES[title];
+  if (canonical && columnsByTitleMap[canonical]) {
+    return columnsByTitleMap[canonical];
+  }
+  const legacy = LEGACY_COLUMN_TITLES[title];
+  if (legacy && columnsByTitleMap[legacy]) return columnsByTitleMap[legacy];
+  return undefined;
+};
+
+export { LEGACY_COLUMN_TITLES };
 
 export const DEFAULT_POLL_INTERVAL_MS = 500;
 export const DEFAULT_CELL_WAIT_TIMEOUT_MS = 300_000;
@@ -264,12 +304,12 @@ export const buildRowValues = (
 ): Record<string, unknown> => {
   const values: Record<string, unknown> = {};
   for (const [title, value] of [
-    ["input", args.inputValue],
-    ["expected", args.expectedValue],
-    ["expected_trace", args.expectedTraceValue],
-    ["output", args.outputValue],
+    ["Input", args.inputValue],
+    ["Expected", args.expectedValue],
+    [EXPECTED_TRACE_COLUMN, args.expectedTraceValue],
+    ["Output", args.outputValue],
   ] as const) {
-    const column = columnsByTitleMap[title];
+    const column = findColumnByTitle(columnsByTitleMap, title);
     if (!column) continue;
     values[String(column.id)] = serializeCellValue(
       value !== null && value !== undefined ? value : ""
@@ -315,9 +355,9 @@ export const casesFromRows = <TInput = unknown>(
   columns: Column[]
 ): Array<{ input: TInput; expected?: unknown; expectedTrace?: unknown }> => {
   const byTitle = columnsByTitle(columns);
-  const inputCol = byTitle.input;
-  const expectedCol = byTitle.expected;
-  const expectedTraceCol = byTitle.expected_trace;
+  const inputCol = findColumnByTitle(byTitle, "Input");
+  const expectedCol = findColumnByTitle(byTitle, "Expected");
+  const expectedTraceCol = findColumnByTitle(byTitle, EXPECTED_TRACE_COLUMN);
   const cases: Array<{
     input: TInput;
     expected?: unknown;

@@ -15,6 +15,8 @@ import {
 } from "@/tables/helpers";
 import {
   BASE_TEXT_COLUMNS,
+  EXPECTED_TRACE_COLUMN,
+  LEGACY_COLUMN_TITLES,
   TRACE_TEXT_COLUMNS,
   blankRowIndices,
   buildScorerColumnBody,
@@ -92,6 +94,11 @@ export const ensureNamedTextColumns = async (
   let columns = [...existing];
   for (const title of titles) {
     if (title in byTitle) continue;
+    const legacyTitle = LEGACY_COLUMN_TITLES[title];
+    if (legacyTitle && legacyTitle in byTitle) {
+      byTitle[title] = byTitle[legacyTitle];
+      continue;
+    }
     const repurposed = await repurposeScaffoldColumn(
       apiKey,
       baseURL,
@@ -189,7 +196,7 @@ export const ensureProcessingColumns = async (
 
 /**
  * Create the full eval column scaffold in declaration order:
- * input/expected/output (+ Trace columns) → expected_trace → supporting columns.
+ * Input/Expected/Output (+ Trace columns) → Expected Trace → supporting columns.
  */
 export const ensureEvalScaffoldColumns = async (
   apiKey: string,
@@ -221,7 +228,7 @@ export const ensureEvalScaffoldColumns = async (
       tableId,
       sheetId,
       columns,
-      ["expected_trace"]
+      [EXPECTED_TRACE_COLUMN]
     );
   }
   if (args.processingColumns?.length) {

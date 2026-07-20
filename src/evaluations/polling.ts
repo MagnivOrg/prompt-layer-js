@@ -6,6 +6,7 @@ import * as tablesApi from "@/tables/api";
 import {
   DEFAULT_CELL_WAIT_TIMEOUT_MS,
   DEFAULT_POLL_INTERVAL_MS,
+  findColumnByTitle,
   serializeCellValue,
   sleep,
 } from "./utils";
@@ -30,7 +31,7 @@ export const fillRowCells = async (
 ): Promise<void> => {
   const cells = (row.cells as Record<string, unknown>) || {};
   for (const [title, value] of Object.entries(valuesByTitle)) {
-    const column = columnsByTitleMap[title];
+    const column = findColumnByTitle(columnsByTitleMap, title);
     if (!column) continue;
     const cell = cells[String(column.id)];
     const cellId =

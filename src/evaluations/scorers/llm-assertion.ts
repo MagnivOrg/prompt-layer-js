@@ -9,7 +9,7 @@ import { requireNonEmptyString } from "./utils";
 
 export const llmAssertionScorer = ({
   title = "LLM assertion",
-  source = "output",
+  source = "Output",
   prompt,
   promptSource,
   variableMappings,

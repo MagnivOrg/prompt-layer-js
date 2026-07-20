@@ -46,7 +46,7 @@ describe("Eval runner", () => {
         name: "bad",
         dataset: [{ input: "a" }],
         runner: () => "x",
-        scorers: [containsScorer({ title: "c", source: "output", value: "x" })],
+        scorers: [containsScorer({ title: "c", source: "Output", value: "x" })],
         tableId: "1",
         folderId: 2,
       })
@@ -57,7 +57,7 @@ describe("Eval runner", () => {
         name: "bad",
         dataset: [{ input: "a" }],
         runner: () => "x",
-        scorers: [containsScorer({ title: "c", source: "output", value: "x" })],
+        scorers: [containsScorer({ title: "c", source: "Output", value: "x" })],
         sheetId: "1",
         experimentName: "exp",
       })
@@ -109,7 +109,7 @@ describe("Eval runner", () => {
       runner: (input) => input,
       scorers: [
         codeExecutionColumn("exact", {
-          code: 'result = data.get("output") === data.get("expected") ? 1 : 0;',
+          code: 'result = data.get("Output") === data.get("Expected") ? 1 : 0;',
         }),
       ],
     });
@@ -175,9 +175,9 @@ describe("Eval runner", () => {
     fetchMock.mockImplementation(
       createEvalFetchRouter({
         columns: [
-          { id: "c-input", title: "input", type: "TEXT" },
-          { id: "c-expected", title: "expected", type: "TEXT" },
-          { id: "c-output", title: "output", type: "TEXT" },
+          { id: "c-input", title: "Input", type: "TEXT" },
+          { id: "c-expected", title: "Expected", type: "TEXT" },
+          { id: "c-output", title: "Output", type: "TEXT" },
           ...(createdExtract
             ? [{ id: "c-extract", title: "Extracted data", type: "JSON_PATH" }]
             : []),
@@ -191,9 +191,9 @@ describe("Eval runner", () => {
               {
                 success: true,
                 data: [
-                  { id: "c-input", title: "input", type: "TEXT" },
-                  { id: "c-expected", title: "expected", type: "TEXT" },
-                  { id: "c-output", title: "output", type: "TEXT" },
+                  { id: "c-input", title: "Input", type: "TEXT" },
+                  { id: "c-expected", title: "Expected", type: "TEXT" },
+                  { id: "c-output", title: "Output", type: "TEXT" },
                   ...(createdExtract
                     ? [
                         {
@@ -255,6 +255,22 @@ describe("Eval runner", () => {
               200
             );
           }
+          if (url.includes("/sheets/s1/operations/") && method === "GET") {
+            return jsonResponse(
+              {
+                success: true,
+                operation: {
+                  operation_id: "op_1",
+                  status: "completed",
+                  cell_count: 1,
+                  completed_count: 1,
+                  failed_count: 0,
+                  pending_count: 0,
+                },
+              },
+              200
+            );
+          }
           if (url.endsWith("/sheets/s1/status-counts") && method === "GET") {
             return jsonResponse(
               {
@@ -288,7 +304,7 @@ describe("Eval runner", () => {
       runner: (input) => input,
       columns: [
         column("Extracted data", "JSON_PATH", {
-          source: "output",
+          source: "Output",
           json_path: "$.a",
         }),
       ],
@@ -353,9 +369,9 @@ describe("Eval runner", () => {
         dataset: [{ input: "a" }],
         runner: () => "x",
         columns: [
-          column("output", "JSON_PATH", { source: "input", json_path: "$" }),
+          column("output", "JSON_PATH", { source: "Input", json_path: "$" }),
         ],
-        scorers: [containsScorer({ title: "c", source: "output", value: "x" })],
+        scorers: [containsScorer({ title: "c", source: "Output", value: "x" })],
       })
     ).rejects.toThrow(/reserved/);
 
@@ -365,10 +381,10 @@ describe("Eval runner", () => {
         dataset: [{ input: "a" }],
         runner: () => "x",
         columns: [
-          column("shared", "JSON_PATH", { source: "output", json_path: "$" }),
+          column("shared", "JSON_PATH", { source: "Output", json_path: "$" }),
         ],
         scorers: [
-          containsScorer({ title: "shared", source: "output", value: "x" }),
+          containsScorer({ title: "shared", source: "Output", value: "x" }),
         ],
       })
     ).rejects.toThrow(/conflicts with a supporting column/);
@@ -417,11 +433,10 @@ describe("Eval runner", () => {
     fetchMock.mockImplementation(
       createEvalFetchRouter({
         columns: [
-          { id: "c-input", title: "input", type: "TEXT" },
-          { id: "c-expected", title: "expected", type: "TEXT" },
-          { id: "c-output", title: "output", type: "TEXT" },
-          { id: "c-trace-link", title: "Trace link", type: "TEXT" },
-          { id: "c-trace", title: "Trace", type: "TEXT" },
+          { id: "c-input", title: "Input", type: "TEXT" },
+          { id: "c-expected", title: "Expected", type: "TEXT" },
+          { id: "c-output", title: "Output", type: "TEXT" },
+          { id: "c-trace", title: "Trace", type: "TRACE" },
         ],
         overrides: (async (url: string, method: string, init?: RequestInit) => {
           if (url.endsWith("/sheets/s1/columns") && method === "GET") {
@@ -429,14 +444,11 @@ describe("Eval runner", () => {
               {
                 success: true,
                 data: [
-                  { id: "c-input", title: "input", type: "TEXT" },
-                  { id: "c-expected", title: "expected", type: "TEXT" },
-                  { id: "c-output", title: "output", type: "TEXT" },
+                  { id: "c-input", title: "Input", type: "TEXT" },
+                  { id: "c-expected", title: "Expected", type: "TEXT" },
+                  { id: "c-output", title: "Output", type: "TEXT" },
                   ...(createdTrace
-                    ? [
-                        { id: "c-trace-link", title: "Trace link", type: "TEXT" },
-                        { id: "c-trace", title: "Trace", type: "TEXT" },
-                      ]
+                    ? [{ id: "c-trace", title: "Trace", type: "TRACE" }]
                     : []),
                 ],
               },
@@ -450,7 +462,7 @@ describe("Eval runner", () => {
               {
                 success: true,
                 column: {
-                  id: body.title === "Trace" ? "c-trace" : "c-trace-link",
+                  id: "c-trace",
                   title: body.title,
                   type: "TEXT",
                 },
@@ -512,7 +524,7 @@ describe("Eval runner", () => {
       name: "trace-eval",
       dataset: [{ input: "hi" }],
       runner: () => "runner-output",
-      scorers: [trajectoryScorer(["search"])],
+      scorers: [trajectoryScorer({ acceptedScenarios: [["search"]] })],
     });
 
     expect(result.results[0].output).toBe("from-trace");
@@ -601,8 +613,8 @@ describe("Eval runner", () => {
                 {
                   success: true,
                   data: [
-                    { id: "d-input", title: "input", type: "TEXT" },
-                    { id: "d-expected", title: "expected", type: "TEXT" },
+                    { id: "d-input", title: "Input", type: "TEXT" },
+                    { id: "d-expected", title: "Expected", type: "TEXT" },
                   ],
                 },
                 200

@@ -8,7 +8,7 @@ import { requireNonEmptyString } from "./utils";
 
 export const assertValidScorer = ({
   title = "Assert valid",
-  source = "output",
+  source = "Output",
   type = "object",
   ...settings
 }: {

@@ -55,13 +55,13 @@ describe("evaluations column helpers", () => {
     });
 
     const generic = column("custom", "JSON_PATH", {
-      source: "output",
+      source: "Output",
       json_path: "$.a",
     });
     expect(generic.type).toBe("JSON_PATH");
 
     const viaEnum = column("summary", ColumnType.JSON_PATH, {
-      source: "output",
+      source: "Output",
       json_path: "$.summary",
     });
     expect(viaEnum.type).toBe(ColumnType.JSON_PATH);
@@ -76,15 +76,15 @@ describe("evaluations column helpers", () => {
 
   it("resolves scorer dependencies from titles", () => {
     const columnsByTitle = {
-      output: { id: "out-1", title: "output", type: "TEXT" },
+      Output: { id: "out-1", title: "Output", type: "TEXT" },
       Trace: { id: "tr-1", title: "Trace", type: "TEXT" },
-      expected: { id: "exp-1", title: "expected", type: "TEXT" },
-      input: { id: "in-1", title: "input", type: "TEXT" },
+      Expected: { id: "exp-1", title: "Expected", type: "TEXT" },
+      Input: { id: "in-1", title: "Input", type: "TEXT" },
     };
     const deps = scorerDependenciesFromConfig(
       {
         source: "Trace",
-        variable_mappings: { ground_truth: "expected" },
+        variable_mappings: { ground_truth: "Expected" },
       },
       columnsByTitle
     );
@@ -104,10 +104,10 @@ describe("evaluations column helpers", () => {
     expect(
       resolveConfigSourcesToColumnIds(
         {
-          source: "output",
+          source: "Output",
           prompt: "check {user_request}",
           variable_mappings: {
-            user_request: "input",
+            user_request: "Input",
             execution_trace: "Trace",
           },
         },
@@ -128,7 +128,7 @@ describe("evaluations column helpers", () => {
     ).toBe(true);
     expect(
       scorersReferenceTrace([
-        llmAssertionScorer({ title: "x", source: "output", prompt: "ok" }),
+        llmAssertionScorer({ title: "x", source: "Output", prompt: "ok" }),
       ])
     ).toBe(false);
     expect(() =>
@@ -138,18 +138,18 @@ describe("evaluations column helpers", () => {
 
   it("persists column IDs in scorecard step primitive_config", () => {
     const columns = [
-      { id: "out-1", title: "output", type: "TEXT" },
-      { id: "in-1", title: "input", type: "TEXT" },
+      { id: "out-1", title: "Output", type: "TEXT" },
+      { id: "in-1", title: "Input", type: "TEXT" },
       { id: "tr-1", title: "Trace", type: "TEXT" },
     ];
     const steps = buildScorecardStepsFromScorers(
       [
         llmAssertionScorer({
           title: "Response grounded",
-          source: "output",
+          source: "Output",
           prompt: "User: {user_request}\nTrace: {execution_trace}",
           variableMappings: {
-            user_request: "input",
+            user_request: "Input",
             execution_trace: "Trace",
           },
         }),
@@ -176,8 +176,8 @@ describe("evaluations column helpers", () => {
     expect(col.config?.language).toBe("JAVASCRIPT");
     const code = String(col.config?.code);
     expect(code).not.toContain("function exactMatch");
-    expect(code).toContain('const output = data.get("output")');
-    expect(code).toContain('const expected = data.get("expected")');
+    expect(code).toContain('const output = data.get("Output")');
+    expect(code).toContain('const expected = data.get("Expected")');
     expect(code).toContain("result = output === expected ? 1 : 0");
 
     const normalized = normalizeScorer(exactMatch);
@@ -196,7 +196,7 @@ describe("evaluations column helpers", () => {
     expect(lengthCode).not.toContain(
       "Pass when the assistant response is under 500 characters."
     );
-    expect(lengthCode).toContain('const output = data.get("output")');
+    expect(lengthCode).toContain('const output = data.get("Output")');
     expect(lengthCode).toContain("result = text.length < 500 ? 1 : 0");
 
     const toolCol = scorerFromFunction(toolCountUnder5);
@@ -211,7 +211,7 @@ describe("evaluations column helpers", () => {
   it("supports named arrows, data style, and score object returns", () => {
     const scoreArrow = (output: unknown) => ({ score: output ? 1 : 0 });
     const arrowCode = String(scorerFromFunction(scoreArrow).config?.code);
-    expect(arrowCode).toContain('const output = data.get("output")');
+    expect(arrowCode).toContain('const output = data.get("Output")');
     expect(arrowCode).toContain("result = output ? 1 : 0");
 
     function dataScorer(data: { trace?: unknown }) {

@@ -8,7 +8,7 @@ import { requireNonEmptyString } from "./utils";
 
 export const regexScorer = ({
   title = "Regex",
-  source = "output",
+  source = "Output",
   regexPattern,
   ...settings
 }: {

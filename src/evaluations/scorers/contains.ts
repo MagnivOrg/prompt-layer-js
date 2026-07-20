@@ -9,7 +9,7 @@ import { requireNonEmptyString } from "./utils";
 
 export const containsScorer = ({
   title = "Contains",
-  source = "output",
+  source = "Output",
   value,
   valueSource,
   ...settings

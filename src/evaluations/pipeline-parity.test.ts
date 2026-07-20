@@ -323,10 +323,10 @@ describe("assertPassingScore / failed cells", () => {
 describe("expectedTrace round-trip", () => {
   it("persists and reloads expected_trace through row helpers", () => {
     const columns = [
-      { id: "i", title: "input", type: "TEXT" as const },
-      { id: "e", title: "expected", type: "TEXT" as const },
-      { id: "et", title: "expected_trace", type: "TEXT" as const },
-      { id: "o", title: "output", type: "TEXT" as const },
+      { id: "i", title: "Input", type: "TEXT" as const },
+      { id: "e", title: "Expected", type: "TEXT" as const },
+      { id: "et", title: "Expected Trace", type: "TEXT" as const },
+      { id: "o", title: "Output", type: "TEXT" as const },
     ];
     const byTitle = columnsByTitle(columns);
     const expectedTrace = {

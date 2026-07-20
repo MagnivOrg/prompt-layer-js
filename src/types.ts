@@ -821,6 +821,7 @@ export enum ColumnType {
   AI_DATA_EXTRACTION = "AI_DATA_EXTRACTION",
   COMPOSITION = "COMPOSITION",
   TRAJECTORY = "TRAJECTORY",
+  TRACE = "TRACE",
 }
 
 /** String values of {@link ColumnType}. Literal strings remain accepted for compatibility. */
@@ -1100,7 +1101,7 @@ export interface TableScoreResponse {
 export interface EvalCase<TInput = unknown> {
   input: TInput;
   expected?: unknown;
-  /** Wire / Table column title: expected_trace */
+  /** Wire / Table column title: Expected Trace */
   expectedTrace?: unknown;
 }
 

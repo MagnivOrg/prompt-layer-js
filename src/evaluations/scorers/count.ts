@@ -9,7 +9,7 @@ import { requireNonEmptyString, requireNonNegativeInteger } from "./utils";
 
 export const countScorer = ({
   title = "Count",
-  source = "output",
+  source = "Output",
   type = "chars",
   minCount,
   maxCount,

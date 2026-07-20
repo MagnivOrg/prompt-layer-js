@@ -14,9 +14,9 @@ const generate = unwrapDefault(generateModule);
 const traverse = unwrapDefault(traverseModule);
 
 const SCORER_PARAM_COLUMN_ALIASES: Record<string, string> = {
-  input: "input",
-  output: "output",
-  expected: "expected",
+  input: "Input",
+  output: "Output",
+  expected: "Expected",
   trace: "Trace",
 };
 
@@ -135,15 +135,43 @@ const scorerCode = (
   );
   const file = t.file(t.program(rewritten));
   traverse(file, {
-    MemberExpression(path) {
+    CallExpression(path) {
+      const callee = path.node.callee;
       if (
-        t.isIdentifier(path.node.object, { name: "data" }) &&
-        ((!path.node.computed &&
-          t.isIdentifier(path.node.property, { name: "trace" })) ||
-          (path.node.computed &&
-            t.isStringLiteral(path.node.property, { value: "trace" })))
+        !t.isMemberExpression(callee) ||
+        !t.isIdentifier(callee.object, { name: "data" }) ||
+        !t.isIdentifier(callee.property, { name: "get" }) ||
+        path.node.arguments.length === 0
       ) {
-        path.replaceWith(t.memberExpression(t.identifier("data"), t.identifier("Trace")));
+        return;
+      }
+      const firstArg = path.node.arguments[0];
+      if (!t.isStringLiteral(firstArg)) return;
+      const mapped = SCORER_PARAM_COLUMN_ALIASES[firstArg.value];
+      if (mapped) firstArg.value = mapped;
+    },
+    MemberExpression(path) {
+      if (!t.isIdentifier(path.node.object, { name: "data" })) return;
+      if (
+        !path.node.computed &&
+        t.isIdentifier(path.node.property) &&
+        path.node.property.name in SCORER_PARAM_COLUMN_ALIASES
+      ) {
+        path.replaceWith(
+          t.memberExpression(
+            t.identifier("data"),
+            t.identifier(SCORER_PARAM_COLUMN_ALIASES[path.node.property.name])
+          )
+        );
+        return;
+      }
+      if (
+        path.node.computed &&
+        t.isStringLiteral(path.node.property) &&
+        path.node.property.value in SCORER_PARAM_COLUMN_ALIASES
+      ) {
+        path.node.property.value =
+          SCORER_PARAM_COLUMN_ALIASES[path.node.property.value];
       }
     },
   });
