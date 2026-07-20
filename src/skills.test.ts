@@ -1,11 +1,6 @@
 import { PromptLayer } from "@/index";
+import { getUrlString, jsonResponse } from "@/test-helpers";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-
-const jsonResponse = (data: unknown, status: number): Response =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
 
 const binaryResponse = (bytes: Uint8Array, status: number): Response =>
   new Response(
@@ -18,8 +13,6 @@ const binaryResponse = (bytes: Uint8Array, status: number): Response =>
     headers: { "Content-Type": "application/zip" },
     }
   );
-
-const getUrlString = (input: string | URL): string => String(input);
 
 describe("skills", () => {
   let client: PromptLayer;

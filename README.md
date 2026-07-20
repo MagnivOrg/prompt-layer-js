@@ -4,7 +4,7 @@
 
 **Version, test, and monitor every prompt and agent with robust evals, tracing, and regression sets.**
 
-<a href="https://nodejs.org/"><img alt="Node.js" src="https://img.shields.io/badge/-Node.js 18+-43853D?style=for-the-badge&logo=node.js&logoColor=white"></a>
+<a href="https://nodejs.org/"><img alt="Node.js" src="https://img.shields.io/badge/-Node.js 20+-43853D?style=for-the-badge&logo=node.js&logoColor=white"></a>
 <a href="https://docs.promptlayer.com"><img alt="Docs" src="https://custom-icon-badges.herokuapp.com/badge/docs-PL-green.svg?logo=cake&style=for-the-badge"></a>
 <a href="https://www.loom.com/share/196c42e43acd4a369d75e9a7374a0850"><img alt="Demo with Loom" src="https://img.shields.io/badge/Demo-loom-552586.svg?logo=loom&style=for-the-badge&labelColor=gray"></a>
 

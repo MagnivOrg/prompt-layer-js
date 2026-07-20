@@ -1,6 +1,6 @@
 import { fetchWithRetry, getCommonHeaders } from "@/utils/utils";
 import { Attributes, SpanKind, SpanStatusCode } from "@opentelemetry/api";
-import { ExportResultCode } from "@opentelemetry/core";
+import { ExportResult, ExportResultCode } from "@opentelemetry/core";
 import { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 
 class PromptLayerSpanExporter implements SpanExporter {
@@ -47,9 +47,18 @@ class PromptLayerSpanExporter implements SpanExporter {
     return (BigInt(time[0]) * BigInt(1e9) + BigInt(time[1])).toString();
   }
 
-  export(spans: ReadableSpan[]): Promise<ExportResultCode> {
+  /**
+   * OTel's SimpleSpanProcessor calls `export(spans, resultCallback)` and only
+   * completes forceFlush once that callback fires. Returning a Promise alone
+   * leaves pending exports hung until the 30s provider timeout.
+   */
+  export(
+    spans: ReadableSpan[],
+    resultCallback: (result: ExportResult) => void
+  ): void {
     if (!this.enableTracing) {
-      return Promise.resolve(ExportResultCode.SUCCESS);
+      resultCallback({ code: ExportResultCode.SUCCESS });
+      return;
     }
 
     const requestData = spans.map((span) => ({
@@ -86,7 +95,7 @@ class PromptLayerSpanExporter implements SpanExporter {
       },
     }));
 
-    return fetchWithRetry(this.url, {
+    void fetchWithRetry(this.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -102,13 +111,17 @@ class PromptLayerSpanExporter implements SpanExporter {
           console.error(
             `Error exporting spans\nHTTP error! status: ${response.status}`
           );
-          return ExportResultCode.FAILED;
+          resultCallback({ code: ExportResultCode.FAILED });
+          return;
         }
-        return ExportResultCode.SUCCESS;
+        resultCallback({ code: ExportResultCode.SUCCESS });
       })
       .catch((error) => {
         console.error("Error exporting spans:", error);
-        return ExportResultCode.FAILED;
+        resultCallback({
+          code: ExportResultCode.FAILED,
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
       });
   }
 

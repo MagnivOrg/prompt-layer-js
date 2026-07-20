@@ -1,12 +1,40 @@
 import { GroupManager } from "@/groups";
 import { promptLayerBase } from "@/promptlayer";
 import { SkillManager } from "@/skills";
+import { TableManager } from "@/tables";
+import {
+  EvalManager,
+  assertValidScorer,
+  column,
+  codeExecutionColumn,
+  compareScorer,
+  containsScorer,
+  countScorer,
+  diagnoseTrajectoryFailure,
+  extractTrajectoryToolNames,
+  llmAssertionScorer,
+  regexScorer,
+  scoreTrajectory,
+  scorerFromFunction,
+  trajectoryScorer,
+} from "@/evaluations";
+import { getTerminal } from "@/evaluations/terminal";
 import { wrapWithSpan } from "@/span-wrapper";
 import { TemplateManager } from "@/templates";
 import { PromptTemplateCache } from "@/utils/template-cache";
+import { formatRunOutput } from "@/run-tracing";
 import { getTracer, setupTracing } from "@/tracing";
 import { TrackManager } from "@/track";
 import {
+  EvalCase,
+  EvalCaseResult,
+  EvalDataset,
+  EvalDefinition,
+  EvalResult,
+  EvalScoreCard,
+  EvalScorerColumn,
+  EvalScorer,
+  EvaluateOptions,
   GetPromptTemplateParams,
   InitialSkillFileUpdate,
   LogRequest,
@@ -22,6 +50,9 @@ import {
   SkillCollectionVersion,
   SkillFileMove,
   SkillFileUpdate,
+  Column,
+  Sheet,
+  Table,
   UpdateSkillCollection,
   UpdateSkillCollectionResponse,
   WorkflowRequest,
@@ -46,6 +77,7 @@ import {
 import { categorizeError } from "@/utils/errors";
 import { streamResponse } from "@/utils/streaming";
 import * as opentelemetry from "@opentelemetry/api";
+import type { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
 const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
   openai: openaiRequest,
@@ -97,10 +129,13 @@ export class PromptLayer {
   baseURL: string;
   templates: TemplateManager;
   skills: SkillManager;
+  tables: TableManager;
+  evals: EvalManager;
   group: GroupManager;
   track: TrackManager;
   enableTracing: boolean;
   throwOnError: boolean;
+  tracerProvider: NodeTracerProvider | null;
   wrapWithSpan: typeof wrapWithSpan;
 
   constructor({
@@ -120,6 +155,7 @@ export class PromptLayer {
     this.baseURL = baseURL || "https://api.promptlayer.com";
     this.enableTracing = enableTracing;
     this.throwOnError = throwOnError;
+    this.tracerProvider = null;
     const cache = cacheTtlSeconds > 0 ? new PromptTemplateCache(cacheTtlSeconds) : null;
     this.templates = new TemplateManager(
       apiKey,
@@ -128,13 +164,24 @@ export class PromptLayer {
       cache
     );
     this.skills = new SkillManager(apiKey, this.baseURL, this.throwOnError);
+    this.tables = new TableManager(
+      apiKey,
+      this.baseURL,
+      this.throwOnError
+    );
     this.group = new GroupManager(apiKey, this.baseURL, this.throwOnError);
     this.track = new TrackManager(apiKey, this.baseURL, this.throwOnError);
     this.wrapWithSpan = wrapWithSpan;
 
     if (enableTracing) {
-      setupTracing(enableTracing, apiKey, this.baseURL);
+      this.tracerProvider = setupTracing(enableTracing, apiKey, this.baseURL);
     }
+    this.evals = new EvalManager(
+      apiKey,
+      this.baseURL,
+      this.throwOnError,
+      this.tracerProvider
+    );
   }
 
   invalidate(promptName?: string): void {
@@ -191,6 +238,7 @@ export class PromptLayer {
     const tracer = getTracer();
 
     return tracer.startActiveSpan("PromptLayer Run", async (span) => {
+      let spanOwnershipTransferred = false;
       try {
         const functionInput = {
           promptName,
@@ -203,6 +251,7 @@ export class PromptLayer {
           modelParameterOverrides,
           stream,
         };
+        span.setAttribute("prompt_name", promptName);
         span.setAttribute("function_input", JSON.stringify(functionInput));
 
         const prompt_input_variables = inputVariables;
@@ -326,13 +375,42 @@ export class PromptLayer {
           throw llmError;
         }
 
-        if (stream)
-          return streamResponse(
+        if (stream) {
+          const streamIterator = streamResponse(
             response,
             _trackRequest,
             stream_function,
             metadata || promptBlueprint!.metadata
           );
+          spanOwnershipTransferred = true;
+          return (async function* () {
+            let lastChunk: unknown;
+            try {
+              for await (const chunk of streamIterator) {
+                lastChunk = chunk;
+                yield chunk;
+              }
+              if (lastChunk !== undefined) {
+                span.setAttribute(
+                  "function_output",
+                  formatRunOutput(lastChunk)
+                );
+              }
+            } catch (error) {
+              span.recordException(
+                error instanceof Error ? error : new Error(String(error))
+              );
+              span.setStatus({
+                code: opentelemetry.SpanStatusCode.ERROR,
+                message:
+                  error instanceof Error ? error.message : "Unknown error",
+              });
+              throw error;
+            } finally {
+              span.end();
+            }
+          })();
+        }
         const requestLog = await _trackRequest({ request_response: response });
 
         const functionOutput = {
@@ -340,7 +418,7 @@ export class PromptLayer {
           raw_response: response,
           prompt_blueprint: requestLog.prompt_blueprint,
         };
-        span.setAttribute("function_output", JSON.stringify(functionOutput));
+        span.setAttribute("function_output", formatRunOutput(functionOutput));
 
         return functionOutput;
       } catch (error) {
@@ -350,7 +428,9 @@ export class PromptLayer {
         });
         throw error;
       } finally {
-        span.end();
+        if (!spanOwnershipTransferred) {
+          span.end();
+        }
       }
     });
   }
@@ -414,6 +494,15 @@ export class PromptLayer {
 }
 
 export type {
+  EvalCase,
+  EvalCaseResult,
+  EvalDataset,
+  EvalDefinition,
+  EvalResult,
+  EvalScoreCard,
+  EvalScorerColumn,
+  EvalScorer,
+  EvaluateOptions,
   InitialSkillFileUpdate,
   PublishSkillCollection,
   PublishSkillCollectionFromFiles,
@@ -426,6 +515,55 @@ export type {
   SkillCollectionVersion,
   SkillFileMove,
   SkillFileUpdate,
+  Column,
+  Sheet,
+  Table,
   UpdateSkillCollection,
   UpdateSkillCollectionResponse,
+};
+
+export {
+  EvaluationFailedError,
+  PromptLayerAPIError,
+  PromptLayerAuthenticationError,
+  PromptLayerConnectionError,
+  PromptLayerError,
+  PromptLayerNotFoundError,
+  PromptLayerStatusError,
+  PromptLayerTimeoutError,
+  PromptLayerValidationError,
+} from "./errors";
+
+export {
+  assertValidScorer,
+  column,
+  codeExecutionColumn,
+  compareScorer,
+  containsScorer,
+  countScorer,
+  diagnoseTrajectoryFailure,
+  extractTrajectoryToolNames,
+  llmAssertionScorer,
+  regexScorer,
+  scoreTrajectory,
+  scorerFromFunction,
+  trajectoryScorer,
+};
+
+export { ColumnType } from "@/types";
+export type { TrajectoryMode } from "@/evaluations";
+export type { ColumnTypeValue } from "@/types";
+
+export const evaluate = <TInput = unknown, TOutput = unknown>(
+  name: string,
+  options: EvaluateOptions<TInput, TOutput>
+): Promise<EvalResult<TInput, TOutput>> => {
+  getTerminal().step("Initializing PromptLayer client");
+  const { apiKey, baseURL, enableTracing, ...definition } = options;
+  const client = new PromptLayer({
+    apiKey,
+    baseURL,
+    enableTracing: enableTracing ?? true,
+  });
+  return client.evals.run({ name, ...definition });
 };
