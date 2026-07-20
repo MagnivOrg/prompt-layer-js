@@ -16,8 +16,9 @@ export default defineConfig({
   sourcemap: true,
   minify: true,
   legacyOutput: true,
-  // ora/jiti are ESM-only; bundle so CJS entries work before Node's require(esm).
-  noExternal: ["ora", "jiti"],
+  // Bundle ora for the CJS CLI. Keep jiti external so Node selects its
+  // conditional CJS entry, which preserves its runtime require paths.
+  noExternal: ["ora"],
   define: {
     __SDK_VERSION__: JSON.stringify(pkg.version),
   },
