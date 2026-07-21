@@ -30,6 +30,8 @@ import {
 } from "@/types";
 import {
   addTraceEndpoint,
+  requestEndpoint,
+  traceEndpoint,
   tableEndpoint,
   tableSheetCellEndpoint,
   tableSheetCellRecalculationEndpoint,
@@ -856,4 +858,24 @@ export const addTraceImport = (
     action: "importing a trace into your sheet",
     expectedStatuses: [200, 201],
     body: buildAddTraceBody(body),
+  });
+
+export const getTrace = (
+  apiKey: string,
+  baseURL: string,
+  throwOnError: boolean,
+  traceId: string
+): Promise<Record<string, unknown> | null> =>
+  request(apiKey, throwOnError, traceEndpoint(baseURL, traceId), {
+    action: "getting your trace",
+  });
+
+export const getRequest = (
+  apiKey: string,
+  baseURL: string,
+  throwOnError: boolean,
+  requestId: number
+): Promise<Record<string, unknown> | null> =>
+  request(apiKey, throwOnError, requestEndpoint(baseURL, requestId), {
+    action: "getting your request",
   });

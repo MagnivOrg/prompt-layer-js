@@ -136,3 +136,9 @@ export const tableSheetOperationEndpoint = (
 
 export const addTraceEndpoint = (baseURL: string): string =>
   `${baseURL}/api/public/v2/dataset-versions/add-trace`;
+
+export const traceEndpoint = (baseURL: string, traceId: string): string =>
+  `${baseURL}/api/public/v2/traces/${encodeURIComponent(traceId)}`;
+
+export const requestEndpoint = (baseURL: string, requestId: number): string =>
+  `${baseURL}/api/public/v2/requests/${encodeURIComponent(String(requestId))}`;

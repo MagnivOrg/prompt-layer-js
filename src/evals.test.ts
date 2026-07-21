@@ -13,6 +13,7 @@ import {
   type EvalFetchRoute,
 } from "@/test-fixtures/eval-fetch";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import * as evalUtils from "@/evaluations/utils";
 
 describe("Eval runner", () => {
   let fetchMock: Mock;
@@ -20,11 +21,13 @@ describe("Eval runner", () => {
   beforeEach(() => {
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(evalUtils, "sleep").mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("exposes evals on the client", () => {

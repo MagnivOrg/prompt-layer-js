@@ -14,6 +14,7 @@ import {
 import * as tablesApi from "@/tables/api";
 import { extractColumns, extractRows } from "@/tables/helpers";
 import { fillRowCells, waitForSheetOperations } from "./polling";
+import { waitForTraceRequestPrice } from "./tracePrice";
 import {
   clearBlankScaffoldRows,
   ensureEvalScaffoldColumns,
@@ -205,6 +206,7 @@ const persistTraceRows = async <TInput, TOutput>(args: {
   const updated: CaseExecution<TInput, TOutput>[] = [];
   for (const execution of args.executed) {
     await flushTraces(args.tracerProvider, args.throwOnError);
+    await waitForTraceRequestPrice(args.apiKey, args.baseURL, execution.traceId);
     const importResponse = await tablesApi.addTraceImport(
       args.apiKey,
       args.baseURL,
