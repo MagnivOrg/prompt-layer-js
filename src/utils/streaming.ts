@@ -1013,7 +1013,7 @@ const buildGoogleResponseFromParts = (
   }
 
   for (const functionCall of functionCalls) {
-    finalParts.push({ functionCall });
+    finalParts.push(functionCall);
   }
 
   if (finalParts.length > 0 && response.candidates?.[0]?.content) {
@@ -1066,7 +1066,12 @@ const googleStreamResponse = (results: any[]) => {
             if (part.thoughtSignature) lastRegularThoughtSignature = part.thoughtSignature;
           }
         } else if (part.functionCall) {
-          functionCalls.push(part.functionCall);
+          functionCalls.push({
+            functionCall: part.functionCall,
+            ...(part.thoughtSignature
+              ? { thoughtSignature: part.thoughtSignature }
+              : {}),
+          });
         } else if (part.inlineData) {
           const raw = part.inlineData;
           inlineDataParts.push({

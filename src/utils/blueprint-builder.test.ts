@@ -431,6 +431,7 @@ describe("buildPromptBlueprintFromGoogleEvent", () => {
                   name: "get_weather",
                   args: { location: "NYC" },
                 },
+                thoughtSignature: "sig-tool-call",
               },
             ],
           },
@@ -443,6 +444,7 @@ describe("buildPromptBlueprintFromGoogleEvent", () => {
     expect(msg.tool_calls![0]).toMatchObject({
       id: "fc_01",
       function: { name: "get_weather", arguments: '{"location":"NYC"}' },
+      provider_metadata: { thought_signature: "sig-tool-call" },
     });
   });
 
