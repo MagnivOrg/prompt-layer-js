@@ -582,6 +582,7 @@ export type ToolCall = {
   tool_id?: string;
   type: "function";
   function: FunctionCall;
+  provider_metadata?: Record<string, unknown>;
 };
 
 export type AssistantMessage = {
