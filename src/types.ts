@@ -803,8 +803,6 @@ export type ResourceId = string | number;
 
 export enum ColumnType {
   TEXT = "TEXT",
-  NUMBER = "NUMBER",
-  BOOLEAN = "BOOLEAN",
   PROMPT_TEMPLATE = "PROMPT_TEMPLATE",
   LLM_ASSERTION = "LLM_ASSERTION",
   CODE_EXECUTION = "CODE_EXECUTION",
