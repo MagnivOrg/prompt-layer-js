@@ -151,7 +151,9 @@ export class DefaultEvalTerminal implements EvalTerminal {
   }
 
   step(message: string): void {
-    const text = message.replace(/\.+$/, "");
+    let end = message.length;
+    while (end > 0 && message[end - 1] === ".") end--;
+    const text = message.slice(0, end);
     this.write(`  ${pc.cyan("•")} ${text}`);
   }
 
