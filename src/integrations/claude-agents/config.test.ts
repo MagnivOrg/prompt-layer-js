@@ -3,6 +3,7 @@ import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getClaudeConfig } from "@/integrations/claude-agents/config";
+import * as tracingContext from "@/tracing-context";
 
 const REQUIRED_PLUGIN_FILES = [
   ".claude-plugin/plugin.json",
@@ -94,6 +95,34 @@ describe("getClaudeConfig", () => {
     expect(withTraceparent.env.PROMPTLAYER_TRACEPARENT).toBe(
       "00-11111111111111111111111111111111-2222222222222222-01"
     );
+  });
+
+  it("inherits traceparent from the active OTEL span", () => {
+    const activeTraceparent = vi
+      .spyOn(tracingContext, "currentTraceparent")
+      .mockReturnValue("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01");
+
+    const config = getClaudeConfig({ apiKey: "pl_test" });
+
+    expect(config.env.PROMPTLAYER_TRACEPARENT).toBe(
+      "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+    );
+    activeTraceparent.mockRestore();
+  });
+
+  it("prefers explicit traceparent over the active OTEL span", () => {
+    const activeTraceparent = vi
+      .spyOn(tracingContext, "currentTraceparent")
+      .mockReturnValue("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01");
+    const explicit = "00-11111111111111111111111111111111-2222222222222222-01";
+
+    const config = getClaudeConfig({
+      apiKey: "pl_test",
+      traceparent: explicit,
+    });
+
+    expect(config.env.PROMPTLAYER_TRACEPARENT).toBe(explicit);
+    activeTraceparent.mockRestore();
   });
 
   it("does not set debug or OTLP endpoint env in v1", () => {

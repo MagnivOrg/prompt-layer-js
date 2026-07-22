@@ -17,6 +17,7 @@ vi.mock("@/utils/utils", async () => {
 
 import { mapSpanId } from "@/integrations/openai-agents/ids";
 import { PromptLayerOpenAIAgentsProcessor } from "@/integrations/openai-agents/processor";
+import * as tracingContext from "@/tracing-context";
 import { fetchWithRetry } from "@/utils/utils";
 
 const fetchWithRetryMock = vi.mocked(fetchWithRetry);
@@ -436,6 +437,9 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
   });
 
   it("uses traceparent metadata to parent the synthetic root", async () => {
+    const activeTraceparent = vi
+      .spyOn(tracingContext, "currentTraceparent")
+      .mockReturnValue("00-dddddddddddddddddddddddddddddddd-eeeeeeeeeeeeeeee-01");
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
       baseURL: "https://api.promptlayer.dev",
@@ -487,6 +491,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
     expect(rootAttrs["openai_agents.trace_id_original"]).toBe(
       "trace_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     );
+    activeTraceparent.mockRestore();
   });
 
   it("recovers serialized trace metadata when the root trace callback is absent", async () => {
@@ -582,6 +587,35 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
     expect(rootSpan.traceId).toBe("cccccccccccccccccccccccccccccccc");
     expect(rootSpan.parentSpanId).toBeUndefined();
     expect(rootSpan.traceState).toBeUndefined();
+  });
+
+  it("inherits the active OTEL span when traceparent metadata is absent", async () => {
+    const activeTraceparent = vi
+      .spyOn(tracingContext, "currentTraceparent")
+      .mockReturnValue("00-dddddddddddddddddddddddddddddddd-eeeeeeeeeeeeeeee-01");
+    const processor = new PromptLayerOpenAIAgentsProcessor({
+      apiKey: "pl_test",
+      baseURL: "https://api.promptlayer.dev",
+    });
+    const trace = {
+      traceId: "trace_cccccccccccccccccccccccccccccccc",
+      name: "Active parent workflow",
+      groupId: null,
+      metadata: {},
+    } as any;
+
+    await processor.onTraceStart(trace);
+    await processor.onTraceEnd(trace);
+
+    const [, request] = fetchWithRetryMock.mock.calls[0];
+    const payload = JSON.parse(String(request?.body));
+    const rootSpan = payload.resourceSpans[0].scopeSpans[0].spans.find(
+      (item: any) => item.name === "OpenAI session"
+    );
+
+    expect(rootSpan.traceId).toBe("dddddddddddddddddddddddddddddddd");
+    expect(rootSpan.parentSpanId).toBe("eeeeeeeeeeeeeeee");
+    activeTraceparent.mockRestore();
   });
 
   it("does not throw on export failure and retries on forceFlush", async () => {

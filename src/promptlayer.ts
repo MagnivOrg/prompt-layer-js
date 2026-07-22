@@ -1,8 +1,6 @@
 import { getTracer } from "@/tracing";
 import { promptlayerApiHandler } from "@/utils/utils";
 
-const tracer = getTracer();
-
 export const promptLayerBase = (
   apiKey: string,
   baseURL: string,
@@ -55,7 +53,7 @@ export const promptLayerBase = (
           delete args[0]?.pl_tags;
           delete args[0]?.pl_warn_on_error;
 
-          return tracer.startActiveSpan(
+          return getTracer().startActiveSpan(
             `${provider_type}.${function_name}`,
             async (span: any) => {
               try {
