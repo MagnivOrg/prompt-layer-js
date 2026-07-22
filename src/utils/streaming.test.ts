@@ -325,7 +325,14 @@ describe("googleStreamChat", () => {
           {
             content: {
               parts: [
-                { functionCall: { id: "fc_01", name: "get_weather", args: { location: "NYC" } } },
+                {
+                  functionCall: {
+                    id: "fc_01",
+                    name: "get_weather",
+                    args: { location: "NYC" },
+                  },
+                  thoughtSignature: "sig-tool-call",
+                },
               ],
             },
           },
@@ -340,6 +347,7 @@ describe("googleStreamChat", () => {
       name: "get_weather",
       args: { location: "NYC" },
     });
+    expect(parts[0].thoughtSignature).toBe("sig-tool-call");
   });
 });
 
