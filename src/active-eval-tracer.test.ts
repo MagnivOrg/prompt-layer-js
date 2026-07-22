@@ -3,12 +3,13 @@ import * as opentelemetry from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import {
+  currentTraceparent,
   resolveActiveTracer,
   withActiveEvalTracer,
 } from "@/tracing-context";
 import { runCaseInSpan } from "@/evaluations/tracing";
 import { getTracer } from "@/tracing";
-import { wrapWithSpan } from "@/span-wrapper";
+import { traceTool, wrapWithSpan } from "@/span-wrapper";
 
 describe("active eval tracer nesting", () => {
   let provider: NodeTracerProvider;
@@ -50,9 +51,11 @@ describe("active eval tracer nesting", () => {
     exporter.reset();
     const evalTracer = provider.getTracer("promptlayer.evals");
     let seenActive: opentelemetry.Tracer | undefined;
+    let seenTraceparent: string | undefined;
 
     const runner = (_input: unknown) => {
       seenActive = resolveActiveTracer(opentelemetry.trace.getTracer("unused"));
+      seenTraceparent = currentTraceparent();
       const clientTracer = getTracer();
       return clientTracer.startActiveSpan("wrangler-turn", (child) => {
         child.end();
@@ -64,7 +67,8 @@ describe("active eval tracer nesting", () => {
       "demo",
       runner,
       { q: "hi" },
-      evalTracer
+      evalTracer,
+      { tableId: "table-123", sheetId: "sheet-456" }
     );
 
     expect(output).toBe("ok");
@@ -82,6 +86,12 @@ describe("active eval tracer nesting", () => {
     expect(byName["Eval: demo"]).toBeDefined();
     expect(byName["wrangler-turn"]).toBeDefined();
     const evalSpan = byName["Eval: demo"];
+    expect(seenTraceparent).toBe(
+      `00-${evalSpan.spanContext().traceId}-${evalSpan.spanContext().spanId}-01`
+    );
+    expect(evalSpan.attributes["node_type"]).toBe("EVAL");
+    expect(evalSpan.attributes["table_id"]).toBe("table-123");
+    expect(evalSpan.attributes["sheet_id"]).toBe("sheet-456");
     const child = byName["wrangler-turn"];
     expect(child.parentSpanContext?.spanId).toBe(evalSpan.spanContext().spanId);
     expect(child.spanContext().traceId).toBe(evalSpan.spanContext().traceId);
@@ -102,5 +112,31 @@ describe("active eval tracer nesting", () => {
     const evalSpan = spans.find((s) => s.name === "Eval: demo-traceable")!;
     const child = spans.find((s) => s.name === "customer-op")!;
     expect(child.parentSpanContext?.spanId).toBe(evalSpan.spanContext().spanId);
+  });
+
+  it("traceTool sets CODE_EXECUTION attributes", async () => {
+    exporter.reset();
+    const evalTracer = provider.getTracer("promptlayer.evals");
+
+    const lookupAccount = traceTool("lookup_account", (email: string) => ({
+      plan: "pro",
+      email,
+    }));
+
+    const [output] = await runCaseInSpan(
+      "demo-trace-tool",
+      () => lookupAccount("user@example.com"),
+      {},
+      evalTracer
+    );
+
+    expect(output).toEqual({ plan: "pro", email: "user@example.com" });
+
+    const spans = exporter.getFinishedSpans();
+    const toolSpan = spans.find((s) => s.name === "Tool: lookup_account")!;
+    expect(toolSpan).toBeDefined();
+    expect(toolSpan.attributes["node_type"]).toBe("CODE_EXECUTION");
+    expect(toolSpan.attributes["tool.name"]).toBe("lookup_account");
+    expect(toolSpan.attributes["function_name"]).toBe("lookup_account");
   });
 });

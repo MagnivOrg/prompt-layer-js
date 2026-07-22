@@ -67,4 +67,4 @@ vi.mock("@/tracing", () => ({
 
 vi.mock("@/groups", () => ({ GroupManager: class {} }));
 vi.mock("@/track", () => ({ TrackManager: class {} }));
-vi.mock("@/span-wrapper", () => ({ wrapWithSpan: vi.fn() }));
+vi.mock("@/span-wrapper", () => ({ wrapWithSpan: vi.fn(), traceTool: vi.fn() }));

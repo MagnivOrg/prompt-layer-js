@@ -19,7 +19,7 @@ import {
   trajectoryScorer,
 } from "@/evaluations";
 import { getTerminal } from "@/evaluations/terminal";
-import { wrapWithSpan } from "@/span-wrapper";
+import { traceTool, wrapWithSpan } from "@/span-wrapper";
 import { TemplateManager } from "@/templates";
 import { PromptTemplateCache } from "@/utils/template-cache";
 import { formatRunOutput } from "@/run-tracing";
@@ -137,6 +137,7 @@ export class PromptLayer {
   throwOnError: boolean;
   tracerProvider: NodeTracerProvider | null;
   wrapWithSpan: typeof wrapWithSpan;
+  traceTool: typeof traceTool;
 
   constructor({
     apiKey = readEnv("PROMPTLAYER_API_KEY"),
@@ -172,6 +173,7 @@ export class PromptLayer {
     this.group = new GroupManager(apiKey, this.baseURL, this.throwOnError);
     this.track = new TrackManager(apiKey, this.baseURL, this.throwOnError);
     this.wrapWithSpan = wrapWithSpan;
+    this.traceTool = traceTool;
 
     if (enableTracing) {
       this.tracerProvider = setupTracing(enableTracing, apiKey, this.baseURL);

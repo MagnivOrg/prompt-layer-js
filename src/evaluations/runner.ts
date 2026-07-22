@@ -131,6 +131,8 @@ const executeCases = async <TInput, TOutput>(args: {
   runner: (input: TInput) => TOutput | Promise<TOutput>;
   tracerProvider: NodeTracerProvider;
   maxConcurrency: number;
+  tableId?: string | number | null;
+  sheetId?: string | number | null;
 }): Promise<CaseExecution<TInput, TOutput>[]> => {
   return runWithConcurrency(
     args.cases,
@@ -140,7 +142,8 @@ const executeCases = async <TInput, TOutput>(args: {
         args.name,
         args.runner,
         caseItem.input,
-        args.tracerProvider.getTracer("promptlayer.evals")
+        args.tracerProvider.getTracer("promptlayer.evals"),
+        { tableId: args.tableId, sheetId: args.sheetId }
       );
       return {
         input: caseItem.input,
@@ -509,6 +512,8 @@ export const runEval = async <TInput, TOutput>(
     runner: args.runner,
     tracerProvider: args.tracerProvider,
     maxConcurrency,
+    tableId: table.id,
+    sheetId: sheet.id,
   });
 
   let rowIndices: Array<number | null>;

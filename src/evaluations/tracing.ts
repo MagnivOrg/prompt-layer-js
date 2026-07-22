@@ -45,11 +45,17 @@ export const assertNotStreamResult = <T>(value: T): T => {
   return value;
 };
 
+export type EvalSpanMetadata = {
+  tableId?: string | number | null;
+  sheetId?: string | number | null;
+};
+
 export const runCaseInSpan = async <TInput, TOutput>(
   name: string,
   runner: (input: TInput) => TOutput | Promise<TOutput>,
   inputValue: TInput,
-  tracer?: Tracer
+  tracer?: Tracer,
+  metadata: EvalSpanMetadata = {}
 ): Promise<[TOutput, string, string]> => {
   const evalTracer = tracer ?? opentelemetry.trace.getTracer("promptlayer.evals");
   return new Promise((resolve, reject) => {
@@ -57,11 +63,18 @@ export const runCaseInSpan = async <TInput, TOutput>(
       let traceId = "";
       let spanId = "";
       try {
+        span.setAttribute("node_type", "EVAL");
         span.setAttribute("eval.name", name);
         span.setAttribute(
           "eval.input",
           String(serializeCellValue(inputValue))
         );
+        if (metadata.tableId != null) {
+          span.setAttribute("table_id", String(metadata.tableId));
+        }
+        if (metadata.sheetId != null) {
+          span.setAttribute("sheet_id", String(metadata.sheetId));
+        }
         const spanContext = span.spanContext();
         if (spanContext && opentelemetry.isSpanContextValid(spanContext)) {
           traceId = formatTraceId(spanContext);
