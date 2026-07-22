@@ -10,6 +10,7 @@ import {
 } from "@/integrations/openai-agents/mapping";
 import { buildOtlpJsonPayload } from "@/integrations/openai-agents/otlp-json";
 import { mapSpanId, mapTraceId, syntheticRootSpanId } from "@/integrations/openai-agents/ids";
+import { currentTraceparent } from "@/tracing-context";
 import {
   isoToUnixNano,
   maxUnixNano,
@@ -336,16 +337,12 @@ export class PromptLayerOpenAIAgentsProcessor implements TracingProcessor {
     metadata: AgentsTrace["metadata"] | AgentsSpan<any>["traceMetadata"]
   ): UpstreamTraceContext | null {
     const metadataRecord = this.asRecord(metadata);
-    if (!metadataRecord) {
-      return null;
-    }
-
-    const traceparent = metadataRecord.traceparent;
-    if (typeof traceparent !== "string" || !traceparent.trim()) {
-      return null;
-    }
-
-    const match = traceparent.trim().match(TRACEPARENT_RE);
+    const explicitTraceparent = metadataRecord?.traceparent;
+    const traceparent =
+      typeof explicitTraceparent === "string" && explicitTraceparent.trim()
+        ? explicitTraceparent.trim()
+        : currentTraceparent();
+    const match = traceparent?.match(TRACEPARENT_RE);
     if (!match) {
       return null;
     }
@@ -363,7 +360,7 @@ export class PromptLayerOpenAIAgentsProcessor implements TracingProcessor {
     }
 
     const traceState =
-      typeof metadataRecord.tracestate === "string" && metadataRecord.tracestate.trim()
+      typeof metadataRecord?.tracestate === "string" && metadataRecord.tracestate.trim()
         ? metadataRecord.tracestate.trim()
         : undefined;
 

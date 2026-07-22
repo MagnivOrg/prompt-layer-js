@@ -59,6 +59,9 @@ export class TemplateManager {
     this._cache = cache;
   }
 
+  // Skip Python set_prompt_span_attributes parity: OTEL JS has no context.attach
+  // for durable baggage after templates.get() returns, and BaggageSpanProcessor
+  // is not wired in setupTracing — do not invent unsupported APIs here.
   get = async (
     promptName: string,
     params?: Partial<GetPromptTemplateParams>
