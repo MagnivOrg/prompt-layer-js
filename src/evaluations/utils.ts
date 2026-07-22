@@ -29,6 +29,16 @@ export const COLUMN_TITLE_ALIASES: Record<string, string> = {
   trace: "Trace",
 };
 
+export const RESERVED_EVAL_COLUMN_TITLES = new Set<string>([
+  ...BASE_TEXT_COLUMNS,
+  ...TRACE_RESERVED_COLUMN_TITLES,
+  EXPECTED_TRACE_COLUMN,
+  ...Object.keys(COLUMN_TITLE_ALIASES),
+]);
+
+export const isReservedEvalColumnTitle = (title: string): boolean =>
+  RESERVED_EVAL_COLUMN_TITLES.has(title);
+
 const LEGACY_COLUMN_TITLES: Record<string, string> = Object.fromEntries(
   Object.entries(COLUMN_TITLE_ALIASES).map(([alias, canonical]) => [
     canonical,

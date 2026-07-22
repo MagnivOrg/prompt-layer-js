@@ -9,7 +9,7 @@ import { discoverEvalFiles } from "./eval-discovery";
 import { executeEvalFile, loadEvalEnvironment } from "./eval-loader";
 
 const EMPTY_DISCOVERY_MESSAGE =
-  "No files containing evaluate(...), aevaluate(...), or *_eval(...) calls were found.";
+  "No *.eval.{js,ts,...} files containing evaluate(...), aevaluate(...), or *_eval(...) calls were found.";
 
 export const formatFailureDetail = (error: unknown): string => {
   if (error instanceof EvaluationFailedError) return error.message;

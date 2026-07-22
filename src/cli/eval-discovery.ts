@@ -9,6 +9,7 @@ import { unwrapDefault } from "@/utils/unwrap-default";
 const traverse = unwrapDefault(traverseModule);
 
 const EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"]);
+const EVAL_FILENAME_RE = /\.eval\.(js|mjs|cjs|ts|mts|cts)$/;
 const IGNORE = [
   "**/.*",
   "**/.*/*",
@@ -80,16 +81,21 @@ const assertPathExists = async (raw: string, absolute: string): Promise<void> =>
 
 const isHiddenFile = (path: string): boolean => basename(path).startsWith(".");
 
+const isEvalFilename = (path: string): boolean => {
+  const name = basename(path);
+  return !name.startsWith(".") && EVAL_FILENAME_RE.test(name);
+};
+
 export const discoverEvalFiles = async (paths: string[]): Promise<string[]> => {
   const candidates: string[] = [];
   for (const input of paths) {
     const absolute = expandHome(input);
     await assertPathExists(input, absolute);
     if (EXTENSIONS.has(extname(absolute))) {
-      candidates.push(absolute);
+      if (isEvalFilename(absolute)) candidates.push(absolute);
       continue;
     }
-    const files = await fg("**/*.{js,mjs,cjs,ts,mts,cts}", {
+    const files = await fg("**/*.eval.{js,mjs,cjs,ts,mts,cts}", {
       cwd: absolute,
       absolute: true,
       onlyFiles: true,

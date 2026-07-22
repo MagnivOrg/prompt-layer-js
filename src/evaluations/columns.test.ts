@@ -2,6 +2,7 @@ import {
   ColumnType,
   codeExecutionColumn,
   column,
+  containsScorer,
   llmAssertionScorer,
   scorerFromFunction,
 } from "@/index";
@@ -72,6 +73,19 @@ describe("evaluations column helpers", () => {
     expect(() => codeExecutionColumn("x", { code: " " })).toThrow(
       /non-empty code/
     );
+  });
+
+  it("rejects reserved titles and TEXT column types", () => {
+    expect(() =>
+      column("Input", "JSON_PATH", { source: "Output", json_path: "$" })
+    ).toThrow(/reserved/);
+    expect(() =>
+      column("output", "JSON_PATH", { source: "Output", json_path: "$" })
+    ).toThrow(/reserved/);
+    expect(() => column("summary", "TEXT")).toThrow(/cannot be TEXT/);
+    expect(() =>
+      containsScorer({ title: "Trace", source: "Output", value: "x" })
+    ).toThrow(/reserved/);
   });
 
   it("resolves scorer dependencies from titles", () => {

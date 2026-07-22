@@ -9,6 +9,7 @@ import traverseModule from "@babel/traverse";
 import * as t from "@babel/types";
 import { unwrapDefault } from "@/utils/unwrap-default";
 import { validationError } from "./errors";
+import { isReservedEvalColumnTitle } from "./utils";
 
 const generate = unwrapDefault(generateModule);
 const traverse = unwrapDefault(traverseModule);
@@ -27,6 +28,16 @@ export const column = (
 ): EvalScorerColumn => {
   if (typeof title !== "string" || !title.trim()) {
     throw validationError("Column title must be a non-empty string.");
+  }
+  if (isReservedEvalColumnTitle(title)) {
+    throw validationError(
+      `Eval column title '${title}' is reserved for built-in eval columns.`
+    );
+  }
+  if (String(type).toUpperCase() === "TEXT") {
+    throw validationError(
+      "Eval columns cannot be TEXT; use dataset fields or built-in input/expected/output columns."
+    );
   }
   const payload: EvalScorerColumn = {
     title,

@@ -11,17 +11,18 @@ afterEach(async () => {
 });
 
 describe("eval discovery", () => {
-  it("finds JS and TypeScript eval calls in deterministic order", async () => {
+  it("finds only *.eval.{js,ts,...} files with eval calls in deterministic order", async () => {
     const root = await mkdtemp(join(tmpdir(), "promptlayer-evals-"));
     roots.push(root);
     await writeFile(join(root, "b.eval.ts"), "await evaluate('b', options)");
-    await writeFile(join(root, "a.js"), "runSupportEval()");
-    await writeFile(join(root, "ignored.ts"), "export const value = 1");
+    await writeFile(join(root, "a.eval.js"), "runSupportEval()");
+    await writeFile(join(root, "ignored.ts"), "evaluate('x', {})");
+    await writeFile(join(root, "also_eval.js"), "evaluate('x', {})");
 
     const files = await discoverEvalFiles([root]);
 
     expect(files.map((file) => file.slice(root.length + 1))).toEqual([
-      "a.js",
+      "a.eval.js",
       "b.eval.ts",
     ]);
   });
@@ -32,41 +33,41 @@ describe("eval discovery", () => {
     await mkdir(join(root, "node_modules"), { recursive: true });
     await mkdir(join(root, ".venv"), { recursive: true });
     await mkdir(join(root, ".hidden"), { recursive: true });
-    await writeFile(join(root, "node_modules", "dep.js"), "evaluate('x', {})");
-    await writeFile(join(root, ".venv", "lib.js"), "evaluate('x', {})");
-    await writeFile(join(root, ".hidden", "private.js"), "evaluate('x', {})");
-    await writeFile(join(root, "visible.js"), "evaluate('x', {})");
+    await writeFile(join(root, "node_modules", "dep.eval.js"), "evaluate('x', {})");
+    await writeFile(join(root, ".venv", "lib.eval.js"), "evaluate('x', {})");
+    await writeFile(join(root, ".hidden", "private.eval.js"), "evaluate('x', {})");
+    await writeFile(join(root, "visible.eval.js"), "evaluate('x', {})");
 
     const files = await discoverEvalFiles([root]);
 
-    expect(files).toEqual([join(root, "visible.js")]);
+    expect(files).toEqual([join(root, "visible.eval.js")]);
   });
 
   it("skips hidden/dot files in directories", async () => {
     const root = await mkdtemp(join(tmpdir(), "promptlayer-evals-"));
     roots.push(root);
     await writeFile(join(root, ".secret.eval.js"), "evaluate('x', {})");
-    await writeFile(join(root, "visible.js"), "evaluate('x', {})");
+    await writeFile(join(root, "visible.eval.js"), "evaluate('x', {})");
 
     const files = await discoverEvalFiles([root]);
 
-    expect(files).toEqual([join(root, "visible.js")]);
+    expect(files).toEqual([join(root, "visible.eval.js")]);
   });
 
   it("matches aevaluate, async_evaluate, and *_eval aliases", async () => {
     const root = await mkdtemp(join(tmpdir(), "promptlayer-evals-"));
     roots.push(root);
-    await writeFile(join(root, "a.js"), "aevaluate('a', {})");
-    await writeFile(join(root, "b.js"), "async_evaluate('b', {})");
-    await writeFile(join(root, "c.js"), "runSupport_eval()");
-    await writeFile(join(root, "d.js"), "export const value = 1");
+    await writeFile(join(root, "a.eval.js"), "aevaluate('a', {})");
+    await writeFile(join(root, "b.eval.js"), "async_evaluate('b', {})");
+    await writeFile(join(root, "c.eval.js"), "runSupport_eval()");
+    await writeFile(join(root, "d.eval.js"), "export const value = 1");
 
     const files = await discoverEvalFiles([root]);
 
     expect(files.map((file) => file.slice(root.length + 1))).toEqual([
-      "a.js",
-      "b.js",
-      "c.js",
+      "a.eval.js",
+      "b.eval.js",
+      "c.eval.js",
     ]);
   });
 
@@ -76,10 +77,21 @@ describe("eval discovery", () => {
     ).rejects.toThrow(/Path not found:/);
   });
 
-  it("requires explicit file paths to contain an eval call", async () => {
+  it("ignores explicit file paths that are not *.eval.*", async () => {
     const root = await mkdtemp(join(tmpdir(), "promptlayer-evals-"));
     roots.push(root);
     const plain = join(root, "plain.ts");
+    await writeFile(plain, "evaluate('x', {})");
+
+    const files = await discoverEvalFiles([plain]);
+
+    expect(files).toEqual([]);
+  });
+
+  it("requires explicit *.eval.* file paths to contain an eval call", async () => {
+    const root = await mkdtemp(join(tmpdir(), "promptlayer-evals-"));
+    roots.push(root);
+    const plain = join(root, "plain.eval.ts");
     await writeFile(plain, "export const value = 1");
 
     const files = await discoverEvalFiles([plain]);

@@ -14,21 +14,11 @@ import {
   extractOverallScore,
 } from "./scores";
 import {
-  BASE_TEXT_COLUMNS,
-  COLUMN_TITLE_ALIASES,
-  EXPECTED_TRACE_COLUMN,
-  TRACE_RESERVED_COLUMN_TITLES,
+  RESERVED_EVAL_COLUMN_TITLES,
   TRACE_TEXT_COLUMNS,
   findColumnByTitle,
 } from "./utils";
 import type { EvalResult } from "@/types";
-
-const RESERVED_EVAL_COLUMN_TITLES = new Set<string>([
-  ...BASE_TEXT_COLUMNS,
-  ...TRACE_RESERVED_COLUMN_TITLES,
-  EXPECTED_TRACE_COLUMN,
-  ...Object.keys(COLUMN_TITLE_ALIASES),
-]);
 
 const NAMED_SOURCE_KEYS = [
   "source",

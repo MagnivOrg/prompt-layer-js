@@ -366,13 +366,21 @@ describe("Eval runner", () => {
       apiKey: "test-api-key",
       baseURL: "https://api.promptlayer.com",
     });
+    expect(() =>
+      column("output", "JSON_PATH", { source: "Input", json_path: "$" })
+    ).toThrow(/reserved/);
+
     await expect(
       client.evals.run({
         name: "bad",
         dataset: [{ input: "a" }],
         runner: () => "x",
         columns: [
-          column("output", "JSON_PATH", { source: "Input", json_path: "$" }),
+          {
+            title: "Output",
+            type: "JSON_PATH",
+            config: { source: "Input", json_path: "$" },
+          },
         ],
         scorers: [containsScorer({ title: "c", source: "Output", value: "x" })],
       })
