@@ -19,6 +19,7 @@ import type { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import type TypeAnthropic from "@anthropic-ai/sdk";
 import type { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import { Centrifuge } from "centrifuge";
+import { createRequire } from "node:module";
 import type TypeOpenAI from "openai";
 import pRetry from "p-retry";
 import {
@@ -30,6 +31,15 @@ import {
 // SDK version - injected at build time from package.json
 declare const __SDK_VERSION__: string;
 export const SDK_VERSION = __SDK_VERSION__;
+
+const requireOpenAI = (() => {
+  if (typeof __filename !== "undefined") {
+    return createRequire(__filename);
+  }
+  // @ts-expect-error The ESM build preserves import.meta; the guarded CJS
+  // build never evaluates this branch.
+  return createRequire(import.meta.url);
+})();
 
 // Get Node.js version (major.minor format)
 const getNodeVersion = (): string => {
@@ -779,7 +789,7 @@ const openaiRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const OpenAI = require("openai").default;
+  const OpenAI = requireOpenAI("openai").default;
   const client = new OpenAI({
     baseURL: kwargs.baseURL,
     apiKey: kwargs.apiKey,
@@ -804,7 +814,7 @@ const azureOpenAIRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const { AzureOpenAI } = require("openai");
+  const { AzureOpenAI } = requireOpenAI("openai");
   const client = new AzureOpenAI({
     endpoint: process.env.AZURE_OPENAI_ENDPOINT || kwargs.baseURL,
     apiVersion: process.env.OPENAI_API_VERSION || kwargs.apiVersion,
