@@ -566,6 +566,7 @@ describe("Eval runner", () => {
         columns: [
           { id: "c-input", title: "Input", type: "TEXT" },
           { id: "c-expected", title: "Expected", type: "TEXT" },
+          { id: "c-expected-trace", title: "expectedTrace", type: "TEXT" },
           { id: "c-output", title: "Output", type: "TEXT" },
           { id: "c-context", title: "Case Context", type: "TEXT" },
           { id: "c-trace", title: "Trace", type: "TRACE" },
@@ -578,6 +579,11 @@ describe("Eval runner", () => {
                 data: [
                   { id: "c-input", title: "Input", type: "TEXT" },
                   { id: "c-expected", title: "Expected", type: "TEXT" },
+                  {
+                    id: "c-expected-trace",
+                    title: "expectedTrace",
+                    type: "TEXT",
+                  },
                   { id: "c-output", title: "Output", type: "TEXT" },
                   { id: "c-context", title: "Case Context", type: "TEXT" },
                   ...(createdTrace
@@ -611,6 +617,10 @@ describe("Eval runner", () => {
                 row: completedRow(0, {
                   "c-input": { id: "cell-in", value: "hi" },
                   "c-expected": { id: "cell-ex", value: null },
+                  "c-expected-trace": {
+                    id: "cell-expected-trace",
+                    value: null,
+                  },
                   "c-output": { id: "cell-out", value: "runner-output" },
                   "c-context": { id: "cell-context", value: null },
                   "c-trace": {
@@ -656,7 +666,13 @@ describe("Eval runner", () => {
 
     const result = await client.evals.run({
       name: "trace-eval",
-      dataset: [{ input: "hi", "Case Context": "trace-custom" }],
+      dataset: [
+        {
+          input: "hi",
+          expectedTrace: { requiredTools: ["search"] },
+          "Case Context": "trace-custom",
+        },
+      ],
       runner: () => "runner-output",
       scorers: [trajectoryScorer({ acceptedScenarios: [["search"]] })],
     });
@@ -677,6 +693,14 @@ describe("Eval runner", () => {
     expect(JSON.parse(String(customPatch?.[1]?.body))).toMatchObject({
       value: "trace-custom",
       display_value: "trace-custom",
+    });
+    const expectedTracePatch = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        getUrlString(input).includes("/cells/cell-expected-trace") &&
+        (init?.method || "GET").toUpperCase() === "PATCH"
+    );
+    expect(JSON.parse(String(expectedTracePatch?.[1]?.body))).toMatchObject({
+      value: JSON.stringify({ requiredTools: ["search"] }),
     });
   });
 
