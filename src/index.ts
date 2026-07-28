@@ -37,6 +37,7 @@ import {
   googleRequest,
   mistralRequest,
   openaiRequest,
+  openrouterRequest,
   readEnv,
   runWorkflowRequest,
   trackRequest,
@@ -49,6 +50,7 @@ import * as opentelemetry from "@opentelemetry/api";
 
 const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
   openai: openaiRequest,
+  openrouter: openrouterRequest,
   anthropic: anthropicRequest,
   "openai.azure": azureOpenAIRequest,
   google: googleRequest,
@@ -266,6 +268,15 @@ export class PromptLayer {
         if (provider_type === "openai" || provider_type === "openai.azure") {
           const api_type = promptBlueprintModel.api_type;
           provider_type_config = `${provider_type}:${api_type}`;
+        } else if (provider_type === "openrouter") {
+          const api_type = promptBlueprintModel.api_type;
+          if (
+            api_type === "images" ||
+            api_type === "video" ||
+            api_type === "speech"
+          ) {
+            provider_type_config = `openrouter:${api_type}`;
+          }
         }
 
         if (promptBlueprintModel.name.startsWith("gemini")) {

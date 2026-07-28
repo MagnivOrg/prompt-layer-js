@@ -12,6 +12,7 @@ vi.mock("@/utils/utils", () => ({
     stream_function: null,
   }),
   openaiRequest: vi.fn().mockResolvedValue({ choices: [{ message: { content: "hi" } }] }),
+  openrouterRequest: vi.fn().mockResolvedValue({ choices: [{ message: { content: "hi" } }] }),
   anthropicRequest: vi.fn(),
   azureOpenAIRequest: vi.fn(),
   googleRequest: vi.fn(),
