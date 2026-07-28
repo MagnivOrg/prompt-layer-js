@@ -1,7 +1,11 @@
-import * as opentelemetry from '@opentelemetry/api';
-import { getTracer } from '@/tracing';
+import * as opentelemetry from "@opentelemetry/api";
+import { getTracer } from "@/tracing";
 
-export const wrapWithSpan = (functionName: string, func: Function, attributes?: Record<string, any>) => {
+export const wrapWithSpan = (
+  functionName: string,
+  func: Function,
+  attributes?: Record<string, any>,
+) => {
   return function (...args: any[]) {
     const tracer = getTracer();
 
@@ -13,20 +17,26 @@ export const wrapWithSpan = (functionName: string, func: Function, attributes?: 
           });
         }
 
-        span.setAttribute('function_input', JSON.stringify(args));
+        span.setAttribute("function_input", JSON.stringify(args));
         const result = func(...args);
 
         if (result instanceof Promise) {
-          return result.then((resolvedResult) => {
-            span.setAttribute('function_output', JSON.stringify(resolvedResult));
-            span.setStatus({ code: opentelemetry.SpanStatusCode.OK });
-            return resolvedResult;
-          }).catch((error) => {
-            handleError(span, error, args);
-            throw error;
-          }).finally(() => span.end());
+          return result
+            .then((resolvedResult) => {
+              span.setAttribute(
+                "function_output",
+                JSON.stringify(resolvedResult),
+              );
+              span.setStatus({ code: opentelemetry.SpanStatusCode.OK });
+              return resolvedResult;
+            })
+            .catch((error) => {
+              handleError(span, error, args);
+              throw error;
+            })
+            .finally(() => span.end());
         } else {
-          span.setAttribute('function_output', JSON.stringify(result));
+          span.setAttribute("function_output", JSON.stringify(result));
           span.setStatus({ code: opentelemetry.SpanStatusCode.OK });
           span.end();
           return result;
@@ -41,11 +51,24 @@ export const wrapWithSpan = (functionName: string, func: Function, attributes?: 
   };
 };
 
+export const traceTool = (
+  toolName: string,
+  func: Function,
+  attributes?: Record<string, any>,
+) => {
+  return wrapWithSpan(`Tool: ${toolName}`, func, {
+    node_type: "CODE_EXECUTION",
+    "tool.name": toolName,
+    function_name: toolName,
+    ...attributes,
+  });
+};
+
 const handleError = (span: opentelemetry.Span, error: any, args: any[]) => {
-  span.setAttribute('function_input', JSON.stringify(args));
+  span.setAttribute("function_input", JSON.stringify(args));
   span.setStatus({
     code: opentelemetry.SpanStatusCode.ERROR,
-    message: error instanceof Error ? error.message : 'Unknown error',
+    message: error instanceof Error ? error.message : "Unknown error",
   });
   span.end();
-}
+};

@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { currentTraceparent } from "@/tracing-context";
 import { requirePromptLayerApiKey } from "@/utils/utils";
 
 export interface GetClaudeConfigOptions {
@@ -134,7 +135,7 @@ export function getClaudeConfig(
 
   const pluginPath = resolvePluginRoot();
   const apiKey = requirePromptLayerApiKey(options.apiKey);
-  const traceparent = options.traceparent?.trim();
+  const traceparent = options.traceparent?.trim() || currentTraceparent();
 
   const env: PromptLayerClaudeAgentsEnv = {
     TRACE_TO_PROMPTLAYER: "true",

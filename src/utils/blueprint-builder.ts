@@ -25,7 +25,8 @@ const _buildToolCall = (
   id: string,
   name: string,
   args: unknown,
-  tool_id?: string
+  tool_id?: string,
+  provider_metadata?: Record<string, unknown>
 ): ToolCall => ({
   id,
   type: "function",
@@ -34,6 +35,7 @@ const _buildToolCall = (
     arguments: typeof args === "string" ? args : JSON.stringify(args),
   },
   ...(tool_id ? { tool_id } : {}),
+  ...(provider_metadata ? { provider_metadata } : {}),
 });
 
 const _buildContentBlock = ({
@@ -532,7 +534,11 @@ export const buildPromptBlueprintFromGoogleEvent = (
             _buildToolCall(
               part.functionCall.id || "",
               part.functionCall.name || "",
-              part.functionCall.args || {}
+              part.functionCall.args || {},
+              undefined,
+              part.thoughtSignature
+                ? { thought_signature: part.thoughtSignature }
+                : undefined
             )
           );
         } else if (part.executableCode) {

@@ -18,8 +18,8 @@ import {
 import type { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 import type TypeAnthropic from "@anthropic-ai/sdk";
 import type { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
-import Ably from "ably";
 import { Centrifuge } from "centrifuge";
+import { createRequire } from "node:module";
 import type TypeOpenAI from "openai";
 import pRetry from "p-retry";
 import {
@@ -31,6 +31,15 @@ import {
 // SDK version - injected at build time from package.json
 declare const __SDK_VERSION__: string;
 export const SDK_VERSION = __SDK_VERSION__;
+
+const requireOpenAI = (() => {
+  if (typeof __filename !== "undefined") {
+    return createRequire(__filename);
+  }
+  // @ts-expect-error The ESM build preserves import.meta; the guarded CJS
+  // build never evaluates this branch.
+  return createRequire(import.meta.url);
+})();
 
 // Get Node.js version (major.minor format)
 const getNodeVersion = (): string => {
@@ -132,63 +141,6 @@ interface WaitForWorkflowCompletionParams {
   headers: Record<string, string>;
   timeout: number;
   baseURL: string;
-}
-
-async function waitForWorkflowCompletion({
-  token,
-  channelName,
-  executionId,
-  returnAllOutputs,
-  headers,
-  timeout,
-  baseURL,
-}: WaitForWorkflowCompletionParams): Promise<any> {
-  const client = new Ably.Realtime(token);
-  const channel = client.channels.get(channelName);
-
-  const resultsPromise = {} as {
-    resolve: (value: any) => void;
-    reject: (reason?: any) => void;
-  };
-
-  const promise = new Promise<any>((resolve, reject) => {
-    resultsPromise.resolve = resolve;
-    resultsPromise.reject = reject;
-  });
-
-  const listener = makeMessageListener(
-    baseURL,
-    resultsPromise,
-    executionId,
-    returnAllOutputs,
-    headers
-  );
-  await channel.subscribe(SET_WORKFLOW_COMPLETE_MESSAGE, listener);
-
-  try {
-    return await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(
-          new Error("Workflow execution did not complete properly (timeout)")
-        );
-      }, timeout);
-
-      promise
-        .then((result) => {
-          clearTimeout(timer);
-          resolve(result);
-        })
-        .catch((err) => {
-          clearTimeout(timer);
-          reject(err);
-        });
-    });
-  } finally {
-    console.log("Closing client");
-    channel.unsubscribe(SET_WORKFLOW_COMPLETE_MESSAGE, listener);
-    client.close();
-    console.log("Closed client");
-  }
 }
 
 /**
@@ -603,7 +555,8 @@ const getAllPromptTemplates = async (
   return (data.items ?? []) as Array<ListPromptTemplatesResponse>;
 };
 
-const waitForWorkflowCompletionCentrifugo = async (
+// Ably previously served this workflow WebSocket layer; Centrifugo is now the sole client.
+const waitForWorkflowCompletion = async (
   params: WaitForWorkflowCompletionParams
 ): Promise<any> => {
   const url = new URL(`${params.baseURL}/connection/websocket`);
@@ -732,9 +685,7 @@ export const runWorkflowRequest = async ({
       timeout: timeout,
       baseURL: baseURL,
     };
-    if (ws_token_response.messaging_backend === "centrifugo")
-      return waitForWorkflowCompletionCentrifugo(params);
-    return await waitForWorkflowCompletion(params);
+    return waitForWorkflowCompletion(params);
   } catch (error) {
     console.error(
       `Failed to run workflow: ${
@@ -838,7 +789,7 @@ const openaiRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const OpenAI = require("openai").default;
+  const OpenAI = requireOpenAI("openai").default;
   const client = new OpenAI({
     baseURL: kwargs.baseURL,
     apiKey: kwargs.apiKey,
@@ -1062,7 +1013,7 @@ const azureOpenAIRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const { AzureOpenAI } = require("openai");
+  const { AzureOpenAI } = requireOpenAI("openai");
   const client = new AzureOpenAI({
     endpoint: process.env.AZURE_OPENAI_ENDPOINT || kwargs.baseURL,
     apiVersion: process.env.OPENAI_API_VERSION || kwargs.apiVersion,

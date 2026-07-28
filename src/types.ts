@@ -582,6 +582,7 @@ export type ToolCall = {
   tool_id?: string;
   type: "function";
   function: FunctionCall;
+  provider_metadata?: Record<string, unknown>;
 };
 
 export type AssistantMessage = {
@@ -797,4 +798,391 @@ export interface WorkflowResponse {
   error?: string;
   status?: string;
   value?: string;
+}
+
+export type ResourceId = string | number;
+
+export enum ColumnType {
+  TEXT = "TEXT",
+  PROMPT_TEMPLATE = "PROMPT_TEMPLATE",
+  LLM_ASSERTION = "LLM_ASSERTION",
+  CODE_EXECUTION = "CODE_EXECUTION",
+  COMPARE = "COMPARE",
+  CONTAINS = "CONTAINS",
+  COALESCE = "COALESCE",
+  FOR_LOOP = "FOR_LOOP",
+  WHILE_LOOP = "WHILE_LOOP",
+  JSON_PATH = "JSON_PATH",
+  COUNT = "COUNT",
+  REGEX = "REGEX",
+  COSINE_SIMILARITY = "COSINE_SIMILARITY",
+  ASSERT_VALID = "ASSERT_VALID",
+  AI_DATA_EXTRACTION = "AI_DATA_EXTRACTION",
+  COMPOSITION = "COMPOSITION",
+  TRAJECTORY = "TRAJECTORY",
+  TRACE = "TRACE",
+}
+
+/** String values of {@link ColumnType}. Literal strings remain accepted for compatibility. */
+export type ColumnTypeValue = `${ColumnType}`;
+
+export type CellStatus =
+  | "PENDING"
+  | "QUEUED"
+  | "DISPATCHED"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "STALE"
+  | "SKIPPED";
+
+export interface Table {
+  id: ResourceId;
+  title: string;
+  workspace_id?: number | null;
+  folder_id?: number | null;
+  sheet_count?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  deleted_at?: string | null;
+  [key: string]: unknown;
+}
+
+export interface Sheet {
+  id: ResourceId;
+  table_id?: ResourceId | null;
+  title?: string | null;
+  index?: number | null;
+  row_count?: number | null;
+  version_count?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ColumnDependency {
+  column_id: string;
+  reference_type?: string;
+  config_key?: string;
+  config_meta?: Record<string, unknown>;
+}
+
+export interface Column {
+  id: ResourceId;
+  sheet_id?: ResourceId | null;
+  title: string;
+  type: ColumnTypeValue | string;
+  position_rank?: number | null;
+  config?: Record<string, unknown> | null;
+  dependencies?: ColumnDependency[] | null;
+  is_output_column?: boolean | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  [key: string]: unknown;
+}
+
+export interface Cell {
+  id: ResourceId;
+  sheet_id?: ResourceId | null;
+  column_id?: ResourceId | null;
+  row_index?: number | null;
+  status?: CellStatus | string | null;
+  value?: unknown;
+  display_value?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SheetVersion {
+  id: ResourceId;
+  sheet_id?: ResourceId | null;
+  version_number?: number | null;
+  snapshot?: Record<string, unknown> | null;
+  created_by?: ResourceId | null;
+  created_at?: string | null;
+  [key: string]: unknown;
+}
+
+export interface TableScore {
+  score?: number | null;
+  score_configuration?: Record<string, unknown> | null;
+  status?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CreateTable {
+  title: string;
+  folder_id?: number;
+}
+
+export interface UpdateTable {
+  title?: string;
+  folder_id?: number;
+}
+
+export interface CreateSheetFileSource {
+  type: "file";
+  file_name: string;
+  file_content_base64: string;
+}
+
+export interface CreateSheetRequestLogsSource {
+  type: "request_logs";
+  request_log_ids?: number[];
+  prompt_id?: number;
+  prompt_version_id?: number;
+  prompt_label_id?: number;
+  start_time?: string;
+  end_time?: string;
+}
+
+export type CreateSheetSource =
+  | CreateSheetFileSource
+  | CreateSheetRequestLogsSource;
+
+export interface CreateSheet {
+  title?: string;
+  index?: number;
+  operation_id?: string;
+  source?: CreateSheetSource;
+}
+
+export interface UpdateSheet {
+  title?: string;
+}
+
+export interface CreateColumn {
+  title: string;
+  type: ColumnTypeValue | string;
+  config?: Record<string, unknown>;
+  dependencies?: ColumnDependency[];
+  is_output_column?: boolean;
+}
+
+export interface UpdateColumn {
+  title?: string;
+  type?: ColumnTypeValue | string;
+  config?: Record<string, unknown>;
+  dependencies?: ColumnDependency[];
+  is_output_column?: boolean;
+}
+
+export interface AddTableRows {
+  count?: number;
+  values?: Record<string, unknown>[];
+}
+
+export interface DeleteSheetRows {
+  row_indices: number[];
+}
+
+export interface UpdateCell {
+  display_value?: string;
+  value?: unknown;
+}
+
+export interface CreateSheetVersion {
+  name?: string;
+}
+
+export interface ConfigureSheetScore {
+  score_type?: string;
+  score_config?: Record<string, unknown>;
+  column_ids?: string[];
+  column_names?: string[];
+  code?: string;
+  code_language?: "PYTHON" | "JAVASCRIPT";
+  true_values?: string[];
+  false_values?: string[];
+  assertion_aggregation?: "all" | "any" | "mean";
+  [key: string]: unknown;
+}
+
+export interface AddTraceImport {
+  trace_id: string;
+  sheet_id: ResourceId;
+  smart_table_id?: ResourceId;
+  table_id?: ResourceId;
+  span_id?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ListTablesParams {
+  cursor?: string;
+  limit?: number;
+  name?: string;
+  folder_id?: number;
+  page?: number;
+  per_page?: number;
+}
+
+export interface BatchRecalculateCells {
+  cell_ids?: Array<string | number>;
+  column_ids?: Array<string | number>;
+  row_indices?: number[];
+}
+
+export interface CreateSheetOperation {
+  operation?: string;
+  column_ids?: Array<string | number>;
+  row_ids?: number[];
+  statuses?: string[];
+}
+
+export interface TableListResponse {
+  success?: boolean;
+  data?: Table[];
+  tables?: Table[];
+  items?: Table[];
+  [key: string]: unknown;
+}
+
+export interface TableResponse {
+  success?: boolean;
+  table?: Table;
+  [key: string]: unknown;
+}
+
+export interface SheetListResponse {
+  success?: boolean;
+  data?: Sheet[];
+  sheets?: Sheet[];
+  items?: Sheet[];
+  [key: string]: unknown;
+}
+
+export interface SheetResponse {
+  success?: boolean;
+  sheet?: Sheet;
+  [key: string]: unknown;
+}
+
+export interface ColumnListResponse {
+  success?: boolean;
+  data?: Column[];
+  columns?: Column[];
+  items?: Column[];
+  [key: string]: unknown;
+}
+
+export interface ColumnResponse {
+  success?: boolean;
+  column?: Column;
+  [key: string]: unknown;
+}
+
+export interface CellResponse {
+  success?: boolean;
+  cell?: Cell;
+  [key: string]: unknown;
+}
+
+export interface SheetVersionListResponse {
+  success?: boolean;
+  data?: SheetVersion[];
+  versions?: SheetVersion[];
+  items?: SheetVersion[];
+  [key: string]: unknown;
+}
+
+export interface SheetVersionResponse {
+  success?: boolean;
+  version?: SheetVersion;
+  [key: string]: unknown;
+}
+
+export interface TableScoreResponse {
+  success?: boolean;
+  score?: TableScore | number | null;
+  status?: string | null;
+  [key: string]: unknown;
+}
+
+export interface EvalCase<TInput = unknown> {
+  input: TInput;
+  expected?: unknown;
+  /** Wire / Table column title: Expected Trace */
+  expectedTrace?: unknown;
+}
+
+export interface EvalDatasetRef {
+  tableId: ResourceId;
+  sheetId?: ResourceId;
+}
+
+export type EvalDataset<TInput = unknown> = EvalCase<TInput>[] | EvalDatasetRef;
+
+export interface EvalScorerColumn {
+  title: string;
+  type: ColumnTypeValue | string;
+  config?: Record<string, unknown>;
+  weight?: number;
+  required?: boolean;
+  thresholds?: { pass?: number; warn?: number };
+  /** SDK-only metadata; never sent to the Table API. */
+  _sdkDiagnosis?: string;
+}
+
+export type EvalScorer =
+  | EvalScorerColumn
+  | ((...args: unknown[]) => unknown);
+
+/** Supporting/preprocessing columns share the same wire shape as scorer defs. */
+export type EvalProcessingColumn = EvalScorerColumn;
+
+export interface EvalDefinition<TInput = unknown, TOutput = unknown> {
+  name: string;
+  dataset: EvalDataset<TInput>;
+  runner: (input: TInput) => TOutput | Promise<TOutput>;
+  scorers: EvalScorer[];
+  /** Supporting Table columns created before scorecard scoring. */
+  columns?: EvalProcessingColumn[];
+  tableId?: ResourceId;
+  sheetId?: ResourceId;
+  folderId?: number;
+  experimentName?: string;
+  maxConcurrency?: number;
+  passingScore?: number;
+  includeFailureExamples?: boolean;
+  apiKey?: string;
+  baseURL?: string;
+}
+
+export interface EvaluateOptions<TInput = unknown, TOutput = unknown>
+  extends Omit<EvalDefinition<TInput, TOutput>, "name"> {
+  enableTracing?: boolean;
+}
+
+export interface EvalCaseResult<TInput = unknown, TOutput = unknown> {
+  input: TInput;
+  expected?: unknown;
+  output: TOutput;
+  scores: Record<string, unknown>;
+  /** Fetch the full trace via PromptLayer tracing APIs / dashboard. */
+  traceId: string | null;
+  spanId: string | null;
+  rowIndex: number | null;
+}
+
+export interface EvalScoreCard {
+  scorer: string;
+  passed: number;
+  total: number;
+  passRate: number;
+}
+
+export interface EvalResult<TInput = unknown, TOutput = unknown> {
+  name: string;
+  tableId: ResourceId;
+  sheetId: ResourceId;
+  failedRowIndices: number[];
+  scoreCards: EvalScoreCard[];
+  totalRows: number;
+  /**
+   * Per-case summaries (input/output/scores/ids). Full traces and sheet score
+   * payloads are not inlined — refetch with:
+   * `client.tables.sheets(tableId).forSheet(sheetId).score.get()`
+   * and `...rows.listAll()`, or open `url`.
+   */
+  results: EvalCaseResult<TInput, TOutput>[];
+  url?: string;
 }

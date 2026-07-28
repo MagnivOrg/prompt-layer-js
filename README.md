@@ -4,7 +4,7 @@
 
 **Version, test, and monitor every prompt and agent with robust evals, tracing, and regression sets.**
 
-<a href="https://nodejs.org/"><img alt="Node.js" src="https://img.shields.io/badge/-Node.js 18+-43853D?style=for-the-badge&logo=node.js&logoColor=white"></a>
+<a href="https://nodejs.org/"><img alt="Node.js" src="https://img.shields.io/badge/-Node.js 20+-43853D?style=for-the-badge&logo=node.js&logoColor=white"></a>
 <a href="https://docs.promptlayer.com"><img alt="Docs" src="https://custom-icon-badges.herokuapp.com/badge/docs-PL-green.svg?logo=cake&style=for-the-badge"></a>
 <a href="https://www.loom.com/share/196c42e43acd4a369d75e9a7374a0850"><img alt="Demo with Loom" src="https://img.shields.io/badge/Demo-loom-552586.svg?logo=loom&style=for-the-badge&labelColor=gray"></a>
 
@@ -107,6 +107,7 @@ The SDK relies on the following environment variables:
 | --- | --- | --- |
 | `PROMPTLAYER_API_KEY` | Yes, unless passed as `apiKey` | API key used to authenticate requests to PromptLayer. |
 | `PROMPTLAYER_BASE_URL` | No | Overrides the PromptLayer API base URL. Defaults to `https://api.promptlayer.com`. |
+| `PROMPTLAYER_OTLP_TRACES_ENDPOINT` | No | Overrides the OTLP trace endpoint (`/v1/traces`) used when SDK tracing is enabled. |
 | `PROMPTLAYER_TRACEPARENT` | No | Optional trace context passed through the Claude Agents integration. |
 
 ## Client Resources
@@ -124,7 +125,7 @@ The main resources surfaced by `PromptLayer` are:
 | `client.skills` | Skill collection pull, publish, and update operations. |
 | `client.OpenAI` and `client.Anthropic` | Provider proxies that wrap those SDKs and log requests to PromptLayer. |
 
-Note: When tracing is enabled, spans are exported to PromptLayer using OpenTelemetry.
+Note: When tracing is enabled, spans are exported to PromptLayer over OTLP/HTTP (`/v1/traces`).
 
 ## Integration Modules
 
