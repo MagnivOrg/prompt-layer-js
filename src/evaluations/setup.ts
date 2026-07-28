@@ -157,6 +157,38 @@ export const ensureTextColumns = async (
   );
 };
 
+export const ensureCustomTextColumns = async (
+  apiKey: string,
+  baseURL: string,
+  throwOnError: boolean,
+  tableId: ResourceId,
+  sheetId: ResourceId,
+  existing: Column[],
+  titles: readonly string[]
+): Promise<Column[]> => {
+  const byTitle = columnsByTitle(existing);
+  for (const title of titles) {
+    const column = byTitle[title];
+    if (
+      column &&
+      (column.type !== "TEXT" || Boolean(column.is_output_column))
+    ) {
+      throw apiError(
+        `Eval dataset field '${title}' conflicts with an existing non-TEXT or generated column.`
+      );
+    }
+  }
+  return ensureNamedTextColumns(
+    apiKey,
+    baseURL,
+    throwOnError,
+    tableId,
+    sheetId,
+    existing,
+    titles
+  );
+};
+
 export const ensureProcessingColumns = async (
   apiKey: string,
   baseURL: string,
@@ -196,7 +228,8 @@ export const ensureProcessingColumns = async (
 
 /**
  * Create the full eval column scaffold in declaration order:
- * Input/Expected/Output (+ Trace columns) → Expected Trace → supporting columns.
+ * Input/Expected → Expected Trace → dataset fields → Output/Trace
+ * → supporting columns.
  */
 export const ensureEvalScaffoldColumns = async (
   apiKey: string,
@@ -208,17 +241,18 @@ export const ensureEvalScaffoldColumns = async (
   args: {
     includeTraceColumns?: boolean;
     includeExpectedTrace?: boolean;
+    customFieldTitles?: string[];
     processingColumns?: EvalScorerColumn[];
   } = {}
 ): Promise<Column[]> => {
-  let columns = await ensureTextColumns(
+  let columns = await ensureNamedTextColumns(
     apiKey,
     baseURL,
     throwOnError,
     tableId,
     sheetId,
     existing,
-    Boolean(args.includeTraceColumns)
+    ["Input", "Expected"]
   );
   if (args.includeExpectedTrace) {
     columns = await ensureNamedTextColumns(
@@ -231,6 +265,29 @@ export const ensureEvalScaffoldColumns = async (
       [EXPECTED_TRACE_COLUMN]
     );
   }
+  if (args.customFieldTitles?.length) {
+    columns = await ensureCustomTextColumns(
+      apiKey,
+      baseURL,
+      throwOnError,
+      tableId,
+      sheetId,
+      columns,
+      args.customFieldTitles
+    );
+  }
+  columns = await ensureNamedTextColumns(
+    apiKey,
+    baseURL,
+    throwOnError,
+    tableId,
+    sheetId,
+    columns,
+    [
+      "Output",
+      ...(args.includeTraceColumns ? TRACE_TEXT_COLUMNS : []),
+    ]
+  );
   if (args.processingColumns?.length) {
     columns = await ensureProcessingColumns(
       apiKey,

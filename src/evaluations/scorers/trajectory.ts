@@ -34,11 +34,11 @@ export const diagnoseTrajectoryFailure = (
 type TrajectoryScorerOptions = ScorecardStepOptions & {
   mode?: TrajectoryMode;
   title?: string;
-  traceSource?: string;
+  source?: string;
 };
 
 type TrajectorySourceScorerOptions = TrajectoryScorerOptions & {
-  expectedSource: string;
+  valueSource: string;
 };
 
 type TrajectoryScenariosScorerOptions = TrajectoryScorerOptions & {
@@ -53,16 +53,15 @@ export function trajectoryScorer(
 ): EvalScorerColumn {
   const acceptedScenarios =
     "acceptedScenarios" in options ? options.acceptedScenarios : undefined;
-  const expectedSource =
-    "expectedSource" in options ? options.expectedSource : undefined;
+  const valueSource = "valueSource" in options ? options.valueSource : undefined;
 
   const providedCount = [
     acceptedScenarios !== undefined,
-    expectedSource !== undefined,
+    valueSource !== undefined,
   ].filter(Boolean).length;
   if (providedCount !== 1) {
     throw validationError(
-      "trajectoryScorer requires exactly one of acceptedScenarios or expectedSource."
+      "trajectoryScorer requires exactly one of acceptedScenarios or valueSource."
     );
   }
 
@@ -92,26 +91,23 @@ export function trajectoryScorer(
     );
   }
   const title = requireNonEmptyString(options.title ?? "Trajectory", "title");
-  const traceSource = requireNonEmptyString(
-    options.traceSource ?? "Trace",
-    "traceSource"
+  const resolvedSource = requireNonEmptyString(
+    options.source ?? "Trace",
+    "source"
   );
 
   const config: Record<string, unknown> =
     normalizedScenarios !== undefined
       ? {
-          trace_source: traceSource,
+          trace_source: resolvedSource,
           accepted_scenarios: normalizedScenarios.map((scenario) => [
             ...scenario,
           ]),
           mode,
         }
       : {
-          trace_source: traceSource,
-          expected_source: requireNonEmptyString(
-            expectedSource,
-            "expectedSource"
-          ),
+          trace_source: resolvedSource,
+          expected_source: requireNonEmptyString(valueSource, "valueSource"),
           mode,
         };
 
@@ -122,7 +118,7 @@ export function trajectoryScorer(
     required: options.required,
     thresholds: options.thresholds,
   });
-  if (expectedSource !== undefined) {
+  if (valueSource !== undefined) {
     payload._sdkDiagnosis = TRAJECTORY_DIAGNOSIS;
   }
   return payload;

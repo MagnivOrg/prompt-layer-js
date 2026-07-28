@@ -38,9 +38,16 @@ describe("predefined eval scorers", () => {
     expect(
       compareScorer({
         title: "Strict equality",
-        sources: ["answer", "label"],
+        source: "answer",
+        valueSource: "label",
       }).config?.sources
     ).toEqual(["answer", "label"]);
+    expect(
+      compareScorer({
+        source: "actual",
+        valueSource: "reference",
+      }).config?.sources
+    ).toEqual(["actual", "reference"]);
   });
 
   it("builds contains CONTAINS payloads", () => {
@@ -149,13 +156,24 @@ describe("predefined eval scorers", () => {
         trajectoryScorer({ acceptedScenarios: [["search"]] }),
       ])
     ).toBe(true);
+    expect(
+      trajectoryScorer({
+        source: "Agent trace",
+        acceptedScenarios: [["search"]],
+      }).config?.trace_source
+    ).toBe("Agent trace");
+    expect(
+      trajectoryScorer({
+        valueSource: "Expected trajectory",
+      }).config?.expected_source
+    ).toBe("Expected trajectory");
 
     expect(
       trajectoryScorer({
         acceptedScenarios: [["search"]],
         mode: "non_strict",
         title: "Tools",
-        traceSource: "Trace",
+        source: "Trace",
         weight: 2,
         failureThreshold: 0.5,
         passThreshold: 0.9,
@@ -216,7 +234,7 @@ describe("predefined eval scorers", () => {
 
   it("builds column-source TRAJECTORY payloads and diagnoses tool-list failures", () => {
     const scorer = trajectoryScorer({
-      expectedSource: "Expected",
+      valueSource: "Expected",
       title: "Trajectory assertions",
     });
     expect(scorer).toEqual({
@@ -322,9 +340,7 @@ describe("predefined eval scorers", () => {
 
   it("validates required arguments", () => {
     expect(() => compareScorer({ title: " " })).toThrow(/title/);
-    expect(() => compareScorer({ sources: ["only_one"] })).toThrow(
-      /exactly two sources/
-    );
+    expect(() => compareScorer({ valueSource: "" })).toThrow(/valueSource/);
     expect(() => containsScorer({ source: "Output" })).toThrow(
       /value or valueSource/
     );
@@ -343,9 +359,15 @@ describe("predefined eval scorers", () => {
     expect(() => trajectoryScorer({ acceptedScenarios: [[" "]] })).toThrow(
       /expected tool/
     );
-    expect(() => trajectoryScorer({ expectedSource: " " })).toThrow(
-      /expectedSource/
+    expect(() => trajectoryScorer({ valueSource: " " })).toThrow(
+      /valueSource/
     );
+    expect(() =>
+      trajectoryScorer({
+        acceptedScenarios: [["search"]],
+        source: "",
+      })
+    ).toThrow(/source/);
     expect(() =>
       trajectoryScorer({
         acceptedScenarios: [["search"]],

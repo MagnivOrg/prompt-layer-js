@@ -1102,6 +1102,8 @@ export interface EvalCase<TInput = unknown> {
   expected?: unknown;
   /** Wire / Table column title: Expected Trace */
   expectedTrace?: unknown;
+  /** Additional dataset fields become exact-title TEXT columns. */
+  [field: string]: unknown;
 }
 
 export interface EvalDatasetRef {

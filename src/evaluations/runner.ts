@@ -1,6 +1,5 @@
 import type { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import {
-  EvalCase,
   EvalCaseResult,
   EvalDefinition,
   EvalResult,
@@ -32,9 +31,12 @@ import {
   buildTableDashboardUrl,
   buildTraceImportBody,
   columnsByTitle,
+  customFieldTitles,
   extractRowIndices,
   findLastRow,
+  normalizeEvalCases,
 } from "./utils";
+import type { NormalizedEvalCase } from "./utils";
 import {
   assertEvalArgs,
   assertPassingScore,
@@ -61,6 +63,7 @@ type CaseExecution<TInput = unknown, TOutput = unknown> = {
   input: TInput;
   expected: unknown;
   expectedTrace: unknown;
+  customFields: Record<string, unknown>;
   output: TOutput;
   traceId: string;
   spanId: string;
@@ -127,7 +130,7 @@ const runWithConcurrency = async <T, R>(
 
 const executeCases = async <TInput, TOutput>(args: {
   name: string;
-  cases: EvalCase<TInput>[];
+  cases: NormalizedEvalCase<TInput>[];
   runner: (input: TInput) => TOutput | Promise<TOutput>;
   tracerProvider: NodeTracerProvider;
   maxConcurrency: number;
@@ -149,6 +152,7 @@ const executeCases = async <TInput, TOutput>(args: {
         input: caseItem.input,
         expected: caseItem.expected,
         expectedTrace: caseItem.expectedTrace,
+        customFields: caseItem.customFields,
         output: outputValue,
         traceId,
         spanId,
@@ -196,6 +200,7 @@ const persistTraceRows = async <TInput, TOutput>(args: {
   evalName: string;
   executed: CaseExecution<TInput, TOutput>[];
   byTitle: Record<string, Column>;
+  customFieldTitles: readonly string[];
   tracerProvider: NodeTracerProvider;
 }): Promise<
   [
@@ -241,6 +246,12 @@ const persistTraceRows = async <TInput, TOutput>(args: {
     );
     const typedOutput = resolvedOutput as TOutput;
     if (traceRow) {
+      const customValues = Object.fromEntries(
+        args.customFieldTitles.map((title) => [
+          title,
+          execution.customFields[title] ?? "",
+        ])
+      );
       await fillRowCells(
         args.apiKey,
         args.baseURL,
@@ -250,6 +261,7 @@ const persistTraceRows = async <TInput, TOutput>(args: {
         traceRow,
         args.byTitle,
         {
+          ...customValues,
           input: execution.input,
           expected: execution.expected,
           expected_trace: execution.expectedTrace,
@@ -275,6 +287,7 @@ const persistBatchRows = async <TInput, TOutput>(args: {
   sheetId: ResourceId;
   executed: CaseExecution<TInput, TOutput>[];
   byTitle: Record<string, Column>;
+  customFieldTitles: readonly string[];
 }): Promise<[Array<number | null>, Array<Record<string, unknown> | null>]> => {
   const values = args.executed.map((execution) =>
     buildRowValues(args.byTitle, {
@@ -282,6 +295,8 @@ const persistBatchRows = async <TInput, TOutput>(args: {
       expectedValue: execution.expected,
       expectedTraceValue: execution.expectedTrace,
       outputValue: execution.output,
+      customFields: execution.customFields,
+      customFieldTitles: args.customFieldTitles,
     })
   );
   const rowResponse = await tablesApi.addSheetRows(
@@ -447,15 +462,17 @@ export const runEval = async <TInput, TOutput>(
   );
 
   getTerminal().step("Loading dataset");
-  const cases = await resolveCases(
+  const resolvedCases = await resolveCases(
     args.apiKey,
     args.baseURL,
     args.throwOnError,
     args.dataset
   );
+  const cases = normalizeEvalCases(resolvedCases);
   if (!cases.length) {
     throw validationError("Eval dataset resolved to zero cases.");
   }
+  const datasetFieldTitles = customFieldTitles(cases);
 
   getTerminal().step("Setting up columns");
   const columnsResponse = await tablesApi.listSheetColumns(
@@ -478,6 +495,7 @@ export const runEval = async <TInput, TOutput>(
       includeExpectedTrace: cases.some(
         (caseItem) => caseItem.expectedTrace != null
       ),
+      customFieldTitles: datasetFieldTitles,
       processingColumns,
     }
   );
@@ -528,6 +546,7 @@ export const runEval = async <TInput, TOutput>(
       evalName: args.name,
       executed,
       byTitle,
+      customFieldTitles: datasetFieldTitles,
       tracerProvider: args.tracerProvider,
     });
   } else {
@@ -540,6 +559,7 @@ export const runEval = async <TInput, TOutput>(
       sheetId: sheet.id,
       executed,
       byTitle,
+      customFieldTitles: datasetFieldTitles,
     });
   }
 
