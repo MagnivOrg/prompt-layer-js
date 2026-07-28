@@ -186,8 +186,9 @@ describe("Eval runner", () => {
           if (url.endsWith("/sheets/s1/columns") && method === "POST") {
             const body = JSON.parse(String(init?.body || "{}"));
             const ids: Record<string, string> = {
-              Input: "c-input",
-              Expected: "c-expected",
+              input: "c-input",
+              expected: "c-expected",
+              expectedTrace: "c-expected-trace",
               "Topic Name": "c-topic",
               locale: "c-locale",
               Output: "c-output",
@@ -228,7 +229,11 @@ describe("Eval runner", () => {
     await client.evals.run({
       name: "custom-fields",
       dataset: [
-        { input: "one", "Topic Name": "science" },
+        {
+          input: "one",
+          expectedTrace: { requiredTools: ["search"] },
+          "Topic Name": "science",
+        },
         { input: "two", locale: "fr" },
       ],
       runner: (input) => input,
@@ -243,15 +248,24 @@ describe("Eval runner", () => {
     });
 
     expect(columns.map((item) => item.title)).toEqual([
-      "Input",
-      "Expected",
+      "input",
+      "expected",
+      "expectedTrace",
       "Topic Name",
       "locale",
       "Output",
     ]);
     expect(rowBody?.values).toEqual([
-      expect.objectContaining({ "c-topic": "science", "c-locale": "" }),
-      expect.objectContaining({ "c-topic": "", "c-locale": "fr" }),
+      expect.objectContaining({
+        "c-expected-trace": JSON.stringify({ requiredTools: ["search"] }),
+        "c-topic": "science",
+        "c-locale": "",
+      }),
+      expect.objectContaining({
+        "c-expected-trace": "",
+        "c-topic": "",
+        "c-locale": "fr",
+      }),
     ]);
   });
 

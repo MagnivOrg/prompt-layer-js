@@ -323,11 +323,11 @@ describe("assertPassingScore / failed cells", () => {
 });
 
 describe("expectedTrace round-trip", () => {
-  it("persists and reloads expected_trace through row helpers", () => {
+  it("persists and reloads exact dataset column titles through row helpers", () => {
     const columns = [
-      { id: "i", title: "Input", type: "TEXT" as const },
-      { id: "e", title: "Expected", type: "TEXT" as const },
-      { id: "et", title: "Expected Trace", type: "TEXT" as const },
+      { id: "i", title: "input", type: "TEXT" as const },
+      { id: "e", title: "expected", type: "TEXT" as const },
+      { id: "et", title: "expectedTrace", type: "TEXT" as const },
       { id: "o", title: "Output", type: "TEXT" as const },
     ];
     const byTitle = columnsByTitle(columns);
@@ -361,6 +361,31 @@ describe("expectedTrace round-trip", () => {
       { input: "q", expected: "a", expectedTrace },
     ]);
   });
+
+  it("reads and writes legacy titled columns and expected_trace rows", () => {
+    const columns = [
+      { id: "i", title: "Input", type: "TEXT" as const },
+      { id: "e", title: "Expected", type: "TEXT" as const },
+      { id: "et", title: "Expected Trace", type: "TEXT" as const },
+    ];
+    const values = buildRowValues(columnsByTitle(columns), {
+      inputValue: "q",
+      expectedValue: "a",
+      expectedTraceValue: ["search"],
+      outputValue: undefined,
+    });
+    expect(values).toEqual({
+      i: "q",
+      e: "a",
+      et: JSON.stringify(["search"]),
+    });
+    expect(
+      casesFromRows(
+        { data: [{ row_index: 0, input: "q", expected_trace: ["search"] }] },
+        []
+      )
+    ).toEqual([{ input: "q", expectedTrace: ["search"] }]);
+  });
 });
 
 describe("arbitrary eval dataset fields", () => {
@@ -379,7 +404,7 @@ describe("arbitrary eval dataset fields", () => {
 
   it("writes sparse custom fields as blank exact-title TEXT cells", () => {
     const byTitle = columnsByTitle([
-      { id: "i", title: "Input", type: "TEXT" },
+      { id: "i", title: "input", type: "TEXT" },
       { id: "o", title: "Output", type: "TEXT" },
       { id: "topic", title: "Topic Name", type: "TEXT" },
       { id: "locale", title: "locale-code", type: "TEXT" },
@@ -414,7 +439,7 @@ describe("arbitrary eval dataset fields", () => {
         ],
       },
       [
-        { id: "i", title: "Input", type: "TEXT" },
+        { id: "i", title: "input", type: "TEXT" },
         { id: "custom", title: "Human Label", type: "TEXT" },
         {
           id: "generated",

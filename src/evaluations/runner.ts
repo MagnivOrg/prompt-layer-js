@@ -264,7 +264,7 @@ const persistTraceRows = async <TInput, TOutput>(args: {
           ...customValues,
           input: execution.input,
           expected: execution.expected,
-          expected_trace: execution.expectedTrace,
+          expectedTrace: execution.expectedTrace,
           output: typedOutput,
         }
       );

@@ -1100,7 +1100,7 @@ export interface TableScoreResponse {
 export interface EvalCase<TInput = unknown> {
   input: TInput;
   expected?: unknown;
-  /** Wire / Table column title: Expected Trace */
+  /** Dataset / Table column title: expectedTrace */
   expectedTrace?: unknown;
   /** Additional dataset fields become exact-title TEXT columns. */
   [field: string]: unknown;

@@ -10,8 +10,9 @@ import {
 } from "@/types";
 import { extractRows } from "@/tables/helpers";
 
-export const BASE_TEXT_COLUMNS = ["Input", "Expected", "Output"] as const;
-export const EXPECTED_TRACE_COLUMN = "Expected Trace";
+export const DATASET_TEXT_COLUMNS = ["input", "expected"] as const;
+export const BASE_TEXT_COLUMNS = [...DATASET_TEXT_COLUMNS, "Output"] as const;
+export const EXPECTED_TRACE_COLUMN = "expectedTrace";
 export const TRACE_TEXT_COLUMNS = ["Trace"] as const;
 export const TRACE_RESERVED_COLUMN_TITLES = [
   "Trace",
@@ -23,10 +24,11 @@ export const TRACE_RESERVED_COLUMN_TITLES = [
 ] as const;
 
 export const COLUMN_TITLE_ALIASES: Record<string, string> = {
-  input: "Input",
-  expected: "Expected",
-  output: "Output",
+  Input: "input",
+  Expected: "expected",
+  "Expected Trace": EXPECTED_TRACE_COLUMN,
   expected_trace: EXPECTED_TRACE_COLUMN,
+  output: "Output",
   trace: "Trace",
 };
 
@@ -81,12 +83,11 @@ export const customFieldTitles = (
   return titles;
 };
 
-const LEGACY_COLUMN_TITLES: Record<string, string> = Object.fromEntries(
-  Object.entries(COLUMN_TITLE_ALIASES).map(([alias, canonical]) => [
-    canonical,
-    alias,
-  ])
-);
+const LEGACY_COLUMN_TITLES: Record<string, string> = {
+  input: "Input",
+  expected: "Expected",
+  [EXPECTED_TRACE_COLUMN]: "Expected Trace",
+};
 
 export const resolveColumnTitle = (title: string): string =>
   COLUMN_TITLE_ALIASES[title] ?? title;
@@ -104,6 +105,10 @@ export const findColumnByTitle = (
   }
   const legacy = LEGACY_COLUMN_TITLES[title];
   if (legacy && columnsByTitleMap[legacy]) return columnsByTitleMap[legacy];
+  const canonicalLegacy = canonical && LEGACY_COLUMN_TITLES[canonical];
+  if (canonicalLegacy && columnsByTitleMap[canonicalLegacy]) {
+    return columnsByTitleMap[canonicalLegacy];
+  }
   return undefined;
 };
 
@@ -358,8 +363,8 @@ export const buildRowValues = (
 ): Record<string, unknown> => {
   const values: Record<string, unknown> = {};
   for (const [title, value] of [
-    ["Input", args.inputValue],
-    ["Expected", args.expectedValue],
+    ["input", args.inputValue],
+    ["expected", args.expectedValue],
     [EXPECTED_TRACE_COLUMN, args.expectedTraceValue],
     ["Output", args.outputValue],
   ] as const) {
@@ -417,8 +422,8 @@ export const casesFromRows = <TInput = unknown>(
   columns: Column[]
 ): EvalCase<TInput>[] => {
   const byTitle = columnsByTitle(columns);
-  const inputCol = findColumnByTitle(byTitle, "Input");
-  const expectedCol = findColumnByTitle(byTitle, "Expected");
+  const inputCol = findColumnByTitle(byTitle, "input");
+  const expectedCol = findColumnByTitle(byTitle, "expected");
   const expectedTraceCol = findColumnByTitle(byTitle, EXPECTED_TRACE_COLUMN);
   const customColumns = columns.filter(
     (column) =>

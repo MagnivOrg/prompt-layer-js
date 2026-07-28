@@ -15,9 +15,9 @@ const generate = unwrapDefault(generateModule);
 const traverse = unwrapDefault(traverseModule);
 
 const SCORER_PARAM_COLUMN_ALIASES: Record<string, string> = {
-  input: "Input",
+  input: "input",
   output: "Output",
-  expected: "Expected",
+  expected: "expected",
   trace: "Trace",
 };
 
@@ -166,7 +166,9 @@ const scorerCode = (
       if (
         !path.node.computed &&
         t.isIdentifier(path.node.property) &&
-        path.node.property.name in SCORER_PARAM_COLUMN_ALIASES
+        path.node.property.name in SCORER_PARAM_COLUMN_ALIASES &&
+        SCORER_PARAM_COLUMN_ALIASES[path.node.property.name] !==
+          path.node.property.name
       ) {
         path.replaceWith(
           t.memberExpression(

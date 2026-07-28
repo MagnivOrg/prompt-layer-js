@@ -9,7 +9,7 @@ import { requireNonEmptyString } from "./utils";
 export const compareScorer = ({
   title = "Compare",
   source = "Output",
-  valueSource = "Expected",
+  valueSource = "expected",
   comparisonType,
   ...settings
 }: {

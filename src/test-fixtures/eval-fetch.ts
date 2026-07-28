@@ -37,8 +37,8 @@ type CreateEvalFetchRouterOptions = {
 };
 
 const defaultColumns = [
-  { id: "c-input", title: "Input", type: "TEXT" },
-  { id: "c-expected", title: "Expected", type: "TEXT" },
+  { id: "c-input", title: "input", type: "TEXT" },
+  { id: "c-expected", title: "expected", type: "TEXT" },
   { id: "c-output", title: "Output", type: "TEXT" },
 ];
 

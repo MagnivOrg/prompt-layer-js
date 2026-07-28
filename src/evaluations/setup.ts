@@ -15,6 +15,7 @@ import {
 } from "@/tables/helpers";
 import {
   BASE_TEXT_COLUMNS,
+  DATASET_TEXT_COLUMNS,
   EXPECTED_TRACE_COLUMN,
   LEGACY_COLUMN_TITLES,
   TRACE_TEXT_COLUMNS,
@@ -228,7 +229,7 @@ export const ensureProcessingColumns = async (
 
 /**
  * Create the full eval column scaffold in declaration order:
- * Input/Expected → Expected Trace → dataset fields → Output/Trace
+ * input/expected → expectedTrace → custom dataset fields → Output/Trace
  * → supporting columns.
  */
 export const ensureEvalScaffoldColumns = async (
@@ -252,7 +253,7 @@ export const ensureEvalScaffoldColumns = async (
     tableId,
     sheetId,
     existing,
-    ["Input", "Expected"]
+    DATASET_TEXT_COLUMNS
   );
   if (args.includeExpectedTrace) {
     columns = await ensureNamedTextColumns(
