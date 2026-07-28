@@ -284,7 +284,7 @@ export class DefaultEvalTerminal implements EvalTerminal {
     this.write(pc.bold("Failure examples:"));
     this.write(
       renderAsciiTable(
-        ["Input", "Output", ...scorerTitles],
+        ["input", "Output", ...scorerTitles],
         rows.slice(0, limit).map((row) => [
           formatCellValue(row.input),
           formatCellValue(row.output),
