@@ -294,6 +294,16 @@ export const assertEvalArgs = (
           "Each inline eval case must be an object with an 'input' key."
         );
       }
+      for (const key of Object.keys(caseItem)) {
+        if (key === "input" || key === "expected" || key === "expectedTrace") {
+          continue;
+        }
+        if (!key.trim() || RESERVED_EVAL_COLUMN_TITLES.has(key)) {
+          throw validationError(
+            `Eval dataset field '${key}' collides with a reserved eval column or alias.`
+          );
+        }
+      }
     }
     return { scorers: normalizedScorers, columns: normalizedColumns };
   }

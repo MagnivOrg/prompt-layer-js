@@ -167,6 +167,126 @@ describe("Eval runner", () => {
     expect(scorecardPatchIndex).toBeLessThan(rowPostIndex);
   });
 
+  it("creates and persists sparse custom fields before scorer dependencies", async () => {
+    const client = new PromptLayer({
+      apiKey: "test-api-key",
+      baseURL: "https://api.promptlayer.com",
+    });
+    const { jsonResponse } = await import("@/test-helpers");
+    const columns: Array<{ id: string; title: string; type: string }> = [];
+    let rowBody: Record<string, unknown> | null = null;
+
+    fetchMock.mockImplementation(
+      createEvalFetchRouter({
+        rowCount: 2,
+        overrides: (async (url: string, method: string, init?: RequestInit) => {
+          if (url.endsWith("/sheets/s1/columns") && method === "GET") {
+            return jsonResponse({ success: true, data: columns }, 200);
+          }
+          if (url.endsWith("/sheets/s1/columns") && method === "POST") {
+            const body = JSON.parse(String(init?.body || "{}"));
+            const ids: Record<string, string> = {
+              input: "c-input",
+              expected: "c-expected",
+              expectedTrace: "c-expected-trace",
+              "Topic Name": "c-topic",
+              locale: "c-locale",
+              Output: "c-output",
+            };
+            const column = {
+              id: ids[body.title],
+              title: body.title,
+              type: body.type,
+            };
+            columns.push(column);
+            return jsonResponse({ success: true, column }, 201);
+          }
+          if (url.endsWith("/sheets/s1/scorecard") && method === "PATCH") {
+            const body = JSON.parse(String(init?.body || "{}"));
+            expect(body.steps[0].source_column_ids).toContain("c-topic");
+            expect(body.steps[0].primitive_config.source).toBe("c-topic");
+            return undefined;
+          }
+          if (url.includes("/sheets/s1/rows") && method === "POST") {
+            rowBody = JSON.parse(String(init?.body || "{}"));
+            return jsonResponse(
+              {
+                success: true,
+                rows: [
+                  completedRow(0, {}),
+                  completedRow(1, {}),
+                ],
+                row_indices: [0, 1],
+              },
+              201
+            );
+          }
+          return undefined;
+        }) satisfies EvalFetchRoute,
+      })
+    );
+
+    await client.evals.run({
+      name: "custom-fields",
+      dataset: [
+        {
+          input: "one",
+          expectedTrace: { requiredTools: ["search"] },
+          "Topic Name": "science",
+        },
+        { input: "two", locale: "fr" },
+      ],
+      runner: (input) => input,
+      scorers: [
+        containsScorer({
+          title: "topic-score",
+          source: "Topic Name",
+          value: "science",
+        }),
+      ],
+      tableId: "t1",
+    });
+
+    expect(columns.map((item) => item.title)).toEqual([
+      "input",
+      "expected",
+      "expectedTrace",
+      "Topic Name",
+      "locale",
+      "Output",
+    ]);
+    expect(rowBody?.values).toEqual([
+      expect.objectContaining({
+        "c-expected-trace": JSON.stringify({ requiredTools: ["search"] }),
+        "c-topic": "science",
+        "c-locale": "",
+      }),
+      expect.objectContaining({
+        "c-expected-trace": "",
+        "c-topic": "",
+        "c-locale": "fr",
+      }),
+    ]);
+  });
+
+  it("rejects custom fields that collide with reserved columns or aliases", async () => {
+    const client = new PromptLayer({
+      apiKey: "test-api-key",
+      baseURL: "https://api.promptlayer.com",
+    });
+    for (const field of ["Output", "output", "Trace.price", "expected_trace"]) {
+      await expect(
+        client.evals.run({
+          name: "reserved-field",
+          dataset: [{ input: "a", [field]: "bad" }],
+          runner: () => "x",
+          scorers: [codeExecutionColumn("ok", { code: "result = 1;" })],
+        })
+      ).rejects.toThrow(/reserved eval column or alias/);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("creates supporting columns, runs operations, then scorecard scoring", async () => {
     const client = new PromptLayer({
       apiKey: "test-api-key",
@@ -446,7 +566,9 @@ describe("Eval runner", () => {
         columns: [
           { id: "c-input", title: "Input", type: "TEXT" },
           { id: "c-expected", title: "Expected", type: "TEXT" },
+          { id: "c-expected-trace", title: "expectedTrace", type: "TEXT" },
           { id: "c-output", title: "Output", type: "TEXT" },
+          { id: "c-context", title: "Case Context", type: "TEXT" },
           { id: "c-trace", title: "Trace", type: "TRACE" },
         ],
         overrides: (async (url: string, method: string, init?: RequestInit) => {
@@ -457,7 +579,13 @@ describe("Eval runner", () => {
                 data: [
                   { id: "c-input", title: "Input", type: "TEXT" },
                   { id: "c-expected", title: "Expected", type: "TEXT" },
+                  {
+                    id: "c-expected-trace",
+                    title: "expectedTrace",
+                    type: "TEXT",
+                  },
                   { id: "c-output", title: "Output", type: "TEXT" },
+                  { id: "c-context", title: "Case Context", type: "TEXT" },
                   ...(createdTrace
                     ? [{ id: "c-trace", title: "Trace", type: "TRACE" }]
                     : []),
@@ -489,7 +617,12 @@ describe("Eval runner", () => {
                 row: completedRow(0, {
                   "c-input": { id: "cell-in", value: "hi" },
                   "c-expected": { id: "cell-ex", value: null },
+                  "c-expected-trace": {
+                    id: "cell-expected-trace",
+                    value: null,
+                  },
                   "c-output": { id: "cell-out", value: "runner-output" },
+                  "c-context": { id: "cell-context", value: null },
                   "c-trace": {
                     id: "cell-trace",
                     value: {
@@ -533,7 +666,13 @@ describe("Eval runner", () => {
 
     const result = await client.evals.run({
       name: "trace-eval",
-      dataset: [{ input: "hi" }],
+      dataset: [
+        {
+          input: "hi",
+          expectedTrace: { requiredTools: ["search"] },
+          "Case Context": "trace-custom",
+        },
+      ],
       runner: () => "runner-output",
       scorers: [trajectoryScorer({ acceptedScenarios: [["search"]] })],
     });
@@ -546,6 +685,23 @@ describe("Eval runner", () => {
           (init?.method || "GET").toUpperCase() === "POST"
       )
     ).toBe(true);
+    const customPatch = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        getUrlString(input).includes("/cells/cell-context") &&
+        (init?.method || "GET").toUpperCase() === "PATCH"
+    );
+    expect(JSON.parse(String(customPatch?.[1]?.body))).toMatchObject({
+      value: "trace-custom",
+      display_value: "trace-custom",
+    });
+    const expectedTracePatch = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        getUrlString(input).includes("/cells/cell-expected-trace") &&
+        (init?.method || "GET").toUpperCase() === "PATCH"
+    );
+    expect(JSON.parse(String(expectedTracePatch?.[1]?.body))).toMatchObject({
+      value: JSON.stringify({ requiredTools: ["search"] }),
+    });
   });
 
   it("fails when passingScore is not met", async () => {
@@ -605,9 +761,16 @@ describe("Eval runner", () => {
       baseURL: "https://api.promptlayer.com",
     });
     const { jsonResponse } = await import("@/test-helpers");
+    let copiedRows: any;
 
     fetchMock.mockImplementation(
       createEvalFetchRouter({
+        columns: [
+          { id: "c-input", title: "Input", type: "TEXT" },
+          { id: "c-expected", title: "Expected", type: "TEXT" },
+          { id: "c-output", title: "Output", type: "TEXT" },
+          { id: "c-custom", title: "Source Label", type: "TEXT" },
+        ],
         overrides: (async (url: string, method: string, _init?: RequestInit) => {
           if (url.includes("/tables/dataset-table/") || url.includes("/tables/dataset-table?")) {
             if (url.includes("/sheets") && method === "GET" && !url.includes("/columns") && !url.includes("/rows")) {
@@ -626,6 +789,14 @@ describe("Eval runner", () => {
                   data: [
                     { id: "d-input", title: "Input", type: "TEXT" },
                     { id: "d-expected", title: "Expected", type: "TEXT" },
+                    { id: "d-custom", title: "Source Label", type: "TEXT" },
+                    { id: "d-computed", title: "Computed", type: "JSON_PATH" },
+                    {
+                      id: "d-generated",
+                      title: "Generated Text",
+                      type: "TEXT",
+                      is_output_column: true,
+                    },
                   ],
                 },
                 200
@@ -639,6 +810,9 @@ describe("Eval runner", () => {
                     completedRow(0, {
                       "d-input": { id: "di", value: "from-table" },
                       "d-expected": { id: "de", value: "from-table" },
+                      "d-custom": { id: "dc", value: "copied-exactly" },
+                      "d-computed": { id: "dx", value: "ignored" },
+                      "d-generated": { id: "dg", value: "ignored" },
                     }),
                   ],
                 },
@@ -647,6 +821,7 @@ describe("Eval runner", () => {
             }
           }
           if (url.includes("/sheets/s1/rows") && method === "POST") {
+            copiedRows = JSON.parse(String(_init?.body || "{}"));
             return jsonResponse(
               {
                 success: true,
@@ -655,6 +830,7 @@ describe("Eval runner", () => {
                     "c-input": { id: "cell-in", value: "from-table" },
                     "c-expected": { id: "cell-ex", value: "from-table" },
                     "c-output": { id: "cell-out", value: "from-table" },
+                    "c-custom": { id: "cell-custom", value: "copied-exactly" },
                   }),
                 ],
                 row_indices: [0],
@@ -677,5 +853,8 @@ describe("Eval runner", () => {
 
     expect(result.results[0].input).toBe("from-table");
     expect(result.results[0].output).toBe("from-table");
+    expect(copiedRows.values[0]["c-custom"]).toBe("copied-exactly");
+    expect(copiedRows.values[0]).not.toHaveProperty("d-computed");
+    expect(copiedRows.values[0]).not.toHaveProperty("d-generated");
   });
 });

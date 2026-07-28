@@ -191,7 +191,7 @@ describe("evaluations column helpers", () => {
     const code = String(col.config?.code);
     expect(code).not.toContain("function exactMatch");
     expect(code).toContain('const output = data.get("Output")');
-    expect(code).toContain('const expected = data.get("Expected")');
+    expect(code).toContain('const expected = data.get("expected")');
     expect(code).toContain("result = output === expected ? 1 : 0");
 
     const normalized = normalizeScorer(exactMatch);

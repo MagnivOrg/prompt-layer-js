@@ -1,6 +1,5 @@
 import { EvalScorerColumn } from "@/types";
 import { column } from "../columns";
-import { validationError } from "../errors";
 import {
   applyScorecardStepOptions,
   popScorecardStepOptions,
@@ -9,22 +8,23 @@ import { requireNonEmptyString } from "./utils";
 
 export const compareScorer = ({
   title = "Compare",
-  sources = ["Output", "Expected"],
+  source = "Output",
+  valueSource = "expected",
   comparisonType,
   ...settings
 }: {
   title?: string;
-  sources?: string[];
+  source?: string;
+  valueSource?: string;
   comparisonType?: Record<string, unknown> | string;
   [key: string]: unknown;
 } = {}): EvalScorerColumn => {
   const resolvedTitle = requireNonEmptyString(title, "title");
-  if (!Array.isArray(sources) || sources.length !== 2) {
-    throw validationError("compareScorer requires exactly two sources.");
-  }
-  for (const source of sources) {
-    requireNonEmptyString(source, "source");
-  }
+  const resolvedSource = requireNonEmptyString(source, "source");
+  const resolvedValueSource = requireNonEmptyString(
+    valueSource,
+    "valueSource"
+  );
   let comparison: Record<string, unknown> | string;
   if (comparisonType == null) {
     comparison = { type: "STRING" };
@@ -36,7 +36,7 @@ export const compareScorer = ({
   const { stepOptions, configSettings } = popScorecardStepOptions(settings);
   return applyScorecardStepOptions(
     column(resolvedTitle, "COMPARE", {
-      sources: [...sources],
+      sources: [resolvedSource, resolvedValueSource],
       comparison_type: comparison,
       ...configSettings,
     }),
