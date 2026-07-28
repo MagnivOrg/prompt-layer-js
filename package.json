@@ -1,13 +1,13 @@
 {
   "name": "promptlayer",
   "license": "MIT",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Official PromptLayer SDK",
   "engines": {
     "node": ">=20"
   },
   "main": "dist/index.js",
-  "module": "dist/esm/index.js",
+  "module": "dist/esm/index.mjs",
   "types": "dist/index.d.ts",
   "bin": {
     "promptlayer": "./dist/cli.js"
@@ -23,17 +23,21 @@
     ".": {
       "types": "./dist/index.d.ts",
       "require": "./dist/index.js",
-      "import": "./dist/esm/index.js"
+      "import": "./dist/esm/index.mjs"
     },
     "./claude-agents": {
       "types": "./dist/claude-agents.d.ts",
       "require": "./dist/claude-agents.js",
-      "import": "./dist/esm/claude-agents.js"
+      "import": "./dist/esm/claude-agents.mjs"
     },
     "./openai-agents": {
       "types": "./dist/openai-agents.d.ts",
       "require": "./dist/openai-agents.js",
-      "import": "./dist/esm/openai-agents.js"
+      "import": "./dist/esm/openai-agents.mjs"
+    },
+    "./register": {
+      "require": "./dist/register.js",
+      "import": "./dist/esm/register.mjs"
     }
   },
   "private": false,
@@ -71,9 +75,13 @@
     "@babel/traverse": "^7.28.0",
     "@babel/types": "^7.28.0",
     "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.218.0",
     "@opentelemetry/auto-instrumentations-node": "^0.76.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
+    "@opentelemetry/instrumentation": "^0.218.0",
+    "@opentelemetry/instrumentation-openai": "^0.19.0",
     "@opentelemetry/resources": "^2.7.1",
+    "@opentelemetry/sdk-logs": "^0.218.0",
     "@opentelemetry/sdk-node": "^0.218.0",
     "@opentelemetry/sdk-trace-base": "^2.7.1",
     "@opentelemetry/sdk-trace-node": "^2.7.1",

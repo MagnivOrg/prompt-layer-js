@@ -23,7 +23,15 @@ import { traceTool, wrapWithSpan } from "@/span-wrapper";
 import { TemplateManager } from "@/templates";
 import { PromptTemplateCache } from "@/utils/template-cache";
 import { formatRunOutput } from "@/run-tracing";
-import { getTracer, setupTracing } from "@/tracing";
+import {
+  configureTracing,
+  createPromptLayerSpanProcessor,
+  forceFlushTracing,
+  getTracer,
+  setupTracing,
+  shutdownTracing,
+  withPromptLayerOpenAIRequestContext,
+} from "@/tracing";
 import { TrackManager } from "@/track";
 import {
   EvalCase,
@@ -275,8 +283,27 @@ export class PromptLayer {
         if (!promptBlueprint) {
           throw new Error(
             `Cannot proceed: prompt template '${promptName}' could not be fetched. ` +
-              `Check the warnings above for the actual error.`
+            `Check the warnings above for the actual error.`
           );
+        }
+
+        const promptAttributes: opentelemetry.Attributes = {
+          "promptlayer.prompt.name": promptName,
+          "promptlayer.prompt.id": String(promptBlueprint.id),
+          "promptlayer.prompt.version": String(
+            promptBlueprint.version
+          ),
+        };
+        if (promptReleaseLabel) {
+          promptAttributes["promptlayer.prompt.label"] =
+            promptReleaseLabel;
+        }
+        for (const [key, value] of Object.entries(
+          promptAttributes
+        )) {
+          if (value !== undefined) {
+            span.setAttribute(key, value);
+          }
         }
 
         const promptTemplate = promptBlueprint.prompt_template;
@@ -363,7 +390,20 @@ export class PromptLayer {
 
         let response: any;
         try {
-          response = await request_function(promptBlueprint!, kwargs);
+          const invokeProvider = () =>
+            request_function(promptBlueprint!, kwargs);
+          response = await (
+            provider_type === "openai" ||
+            provider_type === "openai.azure"
+              ? withPromptLayerOpenAIRequestContext(
+                  {
+                    promptAttributes,
+                    requestLogSpanId: span.spanContext().spanId,
+                  },
+                  invokeProvider
+                )
+              : invokeProvider()
+          );
         } catch (llmError: unknown) {
           const errorType = categorizeError(llmError);
           const errorMessage =
@@ -541,20 +581,31 @@ export {
   column,
   codeExecutionColumn,
   compareScorer,
+  configureTracing,
   containsScorer,
   countScorer,
+  createPromptLayerSpanProcessor,
   diagnoseTrajectoryFailure,
   extractTrajectoryToolNames,
+  forceFlushTracing,
   llmAssertionScorer,
   regexScorer,
   scoreTrajectory,
   scorerFromFunction,
+  shutdownTracing,
   trajectoryScorer,
 };
 
 export { ColumnType } from "@/types";
 export type { TrajectoryMode } from "@/evaluations";
 export type { ColumnTypeValue } from "@/types";
+export type {
+  ConfigureTracingOptions,
+  FlushableTracerProvider,
+  OpenAITracingProvider,
+  PromptLayerSpanProcessorOptions,
+  TracingHandle,
+} from "@/tracing";
 
 export const evaluate = <TInput = unknown, TOutput = unknown>(
   name: string,
