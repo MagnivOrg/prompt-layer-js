@@ -970,8 +970,6 @@ const openrouterRequest = async (
   httpClient.addHook("beforeRequest", enableOpenrouterUsageAccounting);
   const client = new OpenRouter({
     apiKey: kwargs.apiKey || process.env.OPENROUTER_API_KEY,
-    httpReferer: "https://promptlayer.com",
-    appTitle: "PromptLayer",
     // Bound request time so slow media generation surfaces as a timeout instead
     // of hanging forever. Override via OPENROUTER_TIMEOUT_MS.
     timeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS) || 600_000,
