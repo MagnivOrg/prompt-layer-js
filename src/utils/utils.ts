@@ -1239,6 +1239,7 @@ const configureProviderSettings = (
     stream &&
     STREAMING_PROVIDERS_WITH_USAGE.includes(provider_type as any) &&
     (api_type === "chat-completions" ||
+      api_type === "chat" ||
       (provider_type === "openrouter" && !api_type))
   ) {
     kwargs.stream_options = { include_usage: true };

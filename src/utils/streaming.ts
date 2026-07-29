@@ -15,6 +15,7 @@ import {
   buildPromptBlueprintFromOpenAIEvent,
   buildPromptBlueprintFromOpenAIImagesEvent,
   buildPromptBlueprintFromOpenAIResponsesEvent,
+  buildPromptBlueprintFromOpenRouterEvent,
 } from "./blueprint-builder";
 
 export const STREAMING_PROVIDERS_WITH_USAGE = ["openai", "openai.azure", "openrouter"] as const;
@@ -904,6 +905,10 @@ export const openrouterStreamChat = (results: any[]) => {
   if (!lastResult) return response;
 
   let content: string | null = null;
+  let reasoning = "";
+  let refusal = "";
+  const reasoningDetails: any[] = [];
+  let audio: any = undefined;
   let toolCalls: any[] | undefined = undefined;
   let finishReason: string | null = null;
   // OpenRouter always includes full usage (tokens + cost) on the final chunk,
@@ -922,6 +927,22 @@ export const openrouterStreamChat = (results: any[]) => {
     const delta = choice.delta ?? {};
     if (delta.content) {
       content = `${content ?? ""}${delta.content}`;
+    }
+    if (delta.reasoning) {
+      reasoning = `${reasoning}${delta.reasoning}`;
+    }
+    if (delta.refusal) {
+      refusal = `${refusal}${delta.refusal}`;
+    }
+    const details = delta.reasoningDetails ?? delta.reasoning_details;
+    if (Array.isArray(details) && details.length) {
+      reasoningDetails.push(...details);
+    }
+    if (delta.audio) {
+      // Prefer the latest audio payload that includes data.
+      if (!audio || delta.audio.data) {
+        audio = delta.audio;
+      }
     }
     const deltaToolCalls = delta.toolCalls ?? delta.tool_calls;
     const toolCall = deltaToolCalls?.[0];
@@ -948,15 +969,21 @@ export const openrouterStreamChat = (results: any[]) => {
     }
   }
 
+  const message: any = {
+    role: "assistant",
+    content,
+    tool_calls: toolCalls ? toolCalls : undefined,
+  };
+  if (reasoning) message.reasoning = reasoning;
+  if (reasoningDetails.length) message.reasoning_details = reasoningDetails;
+  if (refusal) message.refusal = refusal;
+  if (audio) message.audio = audio;
+
   response.choices.push({
     index: 0,
     finish_reason: finishReason ?? "stop",
     logprobs: null,
-    message: {
-      role: "assistant",
-      content,
-      tool_calls: toolCalls ? toolCalls : undefined,
-    },
+    message,
   });
   response.id = lastResult.id ?? "";
   response.model = lastResult.model ?? "";
@@ -1350,8 +1377,8 @@ const buildStreamBlueprint = (
   }
 
   if (provider === "openrouter") {
-    // OpenRouter chat stream chunks mirror the OpenAI chunk shape.
-    return buildPromptBlueprintFromOpenAIEvent(result, metadata);
+    // OpenRouter chat stream chunks mirror OpenAI, plus reasoning / refusal / audio.
+    return buildPromptBlueprintFromOpenRouterEvent(result, metadata);
   }
 
   if (provider === "openai" || provider === "openai.azure") {

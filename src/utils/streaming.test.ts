@@ -4,6 +4,7 @@ import {
   googleStreamChat,
   bedrockStreamMessage,
   openaiStreamChat,
+  openrouterStreamChat,
 } from "@/utils/streaming";
 
 describe("anthropicStreamMessage", () => {
@@ -497,6 +498,145 @@ describe("openaiStreamChat", () => {
       },
     ];
     const response = openaiStreamChat(results as any);
+    expect(response.choices[0].message?.tool_calls).toHaveLength(1);
+    expect(response.choices[0].message?.tool_calls![0]).toMatchObject({
+      id: "call_01",
+      function: { name: "get_weather", arguments: '{"city":"Boston"}' },
+    });
+  });
+});
+
+describe("openrouterStreamChat", () => {
+  it("merges content deltas and usage from camelCase SDK chunks", () => {
+    const results = [
+      {
+        id: "gen-1",
+        model: "openai/gpt-4o-mini",
+        created: 123,
+        choices: [{ index: 0, delta: { content: "Hello " }, finishReason: null }],
+      },
+      {
+        id: "gen-1",
+        model: "openai/gpt-4o-mini",
+        created: 123,
+        choices: [{ index: 0, delta: { content: "world" }, finishReason: null }],
+      },
+      {
+        id: "gen-1",
+        model: "openai/gpt-4o-mini",
+        created: 123,
+        choices: [{ index: 0, delta: {}, finishReason: "stop" }],
+        usage: { promptTokens: 10, completionTokens: 2, totalTokens: 12 },
+      },
+    ];
+    const response = openrouterStreamChat(results);
+    expect(response.choices).toHaveLength(1);
+    expect(response.choices[0].message?.content).toBe("Hello world");
+    expect(response.choices[0].finish_reason).toBe("stop");
+    expect(response.usage).toEqual({
+      prompt_tokens: 10,
+      completion_tokens: 2,
+      total_tokens: 12,
+    });
+  });
+
+  it("accumulates reasoning, reasoningDetails, refusal, and audio", () => {
+    const results = [
+      {
+        id: "gen-1",
+        model: "deepseek/deepseek-r1",
+        created: 1,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              reasoning: "think ",
+              reasoningDetails: [
+                { type: "reasoning.text", text: "think ", id: "r1" },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: "gen-1",
+        model: "deepseek/deepseek-r1",
+        created: 1,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              reasoning: "more",
+              reasoningDetails: [
+                { type: "reasoning.text", text: "more", id: "r1" },
+              ],
+              content: "answer",
+              refusal: "nope",
+              audio: { data: "QUJD", id: "aud_1", transcript: "hi", expiresAt: 99 },
+            },
+            finishReason: "stop",
+          },
+        ],
+      },
+    ];
+    const response = openrouterStreamChat(results);
+    const message = response.choices[0].message;
+    expect(message.reasoning).toBe("think more");
+    expect(message.reasoning_details).toHaveLength(2);
+    expect(message.content).toBe("answer");
+    expect(message.refusal).toBe("nope");
+    expect(message.audio).toMatchObject({
+      data: "QUJD",
+      id: "aud_1",
+      transcript: "hi",
+      expiresAt: 99,
+    });
+  });
+
+  it("merges toolCalls across camelCase deltas", () => {
+    const results = [
+      {
+        id: "gen-1",
+        model: "openai/gpt-4o-mini",
+        created: 1,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  id: "call_01",
+                  type: "function",
+                  function: { name: "get_weather", arguments: '{"city":' },
+                },
+              ],
+            },
+            finishReason: null,
+          },
+        ],
+      },
+      {
+        id: "gen-1",
+        model: "openai/gpt-4o-mini",
+        created: 1,
+        choices: [
+          {
+            index: 0,
+            delta: {
+              toolCalls: [
+                {
+                  type: "function",
+                  function: { arguments: '"Boston"}' },
+                },
+              ],
+            },
+            finishReason: "tool_calls",
+          },
+        ],
+      },
+    ];
+    const response = openrouterStreamChat(results);
     expect(response.choices[0].message?.tool_calls).toHaveLength(1);
     expect(response.choices[0].message?.tool_calls![0]).toMatchObject({
       id: "call_01",
