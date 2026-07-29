@@ -4,26 +4,33 @@ import { validationError } from "../errors";
 import {
   applyScorecardStepOptions,
   popScorecardStepOptions,
+  type ScorecardStepOptions,
 } from "./scorecard-options";
-import { requireNonEmptyString } from "./utils";
+import { rejectLegacyParameters, requireNonEmptyString } from "./utils";
 
-export const llmAssertionScorer = ({
-  title = "LLM assertion",
-  source = "Output",
-  prompt,
-  promptSource,
-  variableMappings,
-  ...settings
-}: {
+export type LlmAssertionScorerOptions = ScorecardStepOptions & {
   title?: string;
-  source?: string;
+  sourceColumn?: string;
   prompt?: string;
   promptSource?: string;
   variableMappings?: Record<string, string>;
   [key: string]: unknown;
-} = {}): EvalScorerColumn => {
+};
+
+export const llmAssertionScorer = ({
+  title = "LLM assertion",
+  sourceColumn = "Output",
+  prompt,
+  promptSource,
+  variableMappings,
+  ...settings
+}: LlmAssertionScorerOptions = {}): EvalScorerColumn => {
+  rejectLegacyParameters(settings, ["source"], "llmAssertionScorer");
   const resolvedTitle = requireNonEmptyString(title, "title");
-  const resolvedSource = requireNonEmptyString(source, "source");
+  const resolvedSourceColumn = requireNonEmptyString(
+    sourceColumn,
+    "sourceColumn"
+  );
   if (prompt == null && promptSource == null) {
     throw validationError(
       "llmAssertionScorer requires either prompt or promptSource."
@@ -34,7 +41,7 @@ export const llmAssertionScorer = ({
   }
   const { stepOptions, configSettings } = popScorecardStepOptions(settings);
   const config: Record<string, unknown> = {
-    source: resolvedSource,
+    source: resolvedSourceColumn,
     ...configSettings,
   };
   if (prompt !== undefined) config.prompt = prompt;

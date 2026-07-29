@@ -12,5 +12,14 @@ export {
   scoreTrajectory,
   trajectoryScorer,
 } from "./scorers";
-export type { TrajectoryMode } from "./scorers";
+export type {
+  AssertValidScorerOptions,
+  CompareScorerOptions,
+  ContainsScorerOptions,
+  CountScorerOptions,
+  LlmAssertionScorerOptions,
+  RegexScorerOptions,
+  TrajectoryMode,
+  TrajectoryScorerOptions,
+} from "./scorers";
 export { ColumnType } from "@/types";

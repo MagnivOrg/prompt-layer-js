@@ -4,39 +4,56 @@ import { validationError } from "../errors";
 import {
   applyScorecardStepOptions,
   popScorecardStepOptions,
+  type ScorecardStepOptions,
 } from "./scorecard-options";
-import { requireNonEmptyString } from "./utils";
+import { rejectLegacyParameters, requireNonEmptyString } from "./utils";
+
+type ContainsScorerBaseOptions = ScorecardStepOptions & {
+  title?: string;
+  sourceColumn?: string;
+  [key: string]: unknown;
+};
+
+export type ContainsScorerOptions = ContainsScorerBaseOptions &
+  (
+    | { expected: string; expectedColumn?: never }
+    | { expected?: never; expectedColumn: string }
+  );
 
 export const containsScorer = ({
   title = "Contains",
-  source = "Output",
-  value,
-  valueSource,
+  sourceColumn = "Output",
+  expected,
+  expectedColumn,
   ...settings
-}: {
-  title?: string;
-  source?: string;
-  value?: string;
-  valueSource?: string;
-  [key: string]: unknown;
-} = {}): EvalScorerColumn => {
+}: ContainsScorerOptions): EvalScorerColumn => {
+  rejectLegacyParameters(
+    settings,
+    ["source", "value", "valueSource"],
+    "containsScorer"
+  );
   const resolvedTitle = requireNonEmptyString(title, "title");
-  const resolvedSource = requireNonEmptyString(source, "source");
-  if (value == null && valueSource == null) {
+  const resolvedSourceColumn = requireNonEmptyString(
+    sourceColumn,
+    "sourceColumn"
+  );
+  const hasExpected = expected !== undefined;
+  const hasExpectedColumn = expectedColumn !== undefined;
+  if (hasExpected === hasExpectedColumn) {
     throw validationError(
-      "containsScorer requires either value or valueSource."
+      "containsScorer requires exactly one of expected or expectedColumn."
     );
   }
-  if (valueSource != null) {
-    requireNonEmptyString(valueSource, "valueSource");
+  if (hasExpectedColumn) {
+    requireNonEmptyString(expectedColumn, "expectedColumn");
   }
   const { stepOptions, configSettings } = popScorecardStepOptions(settings);
   const config: Record<string, unknown> = {
-    source: resolvedSource,
+    source: resolvedSourceColumn,
     ...configSettings,
   };
-  if (value !== undefined) config.value = value;
-  if (valueSource !== undefined) config.value_source = valueSource;
+  if (hasExpected) config.value = expected;
+  if (hasExpectedColumn) config.value_source = expectedColumn;
   return applyScorecardStepOptions(
     column(resolvedTitle, "CONTAINS", config),
     stepOptions

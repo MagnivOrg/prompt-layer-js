@@ -49,7 +49,13 @@ describe("Eval runner", () => {
         name: "bad",
         dataset: [{ input: "a" }],
         runner: () => "x",
-        scorers: [containsScorer({ title: "c", source: "Output", value: "x" })],
+        scorers: [
+          containsScorer({
+            title: "c",
+            sourceColumn: "Output",
+            expected: "x",
+          }),
+        ],
         tableId: "1",
         folderId: 2,
       })
@@ -60,7 +66,13 @@ describe("Eval runner", () => {
         name: "bad",
         dataset: [{ input: "a" }],
         runner: () => "x",
-        scorers: [containsScorer({ title: "c", source: "Output", value: "x" })],
+        scorers: [
+          containsScorer({
+            title: "c",
+            sourceColumn: "Output",
+            expected: "x",
+          }),
+        ],
         sheetId: "1",
         experimentName: "exp",
       })
@@ -240,8 +252,8 @@ describe("Eval runner", () => {
       scorers: [
         containsScorer({
           title: "topic-score",
-          source: "Topic Name",
-          value: "science",
+          sourceColumn: "Topic Name",
+          expected: "science",
         }),
       ],
       tableId: "t1",
@@ -434,8 +446,8 @@ describe("Eval runner", () => {
       scorers: [
         containsScorer({
           title: "has_value",
-          source: "Extracted data",
-          value: "1",
+          sourceColumn: "Extracted data",
+          expected: "1",
         }),
       ],
     });
@@ -502,7 +514,13 @@ describe("Eval runner", () => {
             config: { source: "Input", json_path: "$" },
           },
         ],
-        scorers: [containsScorer({ title: "c", source: "Output", value: "x" })],
+        scorers: [
+          containsScorer({
+            title: "c",
+            sourceColumn: "Output",
+            expected: "x",
+          }),
+        ],
       })
     ).rejects.toThrow(/reserved/);
 
@@ -515,7 +533,11 @@ describe("Eval runner", () => {
           column("shared", "JSON_PATH", { source: "Output", json_path: "$" }),
         ],
         scorers: [
-          containsScorer({ title: "shared", source: "Output", value: "x" }),
+          containsScorer({
+            title: "shared",
+            sourceColumn: "Output",
+            expected: "x",
+          }),
         ],
       })
     ).rejects.toThrow(/conflicts with a supporting column/);
@@ -674,7 +696,7 @@ describe("Eval runner", () => {
         },
       ],
       runner: () => "runner-output",
-      scorers: [trajectoryScorer({ acceptedScenarios: [["search"]] })],
+      scorers: [trajectoryScorer({ expected: [["search"]] })],
     });
 
     expect(result.results[0].output).toBe("from-trace");

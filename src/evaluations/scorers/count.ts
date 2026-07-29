@@ -4,26 +4,37 @@ import { validationError } from "../errors";
 import {
   applyScorecardStepOptions,
   popScorecardStepOptions,
+  type ScorecardStepOptions,
 } from "./scorecard-options";
-import { requireNonEmptyString, requireNonNegativeInteger } from "./utils";
+import {
+  rejectLegacyParameters,
+  requireNonEmptyString,
+  requireNonNegativeInteger,
+} from "./utils";
 
-export const countScorer = ({
-  title = "Count",
-  source = "Output",
-  type = "chars",
-  minCount,
-  maxCount,
-  ...settings
-}: {
+export type CountScorerOptions = ScorecardStepOptions & {
   title?: string;
-  source?: string;
+  sourceColumn?: string;
   type?: string;
   minCount?: number;
   maxCount?: number;
   [key: string]: unknown;
-} = {}): EvalScorerColumn => {
+};
+
+export const countScorer = ({
+  title = "Count",
+  sourceColumn = "Output",
+  type = "chars",
+  minCount,
+  maxCount,
+  ...settings
+}: CountScorerOptions = {}): EvalScorerColumn => {
+  rejectLegacyParameters(settings, ["source"], "countScorer");
   const resolvedTitle = requireNonEmptyString(title, "title");
-  const resolvedSource = requireNonEmptyString(source, "source");
+  const resolvedSourceColumn = requireNonEmptyString(
+    sourceColumn,
+    "sourceColumn"
+  );
   const resolvedType = requireNonEmptyString(type, "type");
   const hasMin = minCount !== undefined;
   const hasMax = maxCount !== undefined;
@@ -48,7 +59,7 @@ export const countScorer = ({
 
   const { stepOptions, configSettings } = popScorecardStepOptions(settings);
   const config: Record<string, unknown> = {
-    source: resolvedSource,
+    source: resolvedSourceColumn,
     type: resolvedType,
     ...configSettings,
   };

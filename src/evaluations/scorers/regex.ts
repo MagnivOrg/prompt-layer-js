@@ -3,27 +3,34 @@ import { column } from "../columns";
 import {
   applyScorecardStepOptions,
   popScorecardStepOptions,
+  type ScorecardStepOptions,
 } from "./scorecard-options";
-import { requireNonEmptyString } from "./utils";
+import { rejectLegacyParameters, requireNonEmptyString } from "./utils";
+
+export type RegexScorerOptions = ScorecardStepOptions & {
+  title?: string;
+  sourceColumn?: string;
+  regexPattern: string;
+  [key: string]: unknown;
+};
 
 export const regexScorer = ({
   title = "Regex",
-  source = "Output",
+  sourceColumn = "Output",
   regexPattern,
   ...settings
-}: {
-  title?: string;
-  source?: string;
-  regexPattern: string;
-  [key: string]: unknown;
-}): EvalScorerColumn => {
+}: RegexScorerOptions): EvalScorerColumn => {
+  rejectLegacyParameters(settings, ["source"], "regexScorer");
   const resolvedTitle = requireNonEmptyString(title, "title");
-  const resolvedSource = requireNonEmptyString(source, "source");
+  const resolvedSourceColumn = requireNonEmptyString(
+    sourceColumn,
+    "sourceColumn"
+  );
   const pattern = requireNonEmptyString(regexPattern, "regexPattern");
   const { stepOptions, configSettings } = popScorecardStepOptions(settings);
   return applyScorecardStepOptions(
     column(resolvedTitle, "REGEX", {
-      source: resolvedSource,
+      source: resolvedSourceColumn,
       regex_pattern: pattern,
       ...configSettings,
     }),
