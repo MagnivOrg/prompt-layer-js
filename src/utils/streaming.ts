@@ -16,6 +16,7 @@ import {
   buildPromptBlueprintFromOpenAIImagesEvent,
   buildPromptBlueprintFromOpenAIResponsesEvent,
 } from "./blueprint-builder";
+import { requireProviderSDK } from "./require-provider-sdk";
 
 export const STREAMING_PROVIDERS_WITH_USAGE = ["openai", "openai.azure"] as const;
 
@@ -1039,7 +1040,8 @@ const buildGoogleResponseFromParts = (
 };
 
 const googleStreamResponse = (results: any[]) => {
-  const { GenerateContentResponse } = require("@google/genai");
+  const { GenerateContentResponse } =
+    requireProviderSDK("@google/genai");
 
   if (!results.length) {
     return new GenerateContentResponse();

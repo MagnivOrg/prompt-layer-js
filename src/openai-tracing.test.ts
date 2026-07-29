@@ -125,7 +125,9 @@ describe("native OpenAI SDK tracing", () => {
     const sharedLogExporter = new InMemoryLogRecordExporter();
     loggerProvider = new LoggerProvider({
       processors: [
-        new SimpleLogRecordProcessor(sharedLogExporter),
+        new SimpleLogRecordProcessor({
+          exporter: sharedLogExporter,
+        }),
       ],
     });
     provider = new NodeTracerProvider({
@@ -148,10 +150,10 @@ describe("native OpenAI SDK tracing", () => {
     const directFetch = vi.fn(
       async (input: string | URL | Request): Promise<Response> => {
         const url = requestURL(input);
-        if (url === "https://openai.direct/v1/chat/completions") {
+        if (url === "https://openai-direct.test/v1/chat/completions") {
           return jsonResponse(chatCompletionResponse());
         }
-        if (url === "https://openai.direct/v1/responses") {
+        if (url === "https://openai-direct.test/v1/responses") {
           return jsonResponse(responsesResponse("resp_direct"));
         }
         throw new Error(`Unexpected direct request: ${url}`);
@@ -159,7 +161,7 @@ describe("native OpenAI SDK tracing", () => {
     );
     const openai = new OpenAI({
       apiKey: "sk-test",
-      baseURL: "https://openai.direct/v1",
+      baseURL: "https://openai-direct.test/v1",
       fetch: directFetch as any,
       maxRetries: 0,
     });
@@ -182,7 +184,7 @@ describe("native OpenAI SDK tracing", () => {
     const fetchMock = vi.fn(
       async (input: string | URL | Request): Promise<Response> => {
         const url = requestURL(input);
-        if (url === "https://openai.run/v1/responses") {
+        if (url === "https://openai-managed.test/v1/responses") {
           return jsonResponse(responsesResponse("resp_run"));
         }
         if (url === "https://promptlayer.test/track-request") {
@@ -204,7 +206,7 @@ describe("native OpenAI SDK tracing", () => {
     const promptBlueprint: GetPromptTemplateResponse = {
       custom_provider: {
         api_key: "sk-test",
-        base_url: "https://openai.run/v1",
+        base_url: "https://openai-managed.test/v1",
         client: "openai",
         id: 7,
         name: "test-openai",

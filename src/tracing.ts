@@ -8,6 +8,8 @@ import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { OpenAIInstrumentation } from "@opentelemetry/instrumentation-openai";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import type { LoggerProvider } from "@opentelemetry/sdk-logs";
+import { AnthropicInstrumentation } from "@traceloop/instrumentation-anthropic";
+import { GenAIInstrumentation as GoogleGenAIInstrumentation } from "@traceloop/instrumentation-google-generativeai";
 import {
   SimpleSpanProcessor,
   type ReadableSpan,
@@ -19,10 +21,24 @@ import {
   createOpenAILoggerProviders,
   OpenAIMessageContentBridge,
 } from "@/openai-message-content";
+import {
+  AnthropicProviderContextInstrumentation,
+  ANTHROPIC_INSTRUMENTATION_SCOPE,
+  createProviderAwareTracerProvider,
+  GoogleProviderContextInstrumentation,
+  GOOGLE_GENAI_INSTRUMENTATION_SCOPE,
+} from "@/instrumentation/provider-context";
 import { resolveActiveTracer } from "@/tracing-context";
 import { getCommonHeaders } from "@/utils/utils";
 
+export type TracingProvider = "openai" | "anthropic" | "google";
+/** @deprecated Use TracingProvider. */
 export type OpenAITracingProvider = "openai";
+
+export {
+  ANTHROPIC_INSTRUMENTATION_SCOPE,
+  GOOGLE_GENAI_INSTRUMENTATION_SCOPE,
+};
 
 export interface FlushableTracerProvider
   extends opentelemetry.TracerProvider {
@@ -35,7 +51,7 @@ export interface ConfigureTracingOptions {
   baseURL?: string;
   captureContent?: boolean;
   loggerProvider?: ApiLoggerProvider;
-  providers?: readonly OpenAITracingProvider[];
+  providers?: readonly TracingProvider[];
   serviceName?: string;
   tracerProvider?: FlushableTracerProvider;
 }
@@ -47,7 +63,7 @@ export interface TracingHandle {
   shutdown(): Promise<void>;
 }
 
-interface PromptLayerOpenAIRequestContext {
+interface PromptLayerProviderRequestContext {
   promptAttributes: opentelemetry.Attributes;
   requestLogSpanId: string;
 }
@@ -61,7 +77,11 @@ export interface PromptLayerSpanProcessorOptions {
 type ActiveTracingState = {
   cleanupInstrumentations: () => void;
   handle: TracingHandle;
-  instrumentation: OpenAIInstrumentation | null;
+  instrumentations: {
+    anthropic: AnthropicInstrumentation | null;
+    google: GoogleGenAIInstrumentation | null;
+    openai: OpenAIInstrumentation | null;
+  };
   messageContentBridge: OpenAIMessageContentBridge;
   promptLayerLoggerProvider: LoggerProvider;
   provider: FlushableTracerProvider;
@@ -70,48 +90,80 @@ type ActiveTracingState = {
 
 const OPENAI_INSTRUMENTATION_SCOPE =
   "@opentelemetry/instrumentation-openai";
-const OPENAI_REQUEST_CONTEXT_KEY = opentelemetry.createContextKey(
-  "promptlayer.openai_request"
+const PROVIDER_INSTRUMENTATION_SCOPES = new Set([
+  OPENAI_INSTRUMENTATION_SCOPE,
+  ANTHROPIC_INSTRUMENTATION_SCOPE,
+  GOOGLE_GENAI_INSTRUMENTATION_SCOPE,
+]);
+const PROVIDER_REQUEST_CONTEXT_KEY = opentelemetry.createContextKey(
+  "promptlayer.provider_request"
 );
-const openAIRequestContexts = new WeakMap<
+const providerRequestContexts = new WeakMap<
   object,
-  PromptLayerOpenAIRequestContext
+  PromptLayerProviderRequestContext
 >();
 const openAIMessageContentBridge =
   new OpenAIMessageContentBridge();
 
 let activeTracingState: ActiveTracingState | null = null;
 
-const getOpenAIRequestContext = (
+const getProviderRequestContext = (
   context: opentelemetry.Context
-): PromptLayerOpenAIRequestContext | undefined =>
-  context.getValue(OPENAI_REQUEST_CONTEXT_KEY) as
-    | PromptLayerOpenAIRequestContext
+): PromptLayerProviderRequestContext | undefined =>
+  context.getValue(PROVIDER_REQUEST_CONTEXT_KEY) as
+    | PromptLayerProviderRequestContext
     | undefined;
 
-export const withPromptLayerOpenAIRequestContext = <T>(
-  value: PromptLayerOpenAIRequestContext,
+export const withPromptLayerProviderRequestContext = <T>(
+  value: PromptLayerProviderRequestContext,
   callback: () => T
-): T =>
-  opentelemetry.context.with(
-    opentelemetry.context
+): T => {
+  let callbackStarted = false;
+  let callbackReturned = false;
+  let result: T;
+
+  try {
+    const providerContext = opentelemetry.context
       .active()
-      .setValue(OPENAI_REQUEST_CONTEXT_KEY, value),
-    callback
-  );
+      .setValue(PROVIDER_REQUEST_CONTEXT_KEY, value);
+    return opentelemetry.context.with(providerContext, () => {
+      callbackStarted = true;
+      result = callback();
+      callbackReturned = true;
+      return result;
+    });
+  } catch (error) {
+    if (!callbackStarted) {
+      return callback();
+    }
+    if (callbackReturned) {
+      return result!;
+    }
+    throw error;
+  }
+};
+
+/** @deprecated Use withPromptLayerProviderRequestContext. */
+export const withPromptLayerOpenAIRequestContext =
+  withPromptLayerProviderRequestContext;
 
 const addPromptLayerAttributes = (
   span: ReadableSpan
 ): ReadableSpan => {
   if (
-    span.instrumentationScope.name !== OPENAI_INSTRUMENTATION_SCOPE
+    !PROVIDER_INSTRUMENTATION_SCOPES.has(
+      span.instrumentationScope.name
+    )
   ) {
     return span;
   }
 
-  const requestContext = openAIRequestContexts.get(span);
+  const requestContext = providerRequestContexts.get(span);
   const messageContent =
-    openAIMessageContentBridge.takeSpanAttributes(span);
+    span.instrumentationScope.name ===
+    OPENAI_INSTRUMENTATION_SCOPE
+      ? openAIMessageContentBridge.takeSpanAttributes(span)
+      : {};
   if (
     !requestContext &&
     Object.keys(messageContent).length === 0
@@ -150,19 +202,26 @@ class PromptLayerSpanProcessor implements SpanProcessor {
   onStart(
     ...args: Parameters<SpanProcessor["onStart"]>
   ): void {
-    const [span, parentContext] = args;
-    const requestContext = getOpenAIRequestContext(parentContext);
-    if (requestContext) {
-      openAIRequestContexts.set(span, requestContext);
+    try {
+      const [span, parentContext] = args;
+      const requestContext =
+        getProviderRequestContext(parentContext);
+      if (requestContext) {
+        providerRequestContexts.set(span, requestContext);
+      }
+      this.processor.onStart(...args);
+    } catch {
+      // Telemetry must never change provider SDK behavior.
     }
-    this.processor.onStart(...args);
   }
 
   onEnd(span: ReadableSpan): void {
     try {
       this.processor.onEnd(addPromptLayerAttributes(span));
+    } catch {
+      // Telemetry must never change provider SDK behavior.
     } finally {
-      openAIRequestContexts.delete(span);
+      providerRequestContexts.delete(span);
     }
   }
 
@@ -276,8 +335,14 @@ export const configureTracing = (
       activeTracingState.messageContentBridge.setCaptureContent(
         captureContent
       );
-      activeTracingState.instrumentation?.setConfig({
+      activeTracingState.instrumentations.openai?.setConfig({
         captureMessageContent: captureContent,
+      });
+      activeTracingState.instrumentations.anthropic?.setConfig({
+        traceContent: captureContent,
+      });
+      activeTracingState.instrumentations.google?.setConfig({
+        traceContent: captureContent,
       });
     }
     return activeTracingState.handle;
@@ -306,13 +371,30 @@ export const configureTracing = (
     );
   }
 
-  const instrumentation = (
-    options.providers ?? (["openai"] as const)
-  ).includes("openai")
-    ? new OpenAIInstrumentation({
-        captureMessageContent: captureContent,
-      })
-    : null;
+  const providers =
+    options.providers ??
+    (["openai", "anthropic", "google"] as const);
+  const instrumentations = {
+    anthropic: providers.includes("anthropic")
+      ? new AnthropicInstrumentation({
+          enabled: false,
+          exceptionLogger: () => undefined,
+          traceContent: captureContent,
+        })
+      : null,
+    google: providers.includes("google")
+      ? new GoogleGenAIInstrumentation({
+          enabled: false,
+          exceptionLogger: () => undefined,
+          traceContent: captureContent,
+        })
+      : null,
+    openai: providers.includes("openai")
+      ? new OpenAIInstrumentation({
+          captureMessageContent: captureContent,
+        })
+      : null,
+  };
   openAIMessageContentBridge.setCaptureContent(captureContent);
   const {
     loggerProvider,
@@ -321,15 +403,65 @@ export const configureTracing = (
     openAIMessageContentBridge,
     options.loggerProvider ?? logs.getLoggerProvider()
   );
-  const cleanupInstrumentations = registerInstrumentations({
-    instrumentations: instrumentation ? [instrumentation] : [],
-    loggerProvider,
-    tracerProvider,
-  });
+  const cleanupCallbacks: Array<() => void> = [];
+  if (instrumentations.openai) {
+    cleanupCallbacks.push(
+      registerInstrumentations({
+        instrumentations: [instrumentations.openai],
+        loggerProvider,
+        tracerProvider,
+      })
+    );
+  }
+  if (instrumentations.anthropic) {
+    instrumentations.anthropic.setTracerProvider(
+      createProviderAwareTracerProvider(tracerProvider)
+    );
+    instrumentations.anthropic.setLoggerProvider(
+      loggerProvider
+    );
+    const providerContextInstrumentation =
+      new AnthropicProviderContextInstrumentation(
+        instrumentations.anthropic
+      );
+    cleanupCallbacks.push(
+      registerInstrumentations({
+        instrumentations: [providerContextInstrumentation],
+        loggerProvider,
+        tracerProvider,
+      })
+    );
+  }
+  if (instrumentations.google) {
+    instrumentations.google.setTracerProvider(
+      createProviderAwareTracerProvider(tracerProvider)
+    );
+    instrumentations.google.setLoggerProvider(loggerProvider);
+    const providerContextInstrumentation =
+      new GoogleProviderContextInstrumentation(
+        instrumentations.google
+      );
+    cleanupCallbacks.push(
+      registerInstrumentations({
+        instrumentations: [providerContextInstrumentation],
+        loggerProvider,
+        tracerProvider,
+      })
+    );
+  }
+  const cleanupInstrumentations = (): void => {
+    for (const cleanup of cleanupCallbacks.reverse()) {
+      try {
+        cleanup();
+      } catch {
+        // Provider instrumentation is always best-effort.
+      }
+    }
+  };
 
   const state: ActiveTracingState = {
     cleanupInstrumentations,
-    instrumentation,
+    instrumentations,
     messageContentBridge: openAIMessageContentBridge,
     promptLayerLoggerProvider,
     provider: tracerProvider,
@@ -395,6 +527,6 @@ export const setupTracing = (
   return configureTracing({
     apiKey,
     baseURL,
-    providers: ["openai"],
+    providers: ["openai", "anthropic", "google"],
   }).tracerProvider as NodeTracerProvider;
 };

@@ -2,14 +2,13 @@ node_modules
 dist/
 .vscode/
 
-# Environments
-.env
-.env.local
-.env.production
-.env.development
+# Environment files and local registry credentials
+.env*
+!.env.example
+.npmrc
 
 # WebStorm
 .idea
 
-# Internal development
+# Local samples
 /samples

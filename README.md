@@ -99,6 +99,34 @@ main();
 - `throwOnError: boolean = true`: Controls whether SDK methods throw errors or return `null` or fallback values for many API errors.
 - `cacheTtlSeconds: number = 0`: Enables in-memory prompt-template caching when greater than `0`.
 
+### Provider Auto-Instrumentation
+
+Tracing registers upstream OpenTelemetry instrumentations for the provider SDKs below. Provider SDKs must load after tracing is configured; ESM applications can preload `promptlayer/register`.
+
+| Provider SDK | Instrumented APIs |
+| --- | --- |
+| OpenAI and Azure OpenAI | `chat.completions.create` and `responses.create`, including streams; `embeddings.create` |
+| Anthropic and Anthropic Vertex | `messages.create` and beta `messages.create`, including streams |
+| Google GenAI, including Vertex AI mode | `models.generateContent`, `models.generateContentStream`, `chat.sendMessage`, and `chat.sendMessageStream` |
+
+Anthropic Bedrock is not included in provider auto-instrumentation.
+
+Message content is excluded by default. Set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` or pass `captureContent: true` to `configureTracing` to include it. Enabling content capture can export prompts, responses, tool arguments, and other application data; only enable it when that data is appropriate to send to your configured trace backend.
+
+Runnable coverage examples are available for [OpenAI and Azure OpenAI](examples/tracing/trace_openai.mjs), [Anthropic and Anthropic Vertex](examples/tracing/trace_anthropic.mjs), [Google GenAI and Vertex AI](examples/tracing/trace_google_genai.mjs), and [PromptLayer.run with provider overrides](examples/tracing/trace_promptlayer_run.mjs). Each API check is isolated so a failure does not prevent the remaining checks from running; optional cloud-hosted checks report which environment variables are missing.
+
+The examples use these defaults when their model environment variables are not set:
+
+| Example provider | Default model | Environment override |
+| --- | --- | --- |
+| OpenAI | `gpt-4.1-mini` | `OPENAI_MODEL` |
+| OpenAI embeddings | `text-embedding-3-small` | `OPENAI_EMBEDDING_MODEL` |
+| Azure OpenAI | OpenAI defaults above | `AZURE_OPENAI_MODEL`, `AZURE_OPENAI_EMBEDDING_MODEL` |
+| Anthropic and Anthropic Vertex | `claude-sonnet-4-6` | `ANTHROPIC_MODEL`, `ANTHROPIC_VERTEX_MODEL` |
+| Google GenAI and Vertex AI | `gemini-2.5-flash-lite` | `GOOGLE_GENAI_MODEL`, `GOOGLE_VERTEX_MODEL` |
+
+Cloud-hosted checks still require their provider credentials and project configuration.
+
 ### Environment Variables
 
 The SDK relies on the following environment variables:
@@ -109,6 +137,7 @@ The SDK relies on the following environment variables:
 | `PROMPTLAYER_BASE_URL` | No | Overrides the PromptLayer API base URL. Defaults to `https://api.promptlayer.com`. |
 | `PROMPTLAYER_OTLP_TRACES_ENDPOINT` | No | Overrides the OTLP trace endpoint (`/v1/traces`) used when SDK tracing is enabled. |
 | `PROMPTLAYER_TRACEPARENT` | No | Optional trace context passed through the Claude Agents integration. |
+| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | No | Enables provider prompt and response content capture when set to a truthy value. |
 
 ## Client Resources
 

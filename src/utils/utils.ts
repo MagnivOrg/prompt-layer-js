@@ -22,6 +22,7 @@ import { Centrifuge } from "centrifuge";
 import { createRequire } from "node:module";
 import type TypeOpenAI from "openai";
 import pRetry from "p-retry";
+import { requireProviderSDK } from "./require-provider-sdk";
 import {
   MAP_PROVIDER_TO_FUNCTION_NAME,
   cleaned_result,
@@ -859,7 +860,7 @@ const anthropicRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const Anthropic = require("@anthropic-ai/sdk").default;
+  const Anthropic = requireProviderSDK("@anthropic-ai/sdk").default;
   const client = new Anthropic({
     baseURL: kwargs.baseURL,
     apiKey: kwargs.apiKey,
@@ -940,7 +941,7 @@ const googleRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
-  const { GoogleGenAI } = await import("@google/genai");
+  const { GoogleGenAI } = requireProviderSDK("@google/genai");
 
   const geminiAPI = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
   const project =

@@ -63,7 +63,7 @@ vi.mock("@/tracing", () => ({
     ) => fn(hoisted.fakeSpan),
   }),
   setupTracing: vi.fn(),
-  withPromptLayerOpenAIRequestContext: (
+  withPromptLayerProviderRequestContext: (
     _value: unknown,
     callback: () => unknown
   ) => callback(),

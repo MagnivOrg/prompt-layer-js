@@ -22,6 +22,7 @@ import { getTerminal } from "@/evaluations/terminal";
 import { traceTool, wrapWithSpan } from "@/span-wrapper";
 import { TemplateManager } from "@/templates";
 import { PromptTemplateCache } from "@/utils/template-cache";
+import { requireProviderSDK } from "@/utils/require-provider-sdk";
 import { formatRunOutput } from "@/run-tracing";
 import {
   configureTracing,
@@ -30,7 +31,7 @@ import {
   getTracer,
   setupTracing,
   shutdownTracing,
-  withPromptLayerOpenAIRequestContext,
+  withPromptLayerProviderRequestContext,
 } from "@/tracing";
 import { TrackManager } from "@/track";
 import {
@@ -200,7 +201,8 @@ export class PromptLayer {
 
   get Anthropic() {
     try {
-      const module = require("@anthropic-ai/sdk").default;
+      const module =
+        requireProviderSDK("@anthropic-ai/sdk").default;
       return promptLayerBase(
         this.apiKey,
         this.baseURL,
@@ -392,17 +394,12 @@ export class PromptLayer {
         try {
           const invokeProvider = () =>
             request_function(promptBlueprint!, kwargs);
-          response = await (
-            provider_type === "openai" ||
-            provider_type === "openai.azure"
-              ? withPromptLayerOpenAIRequestContext(
-                  {
-                    promptAttributes,
-                    requestLogSpanId: span.spanContext().spanId,
-                  },
-                  invokeProvider
-                )
-              : invokeProvider()
+          response = await withPromptLayerProviderRequestContext(
+            {
+              promptAttributes,
+              requestLogSpanId: span.spanContext().spanId,
+            },
+            invokeProvider
           );
         } catch (llmError: unknown) {
           const errorType = categorizeError(llmError);
@@ -613,6 +610,7 @@ export type {
   FlushableTracerProvider,
   OpenAITracingProvider,
   PromptLayerSpanProcessorOptions,
+  TracingProvider,
   TracingHandle,
 } from "@/tracing";
 
