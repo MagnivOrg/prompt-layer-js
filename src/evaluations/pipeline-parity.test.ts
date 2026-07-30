@@ -8,6 +8,8 @@ import {
   buildRowValues,
   casesFromRows,
   columnsByTitle,
+  customFieldTitles,
+  normalizeEvalCases,
 } from "./utils";
 import type { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
@@ -321,11 +323,11 @@ describe("assertPassingScore / failed cells", () => {
 });
 
 describe("expectedTrace round-trip", () => {
-  it("persists and reloads expected_trace through row helpers", () => {
+  it("persists and reloads exact dataset column titles through row helpers", () => {
     const columns = [
-      { id: "i", title: "Input", type: "TEXT" as const },
-      { id: "e", title: "Expected", type: "TEXT" as const },
-      { id: "et", title: "Expected Trace", type: "TEXT" as const },
+      { id: "i", title: "input", type: "TEXT" as const },
+      { id: "e", title: "expected", type: "TEXT" as const },
+      { id: "et", title: "expectedTrace", type: "TEXT" as const },
       { id: "o", title: "Output", type: "TEXT" as const },
     ];
     const byTitle = columnsByTitle(columns);
@@ -358,5 +360,98 @@ describe("expectedTrace round-trip", () => {
     expect(cases).toEqual([
       { input: "q", expected: "a", expectedTrace },
     ]);
+  });
+
+  it("reads and writes legacy titled columns and expected_trace rows", () => {
+    const columns = [
+      { id: "i", title: "Input", type: "TEXT" as const },
+      { id: "e", title: "Expected", type: "TEXT" as const },
+      { id: "et", title: "Expected Trace", type: "TEXT" as const },
+    ];
+    const values = buildRowValues(columnsByTitle(columns), {
+      inputValue: "q",
+      expectedValue: "a",
+      expectedTraceValue: ["search"],
+      outputValue: undefined,
+    });
+    expect(values).toEqual({
+      i: "q",
+      e: "a",
+      et: JSON.stringify(["search"]),
+    });
+    expect(
+      casesFromRows(
+        { data: [{ row_index: 0, input: "q", expected_trace: ["search"] }] },
+        []
+      )
+    ).toEqual([{ input: "q", expectedTrace: ["search"] }]);
+  });
+});
+
+describe("arbitrary eval dataset fields", () => {
+  it("keeps a stable first-seen union and cannot collide with a user fields key", () => {
+    const cases = normalizeEvalCases([
+      { input: "one", fields: "literal", Topic: "math" },
+      { input: "two", Locale: "fr", Topic: "science" },
+    ]);
+
+    expect(customFieldTitles(cases)).toEqual(["fields", "Topic", "Locale"]);
+    expect(cases[0].customFields).toEqual({
+      fields: "literal",
+      Topic: "math",
+    });
+  });
+
+  it("writes sparse custom fields as blank exact-title TEXT cells", () => {
+    const byTitle = columnsByTitle([
+      { id: "i", title: "input", type: "TEXT" },
+      { id: "o", title: "Output", type: "TEXT" },
+      { id: "topic", title: "Topic Name", type: "TEXT" },
+      { id: "locale", title: "locale-code", type: "TEXT" },
+    ]);
+
+    expect(
+      buildRowValues(byTitle, {
+        inputValue: "q",
+        expectedValue: undefined,
+        expectedTraceValue: undefined,
+        outputValue: "a",
+        customFields: { "Topic Name": "science" },
+        customFieldTitles: ["Topic Name", "locale-code"],
+      })
+    ).toMatchObject({ topic: "science", locale: "" });
+  });
+
+  it("loads only non-reserved, non-generated TEXT fields from table rows", () => {
+    const cases = casesFromRows(
+      {
+        data: [
+          {
+            row_index: 0,
+            cells: {
+              i: { value: "q" },
+              custom: { value: "gold" },
+              generated: { value: "skip-output" },
+              computed: { value: "skip-computed" },
+              trace: { value: "skip-trace" },
+            },
+          },
+        ],
+      },
+      [
+        { id: "i", title: "input", type: "TEXT" },
+        { id: "custom", title: "Human Label", type: "TEXT" },
+        {
+          id: "generated",
+          title: "Generated",
+          type: "TEXT",
+          is_output_column: true,
+        },
+        { id: "computed", title: "Computed", type: "JSON_PATH" },
+        { id: "trace", title: "Trace", type: "TEXT" },
+      ]
+    );
+
+    expect(cases).toEqual([{ input: "q", "Human Label": "gold" }]);
   });
 });

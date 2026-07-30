@@ -3,27 +3,34 @@ import { column } from "../columns";
 import {
   applyScorecardStepOptions,
   popScorecardStepOptions,
+  type ScorecardStepOptions,
 } from "./scorecard-options";
-import { requireNonEmptyString } from "./utils";
+import { rejectLegacyParameters, requireNonEmptyString } from "./utils";
+
+export type AssertValidScorerOptions = ScorecardStepOptions & {
+  title?: string;
+  sourceColumn?: string;
+  type?: string;
+  [key: string]: unknown;
+};
 
 export const assertValidScorer = ({
   title = "Assert valid",
-  source = "Output",
+  sourceColumn = "Output",
   type = "object",
   ...settings
-}: {
-  title?: string;
-  source?: string;
-  type?: string;
-  [key: string]: unknown;
-} = {}): EvalScorerColumn => {
+}: AssertValidScorerOptions = {}): EvalScorerColumn => {
+  rejectLegacyParameters(settings, ["source"], "assertValidScorer");
   const resolvedTitle = requireNonEmptyString(title, "title");
-  const resolvedSource = requireNonEmptyString(source, "source");
+  const resolvedSourceColumn = requireNonEmptyString(
+    sourceColumn,
+    "sourceColumn"
+  );
   const resolvedType = requireNonEmptyString(type, "type");
   const { stepOptions, configSettings } = popScorecardStepOptions(settings);
   return applyScorecardStepOptions(
     column(resolvedTitle, "ASSERT_VALID", {
-      source: resolvedSource,
+      source: resolvedSourceColumn,
       type: resolvedType,
       ...configSettings,
     }),

@@ -1,6 +1,7 @@
 import {
   AddTraceImport,
   CreateColumn,
+  EvalCase,
   EvalCaseResult,
   EvalScorerColumn,
   ResourceId,
@@ -9,8 +10,9 @@ import {
 } from "@/types";
 import { extractRows } from "@/tables/helpers";
 
-export const BASE_TEXT_COLUMNS = ["Input", "Expected", "Output"] as const;
-export const EXPECTED_TRACE_COLUMN = "Expected Trace";
+export const DATASET_TEXT_COLUMNS = ["input", "expected"] as const;
+export const BASE_TEXT_COLUMNS = [...DATASET_TEXT_COLUMNS, "Output"] as const;
+export const EXPECTED_TRACE_COLUMN = "expectedTrace";
 export const TRACE_TEXT_COLUMNS = ["Trace"] as const;
 export const TRACE_RESERVED_COLUMN_TITLES = [
   "Trace",
@@ -22,10 +24,11 @@ export const TRACE_RESERVED_COLUMN_TITLES = [
 ] as const;
 
 export const COLUMN_TITLE_ALIASES: Record<string, string> = {
-  input: "Input",
-  expected: "Expected",
-  output: "Output",
+  Input: "input",
+  Expected: "expected",
+  "Expected Trace": EXPECTED_TRACE_COLUMN,
   expected_trace: EXPECTED_TRACE_COLUMN,
+  output: "Output",
   trace: "Trace",
 };
 
@@ -39,12 +42,52 @@ export const RESERVED_EVAL_COLUMN_TITLES = new Set<string>([
 export const isReservedEvalColumnTitle = (title: string): boolean =>
   RESERVED_EVAL_COLUMN_TITLES.has(title);
 
-const LEGACY_COLUMN_TITLES: Record<string, string> = Object.fromEntries(
-  Object.entries(COLUMN_TITLE_ALIASES).map(([alias, canonical]) => [
-    canonical,
-    alias,
-  ])
-);
+export type NormalizedEvalCase<TInput = unknown> = {
+  input: TInput;
+  expected: unknown;
+  expectedTrace: unknown;
+  customFields: Record<string, unknown>;
+};
+
+export const normalizeEvalCases = <TInput>(
+  cases: EvalCase<TInput>[]
+): NormalizedEvalCase<TInput>[] =>
+  cases.map((caseItem) => {
+    const customFields: Record<string, unknown> = Object.create(null);
+    for (const key of Object.keys(caseItem)) {
+      if (key === "input" || key === "expected" || key === "expectedTrace") {
+        continue;
+      }
+      customFields[key] = caseItem[key];
+    }
+    return {
+      input: caseItem.input,
+      expected: caseItem.expected,
+      expectedTrace: caseItem.expectedTrace,
+      customFields,
+    };
+  });
+
+export const customFieldTitles = (
+  cases: NormalizedEvalCase[]
+): string[] => {
+  const seen = new Set<string>();
+  const titles: string[] = [];
+  for (const caseItem of cases) {
+    for (const title of Object.keys(caseItem.customFields)) {
+      if (seen.has(title)) continue;
+      seen.add(title);
+      titles.push(title);
+    }
+  }
+  return titles;
+};
+
+const LEGACY_COLUMN_TITLES: Record<string, string> = {
+  input: "Input",
+  expected: "Expected",
+  [EXPECTED_TRACE_COLUMN]: "Expected Trace",
+};
 
 export const resolveColumnTitle = (title: string): string =>
   COLUMN_TITLE_ALIASES[title] ?? title;
@@ -62,6 +105,10 @@ export const findColumnByTitle = (
   }
   const legacy = LEGACY_COLUMN_TITLES[title];
   if (legacy && columnsByTitleMap[legacy]) return columnsByTitleMap[legacy];
+  const canonicalLegacy = canonical && LEGACY_COLUMN_TITLES[canonical];
+  if (canonicalLegacy && columnsByTitleMap[canonicalLegacy]) {
+    return columnsByTitleMap[canonicalLegacy];
+  }
   return undefined;
 };
 
@@ -310,17 +357,27 @@ export const buildRowValues = (
     expectedValue: unknown;
     expectedTraceValue: unknown;
     outputValue: unknown;
+    customFields?: Record<string, unknown>;
+    customFieldTitles?: readonly string[];
   }
 ): Record<string, unknown> => {
   const values: Record<string, unknown> = {};
   for (const [title, value] of [
-    ["Input", args.inputValue],
-    ["Expected", args.expectedValue],
+    ["input", args.inputValue],
+    ["expected", args.expectedValue],
     [EXPECTED_TRACE_COLUMN, args.expectedTraceValue],
     ["Output", args.outputValue],
   ] as const) {
     const column = findColumnByTitle(columnsByTitleMap, title);
     if (!column) continue;
+    values[String(column.id)] = serializeCellValue(
+      value !== null && value !== undefined ? value : ""
+    );
+  }
+  for (const title of args.customFieldTitles ?? Object.keys(args.customFields ?? {})) {
+    const column = columnsByTitleMap[title];
+    if (!column) continue;
+    const value = args.customFields?.[title];
     values[String(column.id)] = serializeCellValue(
       value !== null && value !== undefined ? value : ""
     );
@@ -363,16 +420,19 @@ export const buildCaseResult = <TInput, TOutput>(args: {
 export const casesFromRows = <TInput = unknown>(
   rowsPayload: Record<string, unknown> | null | undefined,
   columns: Column[]
-): Array<{ input: TInput; expected?: unknown; expectedTrace?: unknown }> => {
+): EvalCase<TInput>[] => {
   const byTitle = columnsByTitle(columns);
-  const inputCol = findColumnByTitle(byTitle, "Input");
-  const expectedCol = findColumnByTitle(byTitle, "Expected");
+  const inputCol = findColumnByTitle(byTitle, "input");
+  const expectedCol = findColumnByTitle(byTitle, "expected");
   const expectedTraceCol = findColumnByTitle(byTitle, EXPECTED_TRACE_COLUMN);
-  const cases: Array<{
-    input: TInput;
-    expected?: unknown;
-    expectedTrace?: unknown;
-  }> = [];
+  const customColumns = columns.filter(
+    (column) =>
+      column.type === "TEXT" &&
+      !column.is_output_column &&
+      Boolean(column.title.trim()) &&
+      !isReservedEvalColumnTitle(column.title)
+  );
+  const cases: EvalCase<TInput>[] = [];
   for (const row of extractRows(rowsPayload)) {
     const cells = (row.cells as Record<string, unknown>) || {};
     let inputValue: unknown = null;
@@ -401,11 +461,7 @@ export const casesFromRows = <TInput = unknown>(
       expectedTraceValue = row.expected_trace;
     }
     if (inputValue === null || inputValue === undefined) continue;
-    const caseItem: {
-      input: TInput;
-      expected?: unknown;
-      expectedTrace?: unknown;
-    } = {
+    const caseItem: EvalCase<TInput> = {
       input: inputValue as TInput,
     };
     if (expectedValue !== null && expectedValue !== undefined) {
@@ -413,6 +469,11 @@ export const casesFromRows = <TInput = unknown>(
     }
     if (expectedTraceValue !== null && expectedTraceValue !== undefined) {
       caseItem.expectedTrace = expectedTraceValue;
+    }
+    for (const column of customColumns) {
+      caseItem[column.title] = parseCellValue(
+        cells[String(column.id)] as Record<string, unknown>
+      );
     }
     cases.push(caseItem);
   }

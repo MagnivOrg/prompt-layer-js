@@ -19,3 +19,20 @@ export const requireNonNegativeInteger = (
   }
   return value;
 };
+
+export const rejectLegacyParameters = (
+  settings: Record<string, unknown>,
+  names: readonly string[],
+  scorerName: string
+): void => {
+  const legacyNames = names.filter((name) =>
+    Object.prototype.hasOwnProperty.call(settings, name)
+  );
+  if (legacyNames.length) {
+    throw validationError(
+      `${scorerName} no longer accepts legacy parameter(s): ${legacyNames.join(
+        ", "
+      )}.`
+    );
+  }
+};

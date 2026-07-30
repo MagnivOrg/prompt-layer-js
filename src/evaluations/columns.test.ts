@@ -84,7 +84,11 @@ describe("evaluations column helpers", () => {
     ).toThrow(/reserved/);
     expect(() => column("summary", "TEXT")).toThrow(/cannot be TEXT/);
     expect(() =>
-      containsScorer({ title: "Trace", source: "Output", value: "x" })
+      containsScorer({
+        title: "Trace",
+        sourceColumn: "Output",
+        expected: "x",
+      })
     ).toThrow(/reserved/);
   });
 
@@ -137,12 +141,20 @@ describe("evaluations column helpers", () => {
     });
     expect(
       scorersReferenceTrace([
-        llmAssertionScorer({ title: "x", source: "Trace", prompt: "ok" }),
+        llmAssertionScorer({
+          title: "x",
+          sourceColumn: "Trace",
+          prompt: "ok",
+        }),
       ])
     ).toBe(true);
     expect(
       scorersReferenceTrace([
-        llmAssertionScorer({ title: "x", source: "Output", prompt: "ok" }),
+        llmAssertionScorer({
+          title: "x",
+          sourceColumn: "Output",
+          prompt: "ok",
+        }),
       ])
     ).toBe(false);
     expect(() =>
@@ -160,7 +172,7 @@ describe("evaluations column helpers", () => {
       [
         llmAssertionScorer({
           title: "Response grounded",
-          source: "Output",
+          sourceColumn: "Output",
           prompt: "User: {user_request}\nTrace: {execution_trace}",
           variableMappings: {
             user_request: "Input",
@@ -191,7 +203,7 @@ describe("evaluations column helpers", () => {
     const code = String(col.config?.code);
     expect(code).not.toContain("function exactMatch");
     expect(code).toContain('const output = data.get("Output")');
-    expect(code).toContain('const expected = data.get("Expected")');
+    expect(code).toContain('const expected = data.get("expected")');
     expect(code).toContain("result = output === expected ? 1 : 0");
 
     const normalized = normalizeScorer(exactMatch);

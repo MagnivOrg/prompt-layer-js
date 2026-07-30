@@ -608,7 +608,16 @@ export {
 };
 
 export { ColumnType } from "@/types";
-export type { TrajectoryMode } from "@/evaluations";
+export type {
+  AssertValidScorerOptions,
+  CompareScorerOptions,
+  ContainsScorerOptions,
+  CountScorerOptions,
+  LlmAssertionScorerOptions,
+  RegexScorerOptions,
+  TrajectoryMode,
+  TrajectoryScorerOptions,
+} from "@/evaluations";
 export type { ColumnTypeValue } from "@/types";
 export type {
   ConfigureTracingOptions,

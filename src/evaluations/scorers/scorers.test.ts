@@ -21,6 +21,7 @@ import {
 import { buildScorerColumnBody } from "@/evaluations/utils";
 import {
   normalizeScorer,
+  scorerDependenciesFromConfig,
   scorersReferenceTrace,
 } from "@/evaluations/validation";
 import { describe, expect, it } from "vitest";
@@ -31,20 +32,38 @@ describe("predefined eval scorers", () => {
       title: "Compare",
       type: "COMPARE",
       config: {
-        sources: ["Output", "Expected"],
+        sources: ["Output", "expected"],
         comparison_type: { type: "STRING" },
       },
     });
     expect(
       compareScorer({
         title: "Strict equality",
-        sources: ["answer", "label"],
+        sourceColumn: "answer",
+        expectedColumn: "label",
       }).config?.sources
     ).toEqual(["answer", "label"]);
+    expect(
+      compareScorer({
+        sourceColumn: "actual",
+        expectedColumn: "reference",
+      }).config?.sources
+    ).toEqual(["actual", "reference"]);
+    expect(
+      compareScorer({
+        sourceColumn: "actual",
+        expected: null,
+        comparisonType: "JSON",
+      }).config
+    ).toEqual({
+      sources: ["actual"],
+      target: null,
+      comparison_type: { type: "JSON" },
+    });
   });
 
   it("builds contains CONTAINS payloads", () => {
-    expect(containsScorer({ value: "refund" })).toEqual({
+    expect(containsScorer({ expected: "refund" })).toEqual({
       title: "Contains",
       type: "CONTAINS",
       config: { source: "Output", value: "refund" },
@@ -52,27 +71,29 @@ describe("predefined eval scorers", () => {
     expect(
       containsScorer({
         title: "Has expected",
-        source: "answer",
-        valueSource: "Expected",
+        sourceColumn: "answer",
+        expectedColumn: "Expected",
       }).config
     ).toEqual({ source: "answer", value_source: "Expected" });
     expect(
       containsScorer({
-        value: "refund",
-        valueSource: "Expected",
+        expected: "refund",
+        case_sensitive: false,
       }).config
     ).toEqual({
       source: "Output",
       value: "refund",
-      value_source: "Expected",
+      case_sensitive: false,
     });
   });
 
   it("builds regex REGEX payloads", () => {
-    expect(regexScorer({ regexPattern: "inv_\\d+" })).toEqual({
+    expect(
+      regexScorer({ sourceColumn: "answer", regexPattern: "inv_\\d+" })
+    ).toEqual({
       title: "Regex",
       type: "REGEX",
-      config: { source: "Output", regex_pattern: "inv_\\d+" },
+      config: { source: "answer", regex_pattern: "inv_\\d+" },
     });
   });
 
@@ -88,9 +109,14 @@ describe("predefined eval scorers", () => {
       },
     });
     expect(
-      countScorer({ type: "words", minCount: 2, maxCount: 4 }).config
+      countScorer({
+        sourceColumn: "answer",
+        type: "words",
+        minCount: 2,
+        maxCount: 4,
+      }).config
     ).toEqual({
-      source: "Output",
+      source: "answer",
       type: "words",
       min_count: 2,
       max_count: 4,
@@ -104,7 +130,7 @@ describe("predefined eval scorers", () => {
       config: { source: "Output", type: "object" },
     });
     expect(
-      assertValidScorer({ type: "email", source: "contact" })
+      assertValidScorer({ type: "email", sourceColumn: "contact" })
     ).toEqual({
       title: "Assert valid",
       type: "ASSERT_VALID",
@@ -120,12 +146,13 @@ describe("predefined eval scorers", () => {
     });
     expect(
       llmAssertionScorer({
+        sourceColumn: "answer",
         prompt: "Check",
         promptSource: "prompt_col",
         variableMappings: { expected: "Expected" },
       }).config
     ).toEqual({
-      source: "Output",
+      source: "answer",
       prompt: "Check",
       prompt_source: "prompt_col",
       variable_mappings: { expected: "Expected" },
@@ -134,7 +161,7 @@ describe("predefined eval scorers", () => {
 
   it("builds TRAJECTORY payloads that reference Trace", () => {
     expect(
-      trajectoryScorer({ acceptedScenarios: [["search", "checkout"]] })
+      trajectoryScorer({ expected: [["search", "checkout"]] })
     ).toEqual({
       title: "Trajectory",
       type: "TRAJECTORY",
@@ -146,16 +173,27 @@ describe("predefined eval scorers", () => {
     });
     expect(
       scorersReferenceTrace([
-        trajectoryScorer({ acceptedScenarios: [["search"]] }),
+        trajectoryScorer({ expected: [["search"]] }),
       ])
     ).toBe(true);
+    expect(
+      trajectoryScorer({
+        sourceColumn: "Agent trace",
+        expected: [["search"]],
+      }).config?.trace_source
+    ).toBe("Agent trace");
+    expect(
+      trajectoryScorer({
+        expectedColumn: "Expected trajectory",
+      }).config?.expected_source
+    ).toBe("Expected trajectory");
 
     expect(
       trajectoryScorer({
-        acceptedScenarios: [["search"]],
+        expected: [["search"]],
         mode: "non_strict",
         title: "Tools",
-        traceSource: "Trace",
+        sourceColumn: "Trace",
         weight: 2,
         failureThreshold: 0.5,
         passThreshold: 0.9,
@@ -216,7 +254,7 @@ describe("predefined eval scorers", () => {
 
   it("builds column-source TRAJECTORY payloads and diagnoses tool-list failures", () => {
     const scorer = trajectoryScorer({
-      expectedSource: "Expected",
+      expectedColumn: "Expected",
       title: "Trajectory assertions",
     });
     expect(scorer).toEqual({
@@ -304,7 +342,7 @@ describe("predefined eval scorers", () => {
 
     expect(
       trajectoryScorer({
-        acceptedScenarios: [
+        expected: [
           ["get_model_config", "create_prompt"],
           ["list_model_configs", "create_prompt"],
         ],
@@ -320,14 +358,117 @@ describe("predefined eval scorers", () => {
     });
   });
 
+  it("tracks literal and column-mode scorer dependencies", () => {
+    const columnsByTitle = {
+      Output: { id: "out", title: "Output", type: "TEXT" },
+      Trace: { id: "trace", title: "Trace", type: "TRACE" },
+      expected: { id: "expected", title: "expected", type: "TEXT" },
+    };
+    const dependencyCount = (scorer: ReturnType<typeof containsScorer>) =>
+      scorerDependenciesFromConfig(scorer.config, columnsByTitle).length;
+
+    expect(dependencyCount(containsScorer({ expected: "yes" }))).toBe(1);
+    expect(
+      dependencyCount(containsScorer({ expectedColumn: "expected" }))
+    ).toBe(2);
+    expect(dependencyCount(compareScorer({ expected: "yes" }))).toBe(1);
+    expect(dependencyCount(compareScorer({ expectedColumn: "expected" }))).toBe(
+      2
+    );
+    expect(dependencyCount(trajectoryScorer({ expected: [["search"]] }))).toBe(
+      1
+    );
+    expect(
+      dependencyCount(trajectoryScorer({ expectedColumn: "expected" }))
+    ).toBe(2);
+  });
+
+  it("retains custom backend settings on every predefined scorer", () => {
+    expect(
+      containsScorer({ expected: "yes", custom_contains: true }).config
+    ).toMatchObject({ custom_contains: true });
+    expect(compareScorer({ custom_compare: true }).config).toMatchObject({
+      custom_compare: true,
+    });
+    expect(
+      trajectoryScorer({
+        expected: [["search"]],
+        custom_trajectory: true,
+      }).config
+    ).toMatchObject({ custom_trajectory: true });
+    expect(
+      countScorer({ minCount: 1, custom_count: true }).config
+    ).toMatchObject({ custom_count: true });
+    expect(
+      regexScorer({ regexPattern: "ok", custom_regex: true }).config
+    ).toMatchObject({ custom_regex: true });
+    expect(
+      assertValidScorer({ custom_assert_valid: true }).config
+    ).toMatchObject({ custom_assert_valid: true });
+    expect(
+      llmAssertionScorer({ prompt: "ok", custom_llm_assertion: true }).config
+    ).toMatchObject({ custom_llm_assertion: true });
+  });
+
+  it("rejects removed legacy scorer parameters", () => {
+    expect(() =>
+      containsScorer({ expected: "yes", source: "Output" })
+    ).toThrow(/containsScorer.*source/);
+    expect(() => containsScorer({ expected: "yes", value: "yes" })).toThrow(
+      /containsScorer.*value/
+    );
+    expect(() =>
+      containsScorer({ expected: "yes", valueSource: "expected" })
+    ).toThrow(/containsScorer.*valueSource/);
+    expect(() => compareScorer({ source: "Output" })).toThrow(
+      /compareScorer.*source/
+    );
+    expect(() => compareScorer({ valueSource: "expected" })).toThrow(
+      /compareScorer.*valueSource/
+    );
+    expect(() =>
+      trajectoryScorer({ expected: [["search"]], source: "Trace" })
+    ).toThrow(/trajectoryScorer.*source/);
+    expect(() =>
+      trajectoryScorer({
+        expected: [["search"]],
+        acceptedScenarios: [["search"]],
+      })
+    ).toThrow(/trajectoryScorer.*acceptedScenarios/);
+    expect(() =>
+      trajectoryScorer({ expected: [["search"]], valueSource: "expected" })
+    ).toThrow(/trajectoryScorer.*valueSource/);
+    expect(() => countScorer({ minCount: 1, source: "Output" })).toThrow(
+      /countScorer.*source/
+    );
+    expect(() =>
+      regexScorer({ regexPattern: "ok", source: "Output" })
+    ).toThrow(/regexScorer.*source/);
+    expect(() => assertValidScorer({ source: "Output" })).toThrow(
+      /assertValidScorer.*source/
+    );
+    expect(() =>
+      llmAssertionScorer({ prompt: "ok", source: "Output" })
+    ).toThrow(/llmAssertionScorer.*source/);
+  });
+
   it("validates required arguments", () => {
     expect(() => compareScorer({ title: " " })).toThrow(/title/);
-    expect(() => compareScorer({ sources: ["only_one"] })).toThrow(
-      /exactly two sources/
+    expect(() => compareScorer({ expectedColumn: "" })).toThrow(
+      /expectedColumn/
     );
-    expect(() => containsScorer({ source: "Output" })).toThrow(
-      /value or valueSource/
+    expect(() => containsScorer({ sourceColumn: "Output" } as any)).toThrow(
+      /expected or expectedColumn/
     );
+    expect(() =>
+      containsScorer({
+        expected: "yes",
+        expectedColumn: "expected",
+      } as any)
+    ).toThrow(/exactly one/);
+    expect(() =>
+      compareScorer({ expected: "yes", expectedColumn: "expected" } as any)
+    ).toThrow(/only one/);
     expect(() => regexScorer({ regexPattern: "" })).toThrow(/regexPattern/);
     expect(() => countScorer({})).toThrow(/minCount or maxCount/);
     expect(() => countScorer({ minCount: -1 })).toThrow(/non-negative/);
@@ -337,18 +478,24 @@ describe("predefined eval scorers", () => {
     );
     expect(() => assertValidScorer({ type: "" })).toThrow(/type/);
     expect(() => llmAssertionScorer({})).toThrow(/prompt or promptSource/);
-    expect(() => trajectoryScorer({ acceptedScenarios: [] })).toThrow(
+    expect(() => trajectoryScorer({ expected: [] })).toThrow(
       /non-empty array/
     );
-    expect(() => trajectoryScorer({ acceptedScenarios: [[" "]] })).toThrow(
+    expect(() => trajectoryScorer({ expected: [[" "]] })).toThrow(
       /expected tool/
     );
-    expect(() => trajectoryScorer({ expectedSource: " " })).toThrow(
-      /expectedSource/
+    expect(() => trajectoryScorer({ expectedColumn: " " })).toThrow(
+      /expectedColumn/
     );
     expect(() =>
       trajectoryScorer({
-        acceptedScenarios: [["search"]],
+        expected: [["search"]],
+        sourceColumn: "",
+      })
+    ).toThrow(/sourceColumn/);
+    expect(() =>
+      trajectoryScorer({
+        expected: [["search"]],
         mode: "loose" as any,
       })
     ).toThrow(/strict/);

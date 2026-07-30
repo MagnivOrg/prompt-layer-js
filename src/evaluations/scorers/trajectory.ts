@@ -9,9 +9,10 @@ import {
 } from "./strict-trace";
 import {
   applyScorecardStepOptions,
+  popScorecardStepOptions,
   type ScorecardStepOptions,
 } from "./scorecard-options";
-import { requireNonEmptyString } from "./utils";
+import { rejectLegacyParameters, requireNonEmptyString } from "./utils";
 
 export type { TrajectoryMode };
 const TRAJECTORY_DIAGNOSIS = "trajectory";
@@ -31,52 +32,57 @@ export const diagnoseTrajectoryFailure = (
   mode: TrajectoryMode = "strict"
 ): string | null => diagnoseStrictTraceFailure(trace, expected, mode);
 
-type TrajectoryScorerOptions = ScorecardStepOptions & {
+type TrajectoryScorerBaseOptions = ScorecardStepOptions & {
   mode?: TrajectoryMode;
   title?: string;
-  traceSource?: string;
+  sourceColumn?: string;
+  [key: string]: unknown;
 };
 
-type TrajectorySourceScorerOptions = TrajectoryScorerOptions & {
-  expectedSource: string;
-};
-
-type TrajectoryScenariosScorerOptions = TrajectoryScorerOptions & {
-  acceptedScenarios: string[][];
-};
+export type TrajectoryScorerOptions = TrajectoryScorerBaseOptions &
+  (
+    | { expected: string[][]; expectedColumn?: never }
+    | { expected?: never; expectedColumn: string }
+  );
 
 export function trajectoryScorer(
-  options: TrajectorySourceScorerOptions | TrajectoryScenariosScorerOptions
-): EvalScorerColumn;
-export function trajectoryScorer(
-  options: TrajectorySourceScorerOptions | TrajectoryScenariosScorerOptions
+  options: TrajectoryScorerOptions
 ): EvalScorerColumn {
-  const acceptedScenarios =
-    "acceptedScenarios" in options ? options.acceptedScenarios : undefined;
-  const expectedSource =
-    "expectedSource" in options ? options.expectedSource : undefined;
+  const {
+    expected,
+    expectedColumn,
+    mode = "strict",
+    title = "Trajectory",
+    sourceColumn = "Trace",
+    ...settings
+  } = options;
+  rejectLegacyParameters(
+    settings,
+    ["source", "acceptedScenarios", "valueSource"],
+    "trajectoryScorer"
+  );
 
   const providedCount = [
-    acceptedScenarios !== undefined,
-    expectedSource !== undefined,
+    expected !== undefined,
+    expectedColumn !== undefined,
   ].filter(Boolean).length;
   if (providedCount !== 1) {
     throw validationError(
-      "trajectoryScorer requires exactly one of acceptedScenarios or expectedSource."
+      "trajectoryScorer requires exactly one of expected or expectedColumn."
     );
   }
 
   let normalizedScenarios: string[][] | undefined;
-  if (acceptedScenarios !== undefined) {
-    if (!Array.isArray(acceptedScenarios) || !acceptedScenarios.length) {
+  if (expected !== undefined) {
+    if (!Array.isArray(expected) || !expected.length) {
       throw validationError(
-        "trajectoryScorer acceptedScenarios must be a non-empty array."
+        "trajectoryScorer expected must be a non-empty array."
       );
     }
-    normalizedScenarios = acceptedScenarios.map((scenario) => {
+    normalizedScenarios = expected.map((scenario) => {
       if (!Array.isArray(scenario) || !scenario.length) {
         throw validationError(
-          "trajectoryScorer each scenario must be a non-empty array."
+          "trajectoryScorer each expected scenario must be a non-empty array."
         );
       }
       return scenario.map((tool) =>
@@ -85,44 +91,43 @@ export function trajectoryScorer(
     });
   }
 
-  const mode = options.mode ?? "strict";
   if (mode !== "strict" && mode !== "non_strict") {
     throw validationError(
       'trajectoryScorer mode must be "strict" or "non_strict".'
     );
   }
-  const title = requireNonEmptyString(options.title ?? "Trajectory", "title");
-  const traceSource = requireNonEmptyString(
-    options.traceSource ?? "Trace",
-    "traceSource"
+  const resolvedTitle = requireNonEmptyString(title, "title");
+  const resolvedSource = requireNonEmptyString(
+    sourceColumn,
+    "sourceColumn"
   );
+  const { stepOptions, configSettings } = popScorecardStepOptions(settings);
 
   const config: Record<string, unknown> =
     normalizedScenarios !== undefined
       ? {
-          trace_source: traceSource,
+          trace_source: resolvedSource,
           accepted_scenarios: normalizedScenarios.map((scenario) => [
             ...scenario,
           ]),
           mode,
+          ...configSettings,
         }
       : {
-          trace_source: traceSource,
+          trace_source: resolvedSource,
           expected_source: requireNonEmptyString(
-            expectedSource,
-            "expectedSource"
+            expectedColumn,
+            "expectedColumn"
           ),
           mode,
+          ...configSettings,
         };
 
-  const payload = applyScorecardStepOptions(column(title, "TRAJECTORY", config), {
-    weight: options.weight,
-    failureThreshold: options.failureThreshold,
-    passThreshold: options.passThreshold,
-    required: options.required,
-    thresholds: options.thresholds,
-  });
-  if (expectedSource !== undefined) {
+  const payload = applyScorecardStepOptions(
+    column(resolvedTitle, "TRAJECTORY", config),
+    stepOptions
+  );
+  if (expectedColumn !== undefined) {
     payload._sdkDiagnosis = TRAJECTORY_DIAGNOSIS;
   }
   return payload;
