@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  SpanKind,
+  type HrTime,
+} from "@opentelemetry/api";
+import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
@@ -81,6 +85,15 @@ const requestURL = (input: string | URL | Request): string => {
   if (input instanceof URL) return input.toString();
   return input.url;
 };
+
+const compareHrTime = (left: HrTime, right: HrTime): number =>
+  (left[0] - right[0]) * 1_000_000_000 +
+  left[1] -
+  right[1];
+
+// Native OpenAI instrumentation ends its side-chained APIPromise
+// span asynchronously.
+const TIMESTAMP_TOLERANCE_NS = 1_000_000;
 
 describe("native OpenAI SDK tracing", () => {
   const originalCapture =
@@ -227,7 +240,17 @@ describe("native OpenAI SDK tracing", () => {
       },
       prompt_name: "support-answer",
       prompt_template: {
-        messages: [],
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "template-body-secret",
+              },
+            ],
+          },
+        ],
         type: "chat",
       },
       tags: [],
@@ -238,7 +261,16 @@ describe("native OpenAI SDK tracing", () => {
       .mockResolvedValue(promptBlueprint);
 
     const result = await client.run({
+      inputVariables: {
+        customer: "input-variable-secret",
+      },
+      metadata: {
+        session_id: "session-456",
+        user_id: "user-123",
+      },
       promptName: "support-answer",
+      promptReleaseLabel: "production",
+      promptVersion: 2,
     });
     await tracing.forceFlush();
 
@@ -254,12 +286,16 @@ describe("native OpenAI SDK tracing", () => {
     const runSpan = spans.find(
       (span) => span.name === "PromptLayer Run"
     );
+    const fetchSpan = spans.find(
+      (span) => span.name === "Prompt template fetch"
+    );
     const openAISpans = spans.filter(
       (span) =>
         span.instrumentationScope.name ===
         "@opentelemetry/instrumentation-openai"
     );
     expect(runSpan).toBeDefined();
+    expect(fetchSpan).toBeDefined();
     expect(openAISpans).toHaveLength(3);
 
     const managedSpan = openAISpans.find(
@@ -268,15 +304,61 @@ describe("native OpenAI SDK tracing", () => {
         true
     );
     expect(managedSpan).toBeDefined();
+
+    const runSpanId = runSpan!.spanContext().spanId;
+    expect(runSpan!.name).toBe("PromptLayer Run");
+    expect(runSpan!.attributes).toMatchObject({
+      node_type: "CODE_EXECUTION",
+      prompt_name: "support-answer",
+      "promptlayer.metadata.session_id": "session-456",
+      "promptlayer.metadata.user_id": "user-123",
+      "promptlayer.prompt.id": "42",
+      "promptlayer.prompt.label": "production",
+      "promptlayer.prompt.name": "support-answer",
+      "promptlayer.prompt.version": "3",
+      "promptlayer.telemetry.source": "promptlayer-js",
+      "promptlayer.telemetry.source_version": "test-version",
+    });
+    expect(fetchSpan!.kind).toBe(SpanKind.INTERNAL);
+    expect(fetchSpan!.attributes).toMatchObject({
+      node_type: "PROMPT_TEMPLATE",
+      prompt_name: "support-answer",
+      "promptlayer.prompt.id": "42",
+      "promptlayer.prompt.name": "support-answer",
+      "promptlayer.prompt.requested.label": "production",
+      "promptlayer.prompt.requested.name": "support-answer",
+      "promptlayer.prompt.requested.version": "2",
+      "promptlayer.prompt.version": "3",
+    });
+    expect(fetchSpan!.parentSpanContext?.spanId).toBe(runSpanId);
     expect(managedSpan?.parentSpanContext?.spanId).toBe(
-      runSpan?.spanContext().spanId
+      runSpanId
+    );
+    expect(fetchSpan!.spanContext().traceId).toBe(
+      runSpan!.spanContext().traceId
+    );
+    expect(managedSpan!.spanContext().traceId).toBe(
+      runSpan!.spanContext().traceId
+    );
+    expect(fetchSpan!.spanContext().spanId).not.toBe(
+      managedSpan!.spanContext().spanId
     );
     expect(
       managedSpan?.attributes["promptlayer.request_log.span_id"]
-    ).toBe(runSpan?.spanContext().spanId);
+    ).toBe(runSpanId);
     expect(
       managedSpan?.attributes["promptlayer.prompt.name"]
     ).toBe("support-answer");
+    expect(managedSpan?.attributes["node_type"]).toBe("LLM_CALL");
+    expect(managedSpan?.attributes["gen_ai.request.model"]).toBe(
+      "gpt-4o-mini"
+    );
+    expect(
+      managedSpan?.attributes["gen_ai.usage.input_tokens"]
+    ).toBe(5);
+    expect(
+      managedSpan?.attributes["gen_ai.usage.output_tokens"]
+    ).toBe(4);
     expect(
       openAISpans.filter(
         (span) =>
@@ -293,6 +375,52 @@ describe("native OpenAI SDK tracing", () => {
         span.attributes["gen_ai.output.messages"]
       ).toContain("Tracing connects related operations.");
     }
+
+    for (const lightweightSpan of [runSpan!, fetchSpan!]) {
+      const attributeKeys = Object.keys(
+        lightweightSpan.attributes
+      );
+      expect(
+        attributeKeys.some((key) => key.startsWith("gen_ai."))
+      ).toBe(false);
+      expect(
+        attributeKeys.some((key) => key.includes("cost"))
+      ).toBe(false);
+      expect(lightweightSpan.attributes).not.toHaveProperty(
+        "function_input"
+      );
+      expect(lightweightSpan.attributes).not.toHaveProperty(
+        "function_output"
+      );
+      expect(lightweightSpan.attributes).not.toHaveProperty(
+        "promptlayer.request_log.managed"
+      );
+      expect(lightweightSpan.attributes).not.toHaveProperty(
+        "promptlayer.request_log.span_id"
+      );
+      const serializedAttributes = JSON.stringify(
+        lightweightSpan.attributes
+      );
+      expect(serializedAttributes).not.toContain(
+        "template-body-secret"
+      );
+      expect(serializedAttributes).not.toContain(
+        "input-variable-secret"
+      );
+    }
+
+    expect(
+      compareHrTime(runSpan!.startTime, fetchSpan!.startTime)
+    ).toBeLessThanOrEqual(0);
+    expect(
+      compareHrTime(runSpan!.endTime, fetchSpan!.endTime)
+    ).toBeGreaterThanOrEqual(0);
+    expect(
+      compareHrTime(runSpan!.startTime, managedSpan!.startTime)
+    ).toBeLessThanOrEqual(0);
+    expect(
+      compareHrTime(runSpan!.endTime, managedSpan!.endTime)
+    ).toBeGreaterThanOrEqual(-TIMESTAMP_TOLERANCE_NS);
 
     const trackRequestBody = JSON.parse(
       String(trackRequests[0][1]?.body)

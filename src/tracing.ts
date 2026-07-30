@@ -177,6 +177,7 @@ const addPromptLayerAttributes = (
   };
   if (requestContext) {
     Object.assign(attributes, requestContext.promptAttributes, {
+      node_type: "LLM_CALL",
       "promptlayer.request_log.managed": true,
       "promptlayer.request_log.span_id":
         requestContext.requestLogSpanId,
