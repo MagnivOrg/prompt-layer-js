@@ -15,9 +15,10 @@ import {
   buildPromptBlueprintFromOpenAIEvent,
   buildPromptBlueprintFromOpenAIImagesEvent,
   buildPromptBlueprintFromOpenAIResponsesEvent,
+  buildPromptBlueprintFromOpenRouterEvent,
 } from "./blueprint-builder";
 
-export const STREAMING_PROVIDERS_WITH_USAGE = ["openai", "openai.azure"] as const;
+export const STREAMING_PROVIDERS_WITH_USAGE = ["openai", "openai.azure", "openrouter"] as const;
 
 
 export const openaiResponsesStreamChat = (results: any[]) => {
@@ -887,6 +888,137 @@ export const mistralStreamChat = (results: any[]) => {
   return response;
 };
 
+// The OpenRouter TS SDK yields camelCase ChatStreamChunk objects. Fold them into
+// an OpenAI (snake_case wire) chat.completion object so the PromptLayer backend's
+// OpenAI-compatible OpenRouter mapper can consume the logged response.
+export const openrouterStreamChat = (results: any[]) => {
+  const response: any = {
+    id: "",
+    object: "chat.completion",
+    created: 0,
+    model: "",
+    system_fingerprint: null,
+    usage: undefined,
+    choices: [],
+  };
+  const lastResult = results.at(-1);
+  if (!lastResult) return response;
+
+  let content: string | null = null;
+  let reasoning = "";
+  let refusal = "";
+  const reasoningDetails: any[] = [];
+  let audio: any = undefined;
+  let toolCalls: any[] | undefined = undefined;
+  let finishReason: string | null = null;
+  // OpenRouter always includes full usage (tokens + cost) on the final chunk,
+  // but it can ride on a chunk that also carries a choice — so scan every chunk
+  // rather than assuming it's on the very last one.
+  let usage: any = undefined;
+
+  for (const result of results) {
+    if (result?.usage) usage = result.usage;
+    const choices = result?.choices ?? [];
+    if (choices.length === 0) continue;
+    const choice = choices[0];
+    if (choice.finishReason ?? choice.finish_reason) {
+      finishReason = choice.finishReason ?? choice.finish_reason;
+    }
+    const delta = choice.delta ?? {};
+    if (delta.content) {
+      content = `${content ?? ""}${delta.content}`;
+    }
+    if (delta.reasoning) {
+      reasoning = `${reasoning}${delta.reasoning}`;
+    }
+    if (delta.refusal) {
+      refusal = `${refusal}${delta.refusal}`;
+    }
+    const details = delta.reasoningDetails ?? delta.reasoning_details;
+    if (Array.isArray(details) && details.length) {
+      reasoningDetails.push(...details);
+    }
+    if (delta.audio) {
+      // Prefer the latest audio payload that includes data.
+      if (!audio || delta.audio.data) {
+        audio = delta.audio;
+      }
+    }
+    const deltaToolCalls = delta.toolCalls ?? delta.tool_calls;
+    const toolCall = deltaToolCalls?.[0];
+    if (toolCall) {
+      toolCalls = toolCalls || [];
+      const lastToolCall = toolCalls.at(-1);
+      if (!lastToolCall || toolCall.id) {
+        toolCalls.push({
+          id: toolCall.id || "",
+          type: toolCall.type || "function",
+          function: {
+            name: toolCall.function?.name || "",
+            arguments: toolCall.function?.arguments || "",
+          },
+        });
+      } else {
+        lastToolCall.function.name = `${lastToolCall.function.name}${
+          toolCall.function?.name || ""
+        }`;
+        lastToolCall.function.arguments = `${lastToolCall.function.arguments}${
+          toolCall.function?.arguments || ""
+        }`;
+      }
+    }
+  }
+
+  const message: any = {
+    role: "assistant",
+    content,
+    tool_calls: toolCalls ? toolCalls : undefined,
+  };
+  if (reasoning) message.reasoning = reasoning;
+  if (reasoningDetails.length) message.reasoning_details = reasoningDetails;
+  if (refusal) message.refusal = refusal;
+  if (audio) message.audio = audio;
+
+  response.choices.push({
+    index: 0,
+    finish_reason: finishReason ?? "stop",
+    logprobs: null,
+    message,
+  });
+  response.id = lastResult.id ?? "";
+  response.model = lastResult.model ?? "";
+  response.created = lastResult.created ?? 0;
+  response.system_fingerprint =
+    lastResult.systemFingerprint ?? lastResult.system_fingerprint ?? null;
+  if (usage) {
+    response.usage = {
+      prompt_tokens: usage.promptTokens ?? usage.prompt_tokens,
+      completion_tokens: usage.completionTokens ?? usage.completion_tokens,
+      total_tokens: usage.totalTokens ?? usage.total_tokens,
+    };
+    // Preserve OpenRouter's reported spend so cost surfaces in logs/playground.
+    const cost = usage.cost;
+    if (cost !== undefined && cost !== null) {
+      response.usage.cost = cost;
+    }
+    const costDetails = usage.costDetails ?? usage.cost_details;
+    if (costDetails) {
+      response.usage.cost_details = {
+        upstream_inference_cost:
+          costDetails.upstreamInferenceCost ??
+          costDetails.upstream_inference_cost,
+        upstream_inference_completions_cost:
+          costDetails.upstreamInferenceCompletionsCost ??
+          costDetails.upstream_inference_completions_cost,
+        upstream_inference_prompt_cost:
+          costDetails.upstreamInferencePromptCost ??
+          costDetails.upstream_inference_prompt_cost,
+      };
+    }
+  }
+  return response;
+};
+
 export const bedrockStreamMessage = (results: any[]) => {
   const response: any = {
     ResponseMetadata: {},
@@ -1244,6 +1376,11 @@ const buildStreamBlueprint = (
     return buildPromptBlueprintFromOpenAIEvent(result.data, metadata);
   }
 
+  if (provider === "openrouter") {
+    // OpenRouter chat stream chunks mirror OpenAI, plus reasoning / refusal / audio.
+    return buildPromptBlueprintFromOpenRouterEvent(result, metadata);
+  }
+
   if (provider === "openai" || provider === "openai.azure") {
     const api_type = metadata.model.api_type || "chat-completions";
     if (api_type === "responses") {
@@ -1401,6 +1538,46 @@ export const MAP_PROVIDER_TO_FUNCTION_NAME = {
     },
     completion: {
       function_name: "",
+      stream_function: null,
+    },
+  },
+  "openrouter:chat": {
+    chat: {
+      function_name: "openrouter.chat.send",
+      stream_function: openrouterStreamChat,
+    },
+    completion: {
+      function_name: "openrouter.chat.send",
+      stream_function: openrouterStreamChat,
+    },
+  },
+  "openrouter:images": {
+    chat: {
+      function_name: "openrouter.images.generate",
+      stream_function: null,
+    },
+    completion: {
+      function_name: "openrouter.images.generate",
+      stream_function: null,
+    },
+  },
+  "openrouter:video": {
+    chat: {
+      function_name: "openrouter.video_generation.generate",
+      stream_function: null,
+    },
+    completion: {
+      function_name: "openrouter.video_generation.generate",
+      stream_function: null,
+    },
+  },
+  "openrouter:speech": {
+    chat: {
+      function_name: "openrouter.tts.create_speech",
+      stream_function: null,
+    },
+    completion: {
+      function_name: "openrouter.tts.create_speech",
       stream_function: null,
     },
   },
