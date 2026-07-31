@@ -1235,14 +1235,15 @@ const configureProviderSettings = (
     }
   });
 
-  if (
-    stream &&
-    STREAMING_PROVIDERS_WITH_USAGE.includes(provider_type as any) &&
-    (api_type === "chat-completions" ||
-      api_type === "chat" ||
-      (provider_type === "openrouter" && !api_type))
-  ) {
-    kwargs.stream_options = { include_usage: true };
+  if (stream && STREAMING_PROVIDERS_WITH_USAGE.includes(provider_type as any)) {
+    const openrouterChat =
+      provider_type === "openrouter" && (api_type === "chat" || !api_type);
+    const openaiChat =
+      provider_type !== "openrouter" &&
+      (api_type === "chat-completions" || !api_type);
+    if (openrouterChat || openaiChat) {
+      kwargs.stream_options = { include_usage: true };
+    }
   }
 
   return { provider_type, kwargs };

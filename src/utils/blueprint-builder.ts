@@ -671,6 +671,30 @@ const _thinkingItemsFromOpenRouterReasoningDetails = (
   return items;
 };
 
+const AUDIO_FORMAT_TO_MIME: Record<string, string> = {
+  mp3: "audio/mpeg",
+  mpeg: "audio/mpeg",
+  pcm: "audio/pcm",
+  wav: "audio/wav",
+  opus: "audio/opus",
+  flac: "audio/flac",
+  aac: "audio/aac",
+};
+
+const _resolveOpenRouterAudioMime = (audio: any, data: any): string => {
+  if (typeof data === "string" && data.startsWith("data:") && data.includes(";base64,")) {
+    const header = data.slice(5).split(";base64,", 1)[0]?.trim();
+    if (header) return header;
+  }
+  const fmt =
+    audio?.format ?? audio?.output_format ?? audio?.response_format ?? audio?.outputFormat ?? audio?.responseFormat;
+  if (typeof fmt === "string" && fmt) {
+    if (fmt.includes("/")) return fmt;
+    return AUDIO_FORMAT_TO_MIME[fmt.toLowerCase()] ?? "audio/mpeg";
+  }
+  return "audio/mpeg";
+};
+
 const _openRouterAudioToContent = (audio: any): Content[] => {
   if (!audio || typeof audio !== "object") return [];
   const data = audio.data;
@@ -680,10 +704,11 @@ const _openRouterAudioToContent = (audio: any): Content[] => {
   const items: Content[] = [];
 
   if (data) {
+    const mime_type = _resolveOpenRouterAudioMime(audio, data);
     const url =
       typeof data === "string" && data.startsWith("data:")
         ? data
-        : `data:audio/mpeg;base64,${data}`;
+        : `data:${mime_type};base64,${data}`;
     const provider_metadata: Record<string, unknown> = {};
     if (audioId != null) provider_metadata.id = audioId;
     if (expiresAt != null) provider_metadata.expires_at = expiresAt;
@@ -692,7 +717,7 @@ const _openRouterAudioToContent = (audio: any): Content[] => {
       _buildContentBlock({
         type: "output_media",
         url,
-        mime_type: "audio/mpeg",
+        mime_type,
         media_type: "audio",
         ...(Object.keys(provider_metadata).length
           ? { provider_metadata }

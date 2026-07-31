@@ -830,4 +830,28 @@ describe("buildPromptBlueprintFromOpenRouterEvent", () => {
       },
     });
   });
+
+  it("derives audio mime_type from format", () => {
+    const event = {
+      choices: [{ delta: { audio: { data: "QUJD", format: "wav" } } }],
+    };
+    const blueprint = buildPromptBlueprintFromOpenRouterEvent(event, openrouterMetadata);
+    expect(blueprint.prompt_template.messages[0].content![0]).toMatchObject({
+      type: "output_media",
+      mime_type: "audio/wav",
+      url: "data:audio/wav;base64,QUJD",
+    });
+  });
+
+  it("derives audio mime_type from data URI", () => {
+    const event = {
+      choices: [{ delta: { audio: { data: "data:audio/ogg;base64,QUJD" } } }],
+    };
+    const blueprint = buildPromptBlueprintFromOpenRouterEvent(event, openrouterMetadata);
+    expect(blueprint.prompt_template.messages[0].content![0]).toMatchObject({
+      type: "output_media",
+      mime_type: "audio/ogg",
+      url: "data:audio/ogg;base64,QUJD",
+    });
+  });
 });

@@ -1541,43 +1541,43 @@ export const MAP_PROVIDER_TO_FUNCTION_NAME = {
       stream_function: null,
     },
   },
-  openrouter: {
+  "openrouter:chat": {
     chat: {
-      function_name: "openrouter.chat.send",
+      function_name: "openrouter:chat.send",
       stream_function: openrouterStreamChat,
     },
     completion: {
-      function_name: "openrouter.chat.send",
+      function_name: "openrouter:chat.send",
       stream_function: openrouterStreamChat,
     },
   },
   "openrouter:images": {
     chat: {
-      function_name: "openrouter.images.generate",
+      function_name: "openrouter:images.generate",
       stream_function: null,
     },
     completion: {
-      function_name: "openrouter.images.generate",
+      function_name: "openrouter:images.generate",
       stream_function: null,
     },
   },
   "openrouter:video": {
     chat: {
-      function_name: "openrouter.video_generation.generate",
+      function_name: "openrouter:video_generation.generate",
       stream_function: null,
     },
     completion: {
-      function_name: "openrouter.video_generation.generate",
+      function_name: "openrouter:video_generation.generate",
       stream_function: null,
     },
   },
   "openrouter:speech": {
     chat: {
-      function_name: "openrouter.tts.create_speech",
+      function_name: "openrouter:tts.create_speech",
       stream_function: null,
     },
     completion: {
-      function_name: "openrouter.tts.create_speech",
+      function_name: "openrouter:tts.create_speech",
       stream_function: null,
     },
   },

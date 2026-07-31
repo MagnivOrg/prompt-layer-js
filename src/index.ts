@@ -348,13 +348,12 @@ export class PromptLayer {
           provider_type_config = `${provider_type}:${api_type}`;
         } else if (provider_type === "openrouter") {
           const api_type = promptBlueprintModel.api_type;
-          if (
+          provider_type_config =
             api_type === "images" ||
             api_type === "video" ||
             api_type === "speech"
-          ) {
-            provider_type_config = `openrouter:${api_type}`;
-          }
+              ? `openrouter:${api_type}`
+              : "openrouter:chat";
         }
 
         if (promptBlueprintModel.name.startsWith("gemini")) {
