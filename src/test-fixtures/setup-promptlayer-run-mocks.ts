@@ -30,6 +30,9 @@ vi.mock("@/utils/utils", () => ({
   openaiRequest: vi
     .fn()
     .mockResolvedValue({ choices: [{ message: { content: "hi" } }] }),
+  openrouterRequest: vi
+    .fn()
+    .mockResolvedValue({ choices: [{ message: { content: "hi" } }] }),
   anthropicRequest: vi.fn(),
   azureOpenAIRequest: vi.fn(),
   googleRequest: vi.fn(),

@@ -811,6 +811,203 @@ const openaiRequest = async (
   }
 };
 
+const camelToSnake = (str: string): string =>
+  str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+
+// The OpenRouter TS SDK returns camelCase runtime objects. PromptLayer's backend
+// maps OpenRouter logs with the OpenAI (snake_case wire) request mapper, so we
+// deep-convert keys back to the OpenAI-compatible wire shape before logging.
+const convertKeysToSnakeCase = <T>(obj: T): T => {
+  if (!obj || typeof obj !== "object") return obj;
+  if (Array.isArray(obj))
+    return obj.map((item) => convertKeysToSnakeCase(item)) as T;
+  return Object.fromEntries(
+    Object.entries(obj).map(([key, value]) => [
+      camelToSnake(key),
+      convertKeysToSnakeCase(value),
+    ])
+  ) as T;
+};
+
+const toWireResponse = (sdkResponse: any) =>
+  convertKeysToSnakeCase(JSON.parse(JSON.stringify(sdkResponse ?? {})));
+
+const OPENROUTER_VIDEO_TERMINAL_STATES = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+  "expired",
+]);
+
+const runOpenrouterVideoJob = async (
+  client: any,
+  kwargs: any,
+  maxWaitMs = 300000
+) => {
+  let job: any = await client.videoGeneration.generate({
+    videoGenerationRequest: kwargs,
+  });
+  const jobId = job?.id;
+  let status = job?.status;
+
+  const deadline = Date.now() + maxWaitMs;
+  while (jobId && !OPENROUTER_VIDEO_TERMINAL_STATES.has(status)) {
+    if (Date.now() >= deadline) {
+      job = {
+        ...job,
+        status: status || "pending",
+        error:
+          job?.error ||
+          "Video generation timed out while polling for completion",
+      };
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    job = await client.videoGeneration.getGeneration({ jobId });
+    status = job?.status;
+  }
+
+  const urls = job?.unsignedUrls ?? job?.unsigned_urls ?? [];
+  const data = (urls as string[])
+    .filter(Boolean)
+    .map((url) => ({ url, media_type: "video" }));
+
+  return {
+    id: job?.id,
+    status: job?.status,
+    error: job?.error ?? null,
+    generation_id: job?.generationId ?? job?.generation_id ?? null,
+    data,
+    usage: job?.usage ? convertKeysToSnakeCase(job.usage) : null,
+  };
+};
+
+// Fully drain the OpenRouter `tts.createSpeech` audio body into a single
+// buffer. The SDK returns a web `ReadableStream<Uint8Array>`, but guard for
+// other shapes (Buffer/Uint8Array, or something exposing `arrayBuffer`).
+const readOpenrouterAudioBytes = async (stream: any): Promise<Buffer> => {
+  if (stream instanceof Uint8Array || Buffer.isBuffer(stream)) {
+    return Buffer.from(stream);
+  }
+  if (typeof stream?.getReader === "function") {
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    return Buffer.concat(chunks.map((c) => Buffer.from(c)));
+  }
+  if (typeof stream?.arrayBuffer === "function") {
+    return Buffer.from(await stream.arrayBuffer());
+  }
+  return Buffer.from(stream ?? []);
+};
+
+// Synthesize speech via `tts.createSpeech` and normalize the raw audio into an
+// OpenAI-images-like dict (base64) so PromptLayer's inbound mapper / media
+// display treat it like the other OpenRouter media endpoints.
+const runOpenrouterSpeech = async (client: any, kwargs: any) => {
+  const outputFormat = (
+    kwargs?.response_format ??
+    kwargs?.responseFormat ??
+    "mp3"
+  ).toLowerCase();
+  const speechRequest: Record<string, any> = {
+    input: kwargs?.input,
+    model: kwargs?.model,
+    voice: kwargs?.voice,
+    responseFormat: outputFormat,
+  };
+  if (kwargs?.speed !== undefined) speechRequest.speed = kwargs.speed;
+
+  const audio = await client.tts.createSpeech({ speechRequest });
+  const bytes = await readOpenrouterAudioBytes(audio);
+  return {
+    id: null,
+    data: [{ b64_json: bytes.toString("base64") }],
+    output_format: outputFormat,
+    usage: {},
+  };
+};
+
+// Inject `usage: { include: true }` into chat-completion request bodies so
+// OpenRouter returns spend (`usage.cost`) inline. The SDK's typed `ChatRequest`
+// (a strict zod object) strips unknown fields, so we add it at the HTTP layer
+// via a `beforeRequest` hook. Best-effort: any failure leaves the request as-is.
+const enableOpenrouterUsageAccounting = async (
+  req: Request
+): Promise<Request> => {
+  try {
+    if (!new URL(req.url).pathname.endsWith("/chat/completions")) {
+      return req;
+    }
+    const text = await req.clone().text();
+    if (!text) {
+      return req;
+    }
+    const data = JSON.parse(text);
+    if (typeof data !== "object" || data === null || "usage" in data) {
+      return req;
+    }
+    data.usage = { include: true };
+    return new Request(req, { body: JSON.stringify(data) });
+  } catch {
+    return req;
+  }
+};
+
+const openrouterRequest = async (
+  promptBlueprint: GetPromptTemplateResponse,
+  kwargs: any
+) => {
+  // @openrouter/sdk is ESM-only, so use dynamic import (matches the Mistral /
+  // Gemini pattern) to stay correct in both the CJS and ESM builds.
+  const { OpenRouter, HTTPClient } = await import("@openrouter/sdk");
+  const serverURL = kwargs.baseURL;
+  const httpClient = new HTTPClient();
+  httpClient.addHook("beforeRequest", enableOpenrouterUsageAccounting);
+  const client = new OpenRouter({
+    apiKey: kwargs.apiKey || process.env.OPENROUTER_API_KEY,
+    // Bound request time so slow media generation surfaces as a timeout instead
+    // of hanging forever. Override via OPENROUTER_TIMEOUT_MS.
+    timeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS) || 600_000,
+    httpClient,
+    ...(serverURL ? { serverURL } : {}),
+  });
+
+  delete kwargs?.apiKey;
+  delete kwargs?.baseURL;
+
+  const api_type = promptBlueprint.metadata?.model?.api_type;
+
+  if (api_type === "images") {
+    delete kwargs?.stream;
+    return toWireResponse(
+      await client.images.generate({ imageGenerationRequest: kwargs })
+    );
+  }
+
+  if (api_type === "video") {
+    delete kwargs?.stream;
+    return await runOpenrouterVideoJob(client, kwargs);
+  }
+
+  if (api_type === "speech") {
+    delete kwargs?.stream;
+    return await runOpenrouterSpeech(client, kwargs);
+  }
+
+  const result = await client.chat.send({ chatRequest: kwargs });
+  // Streaming returns an async-iterable EventStream consumed by streamResponse.
+  if (kwargs?.stream) {
+    return result;
+  }
+  return toWireResponse(result);
+};
+
 const azureOpenAIRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
@@ -1039,8 +1236,15 @@ const configureProviderSettings = (
     }
   });
 
-  if (stream && STREAMING_PROVIDERS_WITH_USAGE.includes(provider_type as any) && api_type === "chat-completions") {
-    kwargs.stream_options = { include_usage: true };
+  if (stream && STREAMING_PROVIDERS_WITH_USAGE.includes(provider_type as any)) {
+    const openrouterChat =
+      provider_type === "openrouter" && (api_type === "chat" || !api_type);
+    const openaiChat =
+      provider_type !== "openrouter" &&
+      (api_type === "chat-completions" || !api_type);
+    if (openrouterChat || openaiChat) {
+      kwargs.stream_options = { include_usage: true };
+    }
   }
 
   return { provider_type, kwargs };
@@ -1200,6 +1404,7 @@ export {
   googleRequest,
   mistralRequest,
   openaiRequest,
+  openrouterRequest,
   promptlayerApiHandler,
   promptLayerApiRequest,
   promptLayerCreateGroup,

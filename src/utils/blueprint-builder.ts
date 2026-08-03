@@ -640,6 +640,179 @@ export const buildPromptBlueprintFromOpenAIEvent = (
   return _buildPromptTemplate(assistantMessage, metadata);
 };
 
+const _thinkingItemsFromOpenRouterReasoningDetails = (
+  details: any[] | undefined
+): Content[] => {
+  const items: Content[] = [];
+  for (const detail of details || []) {
+    if (!detail || typeof detail !== "object") continue;
+    const detailType = detail.type;
+    if (detailType === "reasoning.text" && detail.text) {
+      items.push(
+        _buildContentBlock({
+          type: "thinking",
+          item_id: detail.id ?? undefined,
+          thinking: detail.text,
+          signature: detail.signature ?? "",
+        })
+      );
+    } else if (detailType === "reasoning.summary" && detail.summary) {
+      items.push(
+        _buildContentBlock({
+          type: "thinking",
+          item_id: detail.id ?? undefined,
+          thinking: detail.summary,
+          signature: "",
+        })
+      );
+    }
+    // reasoning.encrypted / reasoning.server_tool_call: no displayable text
+  }
+  return items;
+};
+
+const AUDIO_FORMAT_TO_MIME: Record<string, string> = {
+  mp3: "audio/mpeg",
+  mpeg: "audio/mpeg",
+  pcm: "audio/pcm",
+  wav: "audio/wav",
+  opus: "audio/opus",
+  flac: "audio/flac",
+  aac: "audio/aac",
+};
+
+const _resolveOpenRouterAudioMime = (audio: any, data: any): string => {
+  if (typeof data === "string" && data.startsWith("data:") && data.includes(";base64,")) {
+    const header = data.slice(5).split(";base64,", 1)[0]?.trim();
+    if (header) return header;
+  }
+  const fmt =
+    audio?.format ?? audio?.output_format ?? audio?.response_format ?? audio?.outputFormat ?? audio?.responseFormat;
+  if (typeof fmt === "string" && fmt) {
+    if (fmt.includes("/")) return fmt;
+    return AUDIO_FORMAT_TO_MIME[fmt.toLowerCase()] ?? "audio/mpeg";
+  }
+  return "audio/mpeg";
+};
+
+const _openRouterAudioToContent = (audio: any): Content[] => {
+  if (!audio || typeof audio !== "object") return [];
+  const data = audio.data;
+  const transcript = audio.transcript;
+  const audioId = audio.id;
+  const expiresAt = audio.expiresAt ?? audio.expires_at;
+  const items: Content[] = [];
+
+  if (data) {
+    const mime_type = _resolveOpenRouterAudioMime(audio, data);
+    const url =
+      typeof data === "string" && data.startsWith("data:")
+        ? data
+        : `data:${mime_type};base64,${data}`;
+    const provider_metadata: Record<string, unknown> = {};
+    if (audioId != null) provider_metadata.id = audioId;
+    if (expiresAt != null) provider_metadata.expires_at = expiresAt;
+    if (transcript != null) provider_metadata.transcript = transcript;
+    items.push(
+      _buildContentBlock({
+        type: "output_media",
+        url,
+        mime_type,
+        media_type: "audio",
+        ...(Object.keys(provider_metadata).length
+          ? { provider_metadata }
+          : {}),
+      })
+    );
+  } else if (transcript) {
+    items.push(_buildContentBlock({ type: "text", text: transcript }));
+  }
+  return items;
+};
+
+/**
+ * Build a prompt blueprint from an OpenRouter ChatStreamChunk.
+ *
+ * The TS SDK yields camelCase deltas (`reasoningDetails`, `toolCalls`, …) that
+ * mirror OpenAI chat.completion.chunk plus OpenRouter-specific fields:
+ * reasoning / reasoningDetails → thinking, refusal → text, audio → output_media.
+ */
+export const buildPromptBlueprintFromOpenRouterEvent = (
+  event: any,
+  metadata: Metadata
+): PromptBlueprint => {
+  const assistantContent: Content[] = [];
+  const tool_calls: ToolCall[] = [];
+
+  const choices = event?.choices ?? [];
+  const choice = choices[0];
+  const delta = choice?.delta;
+  if (!delta) {
+    return _buildPromptTemplate(
+      _buildAssistantMessage(assistantContent, tool_calls),
+      metadata
+    );
+  }
+
+  const reasoningDetails =
+    delta.reasoningDetails ?? delta.reasoning_details;
+  const detailItems =
+    _thinkingItemsFromOpenRouterReasoningDetails(reasoningDetails);
+  if (detailItems.length > 0) {
+    // Prefer structured details — `reasoning` is often the same token duplicated
+    // on the same delta (e.g. DeepSeek R1 via OpenRouter).
+    assistantContent.push(...detailItems);
+  } else if (delta.reasoning) {
+    assistantContent.push(
+      _buildContentBlock({
+        type: "thinking",
+        thinking: delta.reasoning,
+        signature: "",
+      })
+    );
+  }
+
+  if (delta.content) {
+    assistantContent.push(
+      _buildContentBlock({
+        type: "text",
+        text: delta.content,
+      })
+    );
+  }
+
+  if (delta.refusal) {
+    assistantContent.push(
+      _buildContentBlock({
+        type: "text",
+        text: delta.refusal,
+      })
+    );
+  }
+
+  if (delta.audio) {
+    assistantContent.push(..._openRouterAudioToContent(delta.audio));
+  }
+
+  const toolCalls = delta.toolCalls ?? delta.tool_calls;
+  if (toolCalls && Array.isArray(toolCalls)) {
+    for (const toolCall of toolCalls) {
+      if (toolCall.function) {
+        tool_calls.push(
+          _buildToolCall(
+            toolCall.id || "",
+            toolCall.function.name || "",
+            toolCall.function.arguments || ""
+          )
+        );
+      }
+    }
+  }
+
+  const assistantMessage = _buildAssistantMessage(assistantContent, tool_calls);
+  return _buildPromptTemplate(assistantMessage, metadata);
+};
+
 export const buildPromptBlueprintFromOpenAIResponsesEvent = (
   event: any,
   metadata: Metadata

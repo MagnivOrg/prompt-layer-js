@@ -6,6 +6,7 @@ import {
   buildPromptBlueprintFromOpenAIResponsesEvent,
   buildPromptBlueprintFromBedrockEvent,
   buildPromptBlueprintFromOpenAIImagesEvent,
+  buildPromptBlueprintFromOpenRouterEvent,
 } from "@/utils/blueprint-builder";
 import type { Metadata } from "@/types";
 
@@ -724,6 +725,133 @@ describe("buildPromptBlueprintFromOpenAIImagesEvent", () => {
       mime_type: "image/webp",
       media_type: "image",
       provider_metadata: expect.objectContaining({ size: "1024x1024", quality: "hd" }),
+    });
+  });
+});
+
+const openrouterMetadata: Metadata = {
+  model: { provider: "openrouter", name: "openai/gpt-4o-mini", api_type: "chat" },
+};
+
+describe("buildPromptBlueprintFromOpenRouterEvent", () => {
+  it("maps text and toolCalls", () => {
+    const event = {
+      choices: [
+        {
+          delta: {
+            content: "hi",
+            toolCalls: [
+              {
+                id: "c1",
+                type: "function",
+                function: { name: "fn", arguments: '{"a":' },
+              },
+            ],
+          },
+        },
+      ],
+    };
+    const blueprint = buildPromptBlueprintFromOpenRouterEvent(event, openrouterMetadata);
+    const msg = blueprint.prompt_template.messages[0];
+    expect(msg.content![0]).toMatchObject({ type: "text", text: "hi" });
+    expect(msg.tool_calls![0]).toMatchObject({
+      id: "c1",
+      function: { name: "fn", arguments: '{"a":' },
+    });
+  });
+
+  it("maps reasoning to thinking when details are absent", () => {
+    const event = { choices: [{ delta: { reasoning: "step 1" } }] };
+    const blueprint = buildPromptBlueprintFromOpenRouterEvent(event, openrouterMetadata);
+    expect(blueprint.prompt_template.messages[0].content![0]).toMatchObject({
+      type: "thinking",
+      thinking: "step 1",
+    });
+  });
+
+  it("prefers reasoningDetails over duplicate reasoning", () => {
+    const event = {
+      choices: [
+        {
+          delta: {
+            reasoning: "First",
+            reasoningDetails: [
+              { type: "reasoning.text", text: "First", id: "r1", signature: "sig" },
+            ],
+          },
+        },
+      ],
+    };
+    const blueprint = buildPromptBlueprintFromOpenRouterEvent(event, openrouterMetadata);
+    const content = blueprint.prompt_template.messages[0].content!;
+    expect(content).toHaveLength(1);
+    expect(content[0]).toMatchObject({
+      type: "thinking",
+      thinking: "First",
+      id: "r1",
+      signature: "sig",
+    });
+  });
+
+  it("maps refusal as text", () => {
+    const event = { choices: [{ delta: { refusal: "I can't help with that." } }] };
+    const blueprint = buildPromptBlueprintFromOpenRouterEvent(event, openrouterMetadata);
+    expect(blueprint.prompt_template.messages[0].content![0]).toMatchObject({
+      type: "text",
+      text: "I can't help with that.",
+    });
+  });
+
+  it("maps audio to output_media", () => {
+    const event = {
+      choices: [
+        {
+          delta: {
+            audio: {
+              data: "QUJD",
+              id: "aud_1",
+              transcript: "hello",
+              expiresAt: 123,
+            },
+          },
+        },
+      ],
+    };
+    const blueprint = buildPromptBlueprintFromOpenRouterEvent(event, openrouterMetadata);
+    expect(blueprint.prompt_template.messages[0].content![0]).toMatchObject({
+      type: "output_media",
+      media_type: "audio",
+      mime_type: "audio/mpeg",
+      url: "data:audio/mpeg;base64,QUJD",
+      provider_metadata: {
+        id: "aud_1",
+        transcript: "hello",
+        expires_at: 123,
+      },
+    });
+  });
+
+  it("derives audio mime_type from format", () => {
+    const event = {
+      choices: [{ delta: { audio: { data: "QUJD", format: "wav" } } }],
+    };
+    const blueprint = buildPromptBlueprintFromOpenRouterEvent(event, openrouterMetadata);
+    expect(blueprint.prompt_template.messages[0].content![0]).toMatchObject({
+      type: "output_media",
+      mime_type: "audio/wav",
+      url: "data:audio/wav;base64,QUJD",
+    });
+  });
+
+  it("derives audio mime_type from data URI", () => {
+    const event = {
+      choices: [{ delta: { audio: { data: "data:audio/ogg;base64,QUJD" } } }],
+    };
+    const blueprint = buildPromptBlueprintFromOpenRouterEvent(event, openrouterMetadata);
+    expect(blueprint.prompt_template.messages[0].content![0]).toMatchObject({
+      type: "output_media",
+      mime_type: "audio/ogg",
+      url: "data:audio/ogg;base64,QUJD",
     });
   });
 });
