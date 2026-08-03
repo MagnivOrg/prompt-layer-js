@@ -225,7 +225,7 @@ export class PromptLayer {
 
   get OpenAI() {
     try {
-      const module = require("openai").default;
+      const module = requireProviderSDK("openai").default;
       return promptLayerBase(
         this.apiKey,
         this.baseURL,
@@ -235,7 +235,7 @@ export class PromptLayer {
       );
     } catch (e) {
       console.error(
-        "To use the OpenAI module, you must install the @openai/api package."
+        "To use the OpenAI module, you must install the openai package."
       );
     }
   }
