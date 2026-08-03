@@ -123,7 +123,7 @@ describe("setupTracing OTLP export", () => {
 
     expect(second).toBe(first);
     expect(OTLPTraceExporter).toHaveBeenCalledTimes(1);
-    expect(registerInstrumentations).toHaveBeenCalledTimes(3);
+    expect(registerInstrumentations).toHaveBeenCalledTimes(4);
   });
 
   it("registers upstream instrumentations and provider context adapters", () => {
@@ -145,6 +145,7 @@ describe("setupTracing OTLP export", () => {
         )
     ).toEqual([
       "@opentelemetry/instrumentation-openai",
+      "@opentelemetry/instrumentation-aws-sdk",
       "promptlayer/instrumentation-anthropic-context",
       "promptlayer/instrumentation-google-context",
     ]);

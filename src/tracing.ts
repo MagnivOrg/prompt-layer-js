@@ -5,6 +5,7 @@ import {
 } from "@opentelemetry/api-logs";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 import { OpenAIInstrumentation } from "@opentelemetry/instrumentation-openai";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import type { LoggerProvider } from "@opentelemetry/sdk-logs";
@@ -22,6 +23,10 @@ import {
   OpenAIMessageContentBridge,
 } from "@/openai-message-content";
 import {
+  AWS_SDK_INSTRUMENTATION_SCOPE,
+  createBedrockInstrumentationConfig,
+} from "@/instrumentation/bedrock";
+import {
   AnthropicProviderContextInstrumentation,
   ANTHROPIC_INSTRUMENTATION_SCOPE,
   createProviderAwareTracerProvider,
@@ -31,12 +36,13 @@ import {
 import { resolveActiveTracer } from "@/tracing-context";
 import { getCommonHeaders } from "@/utils/utils";
 
-export type TracingProvider = "openai" | "anthropic" | "google";
+export type TracingProvider = "openai" | "anthropic" | "google" | "bedrock";
 /** @deprecated Use TracingProvider. */
 export type OpenAITracingProvider = "openai";
 
 export {
   ANTHROPIC_INSTRUMENTATION_SCOPE,
+  AWS_SDK_INSTRUMENTATION_SCOPE,
   GOOGLE_GENAI_INSTRUMENTATION_SCOPE,
 };
 
@@ -79,6 +85,7 @@ type ActiveTracingState = {
   handle: TracingHandle;
   instrumentations: {
     anthropic: AnthropicInstrumentation | null;
+    bedrock: AwsInstrumentation | null;
     google: GoogleGenAIInstrumentation | null;
     openai: OpenAIInstrumentation | null;
   };
@@ -93,6 +100,7 @@ const OPENAI_INSTRUMENTATION_SCOPE =
 const PROVIDER_INSTRUMENTATION_SCOPES = new Set([
   OPENAI_INSTRUMENTATION_SCOPE,
   ANTHROPIC_INSTRUMENTATION_SCOPE,
+  AWS_SDK_INSTRUMENTATION_SCOPE,
   GOOGLE_GENAI_INSTRUMENTATION_SCOPE,
 ]);
 const PROVIDER_REQUEST_CONTEXT_KEY = opentelemetry.createContextKey(
@@ -154,6 +162,15 @@ const addPromptLayerAttributes = (
     !PROVIDER_INSTRUMENTATION_SCOPES.has(
       span.instrumentationScope.name
     )
+  ) {
+    return span;
+  }
+  if (
+    span.instrumentationScope.name ===
+      AWS_SDK_INSTRUMENTATION_SCOPE &&
+    ((span.attributes["gen_ai.system"] !== "aws.bedrock" &&
+      span.attributes["gen_ai.provider.name"] !== "aws.bedrock") ||
+      span.attributes["rpc.method"] !== "Converse")
   ) {
     return span;
   }
@@ -342,6 +359,9 @@ export const configureTracing = (
       activeTracingState.instrumentations.anthropic?.setConfig({
         traceContent: captureContent,
       });
+      activeTracingState.instrumentations.bedrock?.setConfig(
+        createBedrockInstrumentationConfig(captureContent)
+      );
       activeTracingState.instrumentations.google?.setConfig({
         traceContent: captureContent,
       });
@@ -374,7 +394,7 @@ export const configureTracing = (
 
   const providers =
     options.providers ??
-    (["openai", "anthropic", "google"] as const);
+    (["openai", "anthropic", "google", "bedrock"] as const);
   const instrumentations = {
     anthropic: providers.includes("anthropic")
       ? new AnthropicInstrumentation({
@@ -382,6 +402,11 @@ export const configureTracing = (
           exceptionLogger: () => undefined,
           traceContent: captureContent,
         })
+      : null,
+    bedrock: providers.includes("bedrock")
+      ? new AwsInstrumentation(
+          createBedrockInstrumentationConfig(captureContent)
+        )
       : null,
     google: providers.includes("google")
       ? new GoogleGenAIInstrumentation({
@@ -409,6 +434,15 @@ export const configureTracing = (
     cleanupCallbacks.push(
       registerInstrumentations({
         instrumentations: [instrumentations.openai],
+        loggerProvider,
+        tracerProvider,
+      })
+    );
+  }
+  if (instrumentations.bedrock) {
+    cleanupCallbacks.push(
+      registerInstrumentations({
+        instrumentations: [instrumentations.bedrock],
         loggerProvider,
         tracerProvider,
       })
@@ -528,6 +562,6 @@ export const setupTracing = (
   return configureTracing({
     apiKey,
     baseURL,
-    providers: ["openai", "anthropic", "google"],
+    providers: ["openai", "anthropic", "google", "bedrock"],
   }).tracerProvider as NodeTracerProvider;
 };

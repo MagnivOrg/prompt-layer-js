@@ -108,12 +108,13 @@ Tracing registers upstream OpenTelemetry instrumentations for the provider SDKs 
 | OpenAI and Azure OpenAI | `chat.completions.create` and `responses.create`, including streams; `embeddings.create` |
 | Anthropic and Anthropic Vertex | `messages.create` and beta `messages.create`, including streams |
 | Google GenAI, including Vertex AI mode | `models.generateContent`, `models.generateContentStream`, `chat.sendMessage`, and `chat.sendMessageStream` |
+| AWS SDK v3 Bedrock Runtime | `Converse` |
 
-Anthropic Bedrock is not included in provider auto-instrumentation.
+Install `@aws-sdk/client-bedrock-runtime` in applications that call Bedrock directly. The separate `@anthropic-ai/bedrock-sdk` client is not included in provider auto-instrumentation.
 
-Message content is excluded by default. Set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` or pass `captureContent: true` to `configureTracing` to include it. Enabling content capture can export prompts, responses, tool arguments, and other application data; only enable it when that data is appropriate to send to your configured trace backend.
+Message content is excluded by default. Set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` or pass `captureContent: true` to `configureTracing` to include it. For Bedrock, this captures Converse inputs and non-streaming Converse outputs using GenAI message attributes. Enabling content capture can export prompts, responses, tool arguments, and other application data; only enable it when that data is appropriate to send to your configured trace backend.
 
-Runnable coverage examples are available for [OpenAI and Azure OpenAI](examples/tracing/trace_openai.mjs), [Anthropic and Anthropic Vertex](examples/tracing/trace_anthropic.mjs), [Google GenAI and Vertex AI](examples/tracing/trace_google_genai.mjs), and [PromptLayer.run with provider overrides](examples/tracing/trace_promptlayer_run.mjs). Each API check is isolated so a failure does not prevent the remaining checks from running; optional cloud-hosted checks report which environment variables are missing.
+Runnable coverage examples are available for [OpenAI and Azure OpenAI](examples/tracing/trace_openai.mjs), [Anthropic and Anthropic Vertex](examples/tracing/trace_anthropic.mjs), [Google GenAI and Vertex AI](examples/tracing/trace_google_genai.mjs), [AWS Bedrock Runtime](examples/tracing/trace_bedrock.mjs), and [PromptLayer.run with provider overrides](examples/tracing/trace_promptlayer_run.mjs). Each API check is isolated so a failure does not prevent the remaining checks from running; optional cloud-hosted checks report which environment variables are missing.
 
 The examples use these defaults when their model environment variables are not set:
 
