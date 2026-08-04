@@ -11,7 +11,7 @@ import {
   Table,
 } from "@/types";
 import * as tablesApi from "@/tables/api";
-import { extractColumns, extractRows } from "@/tables/helpers";
+import { extractColumns } from "@/tables/helpers";
 import { fillRowCells, waitForSheetOperations } from "./polling";
 import { waitForTraceRequestPrice } from "./tracePrice";
 import {
@@ -27,12 +27,10 @@ import {
 } from "./tracing";
 import {
   buildCaseResult,
-  buildRowValues,
   buildTableDashboardUrl,
   buildTraceImportBody,
   columnsByTitle,
   customFieldTitles,
-  extractRowIndices,
   findLastRow,
   normalizeEvalCases,
 } from "./utils";
@@ -40,8 +38,6 @@ import type { NormalizedEvalCase } from "./utils";
 import {
   assertEvalArgs,
   assertPassingScore,
-  columnsReferenceTrace,
-  scorersReferenceTrace,
 } from "./validation";
 import type { EvalProcessingColumn } from "@/types";
 import { validationError } from "./errors";
@@ -67,25 +63,6 @@ type CaseExecution<TInput = unknown, TOutput = unknown> = {
   output: TOutput;
   traceId: string;
   spanId: string;
-};
-
-const mapBatchRowIndices = (
-  rowResponse: Record<string, unknown> | null | undefined,
-  caseCount: number
-): Array<number | null> => {
-  const indices = extractRowIndices(rowResponse);
-  if (indices.length >= caseCount) return indices.slice(0, caseCount);
-  const rows = extractRows(rowResponse);
-  if (rows.length >= caseCount) {
-    return rows.slice(0, caseCount).map((row) =>
-      row && typeof row === "object" && row.row_index != null
-        ? Number(row.row_index)
-        : null
-    );
-  }
-  throw validationError(
-    `Table row creation returned ${indices.length} row indices for ${caseCount} eval cases.`
-  );
 };
 
 const runWithConcurrency = async <T, R>(
@@ -279,49 +256,6 @@ const persistTraceRows = async <TInput, TOutput>(args: {
   return [rowIndices, rows, updated];
 };
 
-const persistBatchRows = async <TInput, TOutput>(args: {
-  apiKey: string;
-  baseURL: string;
-  throwOnError: boolean;
-  tableId: ResourceId;
-  sheetId: ResourceId;
-  executed: CaseExecution<TInput, TOutput>[];
-  byTitle: Record<string, Column>;
-  customFieldTitles: readonly string[];
-}): Promise<[Array<number | null>, Array<Record<string, unknown> | null>]> => {
-  const values = args.executed.map((execution) =>
-    buildRowValues(args.byTitle, {
-      inputValue: execution.input,
-      expectedValue: execution.expected,
-      expectedTraceValue: execution.expectedTrace,
-      outputValue: execution.output,
-      customFields: execution.customFields,
-      customFieldTitles: args.customFieldTitles,
-    })
-  );
-  const rowResponse = await tablesApi.addSheetRows(
-    args.apiKey,
-    args.baseURL,
-    args.throwOnError,
-    args.tableId,
-    args.sheetId,
-    { count: values.length, values }
-  );
-  const rowIndices = mapBatchRowIndices(rowResponse, args.executed.length);
-  const responseRows = extractRows(rowResponse);
-  const responseByIndex: Record<number, Record<string, unknown>> = {};
-  for (const row of responseRows) {
-    if (row && typeof row === "object" && row.row_index != null) {
-      responseByIndex[Number(row.row_index)] = row;
-    }
-  }
-  const rows: Array<Record<string, unknown> | null> = rowIndices.map(
-    (rowIndex) =>
-      rowIndex == null ? null : responseByIndex[rowIndex] ?? null
-  );
-  return [rowIndices, rows];
-};
-
 const buildResults = <TInput, TOutput>(
   executed: CaseExecution<TInput, TOutput>[],
   rowIndices: Array<number | null>,
@@ -433,9 +367,6 @@ export const runEval = async <TInput, TOutput>(
   const tableId = args.tableId ?? null;
   const folderId = args.folderId ?? null;
   const includeFailureExamples = Boolean(args.includeFailureExamples);
-  const referenceTrace =
-    scorersReferenceTrace(normalizedScorers) ||
-    columnsReferenceTrace(processingColumns);
 
   getTerminal().step("Resolving Table");
   const table = await resolveTable(
@@ -491,7 +422,7 @@ export const runEval = async <TInput, TOutput>(
     sheet.id,
     columns,
     {
-      includeTraceColumns: referenceTrace,
+      includeTraceColumns: true,
       includeExpectedTrace: cases.some(
         (caseItem) => caseItem.expectedTrace != null
       ),
@@ -534,34 +465,20 @@ export const runEval = async <TInput, TOutput>(
     sheetId: sheet.id,
   });
 
+  getTerminal().step("Importing traces and writing rows");
   let rowIndices: Array<number | null>;
-  if (referenceTrace) {
-    getTerminal().step("Importing traces and writing rows");
-    [rowIndices, , executed] = await persistTraceRows({
-      apiKey: args.apiKey,
-      baseURL: args.baseURL,
-      throwOnError: args.throwOnError,
-      tableId: table.id,
-      sheetId: sheet.id,
-      evalName: args.name,
-      executed,
-      byTitle,
-      customFieldTitles: datasetFieldTitles,
-      tracerProvider: args.tracerProvider,
-    });
-  } else {
-    getTerminal().step("Writing rows");
-    [rowIndices] = await persistBatchRows({
-      apiKey: args.apiKey,
-      baseURL: args.baseURL,
-      throwOnError: args.throwOnError,
-      tableId: table.id,
-      sheetId: sheet.id,
-      executed,
-      byTitle,
-      customFieldTitles: datasetFieldTitles,
-    });
-  }
+  [rowIndices, , executed] = await persistTraceRows({
+    apiKey: args.apiKey,
+    baseURL: args.baseURL,
+    throwOnError: args.throwOnError,
+    tableId: table.id,
+    sheetId: sheet.id,
+    evalName: args.name,
+    executed,
+    byTitle,
+    customFieldTitles: datasetFieldTitles,
+    tracerProvider: args.tracerProvider,
+  });
 
   const processingIds = processingColumnIds(columns, processingColumns);
   if (processingIds.length) {
