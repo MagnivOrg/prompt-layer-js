@@ -12,8 +12,9 @@
  * AZURE_OPENAI_MODEL and AZURE_OPENAI_EMBEDDING_MODEL override the
  * direct OpenAI model defaults for Azure deployment names.
  *
+ * Message content is captured by default. Set
+ * OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false to exclude it.
  * Run with:
- * OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true \
  * node --import promptlayer/register \
  * examples/tracing/trace_openai.mjs
  */

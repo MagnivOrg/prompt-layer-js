@@ -85,6 +85,20 @@ describe("setupTracing OTLP export", () => {
     );
   });
 
+  it("captures message content by default and allows explicit opt-out", () => {
+    delete process.env
+      .OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT;
+
+    expect(resolveCaptureContent()).toBe(true);
+
+    process.env
+      .OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = "false";
+
+    expect(resolveCaptureContent()).toBe(false);
+    expect(resolveCaptureContent(false)).toBe(false);
+    expect(resolveCaptureContent(true)).toBe(true);
+  });
+
   it("accepts span_and_event content capture parity", () => {
     process.env
       .OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT =

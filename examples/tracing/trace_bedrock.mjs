@@ -5,8 +5,9 @@
  * us-east-1, and AWS_BEDROCK_MODEL defaults to
  * global.anthropic.claude-sonnet-5.
  *
+ * Message content is captured by default. Set
+ * OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false to exclude it.
  * Run with:
- * OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true \
  * node --import promptlayer/register \
  * examples/tracing/trace_bedrock.mjs
  */

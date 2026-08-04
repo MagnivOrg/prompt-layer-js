@@ -9,8 +9,9 @@
  * PROMPTLAYER_RUN_PROMPT_NAME. Provider model environment variables
  * use the same defaults and overrides as the direct tracing examples.
  *
+ * Message content is captured by default. Set
+ * OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false to exclude it.
  * Run with:
- * OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true \
  * node --import promptlayer/register \
  * examples/tracing/trace_promptlayer_run.mjs
  *

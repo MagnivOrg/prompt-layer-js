@@ -10,8 +10,9 @@
  * ANTHROPIC_VERTEX_PROJECT_ID, using Application Default Credentials.
  * ANTHROPIC_VERTEX_MODEL overrides the direct Anthropic model.
  *
+ * Message content is captured by default. Set
+ * OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false to exclude it.
  * Run with:
- * OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true \
  * node --import promptlayer/register \
  * examples/tracing/trace_anthropic.mjs
  */
