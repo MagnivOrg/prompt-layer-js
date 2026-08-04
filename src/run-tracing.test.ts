@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { formatRunOutput, isStreamResult } from "@/run-tracing";
+import { isStreamResult } from "@/run-tracing";
 import "@/test-fixtures/setup-promptlayer-run-mocks";
 import { fakeSpan } from "@/test-fixtures/setup-promptlayer-run-mocks";
 
@@ -21,19 +21,8 @@ vi.mock("@/utils/streaming", () => ({
 }));
 
 import { PromptLayer } from "@/index";
+import { setupTracing } from "@/tracing";
 import { streamResponse } from "@/utils/streaming";
-
-describe("formatRunOutput", () => {
-  it("prefers prompt_blueprint over raw_response", () => {
-    expect(
-      formatRunOutput({
-        prompt_blueprint: { messages: [] },
-        raw_response: "x",
-      })
-    ).toBe(JSON.stringify({ messages: [] }));
-    expect(formatRunOutput({ raw_response: "hello" })).toBe("hello");
-  });
-});
 
 describe("isStreamResult", () => {
   it("detects generators and stream-like objects", () => {
@@ -60,7 +49,33 @@ describe("run() stream tracing", () => {
     client = new PromptLayer({ apiKey: "test-api-key" });
   });
 
-  it("sets function_output after stream is consumed, not the generator", async () => {
+  it("preserves the tracing-disabled client path", async () => {
+    const disabledClient = new PromptLayer({
+      apiKey: "test-api-key",
+      enableTracing: false,
+    });
+
+    const result = await disabledClient.run({
+      promptName: "test",
+    });
+
+    expect(disabledClient.tracerProvider).toBeNull();
+    expect(setupTracing).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      request_id: 1,
+      raw_response: {
+        choices: [
+          {
+            message: {
+              content: "hi",
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  it("ends tracing after stream consumption without exporting output payloads", async () => {
     const stream = (await client.run({
       promptName: "test",
       inputVariables: {},
@@ -72,9 +87,10 @@ describe("run() stream tracing", () => {
     }
 
     expect(streamResponse).toHaveBeenCalled();
-    expect(fakeSpan.setAttribute).toHaveBeenCalledWith(
+    expect(fakeSpan.setAttribute).not.toHaveBeenCalledWith(
       "function_output",
-      expect.stringContaining('"text":"hi"')
+      expect.anything()
     );
+    expect(fakeSpan.end).toHaveBeenCalled();
   });
 });

@@ -1,29 +1,8 @@
 /**
- * Helpers for PromptLayer.run() span attributes.
- * Mirrors Python promptlayer.promptlayer (_format_run_output, _is_stream_result).
+ * Helpers for lightweight PromptLayer.run() tracing.
  */
 
-const formatValue = (value: unknown): string => {
-  if (typeof value === "string") return value;
-  if (value === null || value === undefined) return String(value);
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
-};
-
-/** Prefer prompt_blueprint string over full result / raw_response (Python `_format_run_output`). */
-export const formatRunOutput = (result: unknown): string => {
-  if (!result || typeof result !== "object" || Array.isArray(result)) {
-    return formatValue(result);
-  }
-  const record = result as Record<string, unknown>;
-  if (record.prompt_blueprint != null) {
-    return formatValue(record.prompt_blueprint);
-  }
-  if (record.raw_response != null) {
-    return formatValue(record.raw_response);
-  }
-  return formatValue(result);
-};
+import * as opentelemetry from "@opentelemetry/api";
 
 /** Detect sync/async generators and other stream-like results (Python `_is_stream_result`). */
 export const isStreamResult = (value: unknown): boolean => {
@@ -50,4 +29,54 @@ export const isStreamResult = (value: unknown): boolean => {
     typeof record.pipe === "function" ||
     typeof record.getReader === "function"
   );
+};
+
+export const runSpanAttributes = (
+  promptName: string,
+  promptVersion: number | undefined,
+  promptReleaseLabel: string | undefined,
+  metadata: Record<string, string> | undefined,
+  sdkVersion: string
+): opentelemetry.Attributes => {
+  const attributes: opentelemetry.Attributes = {
+    node_type: "CODE_EXECUTION",
+    prompt_name: promptName,
+    "promptlayer.prompt.name": promptName,
+    "promptlayer.telemetry.source": "promptlayer-js",
+    "promptlayer.telemetry.source_version": sdkVersion,
+  };
+
+  if (promptVersion !== undefined) {
+    attributes["promptlayer.prompt.version"] =
+      String(promptVersion);
+  }
+  if (promptReleaseLabel !== undefined) {
+    attributes["promptlayer.prompt.label"] =
+      promptReleaseLabel;
+  }
+
+  for (const [key, value] of Object.entries(metadata ?? {})) {
+    if (!key) continue;
+    attributes[`promptlayer.metadata.${key}`] = value;
+  }
+
+  return attributes;
+};
+
+export const recordSpanError = (
+  span: opentelemetry.Span,
+  error: unknown
+): void => {
+  const exception =
+    error instanceof Error ? error : new Error(String(error));
+  try {
+    span.setAttribute("error.type", exception.name || "Error");
+    span.recordException(exception);
+    span.setStatus({
+      code: opentelemetry.SpanStatusCode.ERROR,
+      message: exception.message,
+    });
+  } catch {
+    // Telemetry must never change PromptLayer SDK behavior.
+  }
 };

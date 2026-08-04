@@ -50,7 +50,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
   it("exports a finished generation trace as OTLP JSON", async () => {
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const trace = {
       traceId: "trace_0af7651916cd43dd8448eb211c80319c",
@@ -85,7 +85,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
 
     expect(fetchWithRetryMock).toHaveBeenCalledTimes(1);
     expect(fetchWithRetryMock).toHaveBeenCalledWith(
-      "https://api.promptlayer.dev/v1/traces",
+      "https://api.promptlayer.test/v1/traces",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -126,7 +126,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
   it("records error status and exception events", async () => {
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const trace = {
       traceId: "trace_0af7651916cd43dd8448eb211c80319c",
@@ -179,7 +179,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
   it("exports response spans with canonical response attributes", async () => {
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const trace = {
       traceId: "trace_0af7651916cd43dd8448eb211c80319c",
@@ -262,7 +262,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
   it("exports response reasoning summaries and reasoning token usage", async () => {
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const trace = {
       traceId: "trace_0af7651916cd43dd8448eb211c80319c",
@@ -336,7 +336,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
   it("exports agent spans as internal LLM sessions", async () => {
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const trace = {
       traceId: "trace_0af7651916cd43dd8448eb211c80319c",
@@ -382,7 +382,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
   it("preserves nested parent-child relationships in exported spans", async () => {
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const trace = {
       traceId: "trace_0af7651916cd43dd8448eb211c80319c",
@@ -442,7 +442,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
       .mockReturnValue("00-dddddddddddddddddddddddddddddddd-eeeeeeeeeeeeeeee-01");
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const trace = {
       traceId: "trace_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -497,7 +497,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
   it("recovers serialized trace metadata when the root trace callback is absent", async () => {
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const span = {
       traceId: "trace_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -547,7 +547,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
   it("keeps the agents trace id when traceparent metadata is absent", async () => {
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const trace = {
       traceId: "trace_cccccccccccccccccccccccccccccccc",
@@ -595,7 +595,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
       .mockReturnValue("00-dddddddddddddddddddddddddddddddd-eeeeeeeeeeeeeeee-01");
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const trace = {
       traceId: "trace_cccccccccccccccccccccccccccccccc",
@@ -621,7 +621,7 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
   it("does not throw on export failure and retries on forceFlush", async () => {
     const processor = new PromptLayerOpenAIAgentsProcessor({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
     const trace = {
       traceId: "trace_0af7651916cd43dd8448eb211c80319c",

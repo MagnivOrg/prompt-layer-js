@@ -3,6 +3,7 @@ import { vi } from "vitest";
 const hoisted = vi.hoisted(() => ({
   fakeSpan: {
     setAttribute: vi.fn(),
+    setAttributes: vi.fn(),
     setStatus: vi.fn(),
     recordException: vi.fn(),
     end: vi.fn(),
@@ -13,6 +14,7 @@ const hoisted = vi.hoisted(() => ({
 export const fakeSpan = hoisted.fakeSpan;
 
 vi.mock("@/utils/utils", () => ({
+  SDK_VERSION: "test-version",
   trackRequest: vi.fn().mockResolvedValue({
     request_id: 1,
     prompt_blueprint: { messages: [{ role: "assistant", content: "ok" }] },
@@ -60,13 +62,15 @@ vi.mock("@/templates", () => ({
 
 vi.mock("@/tracing", () => ({
   getTracer: () => ({
-    startActiveSpan: (
-      _name: string,
-      fn: (span: typeof hoisted.fakeSpan) => unknown
-    ) => fn(hoisted.fakeSpan),
+    startActiveSpan: (...args: unknown[]) => {
+      const fn = args.at(-1) as (
+        span: typeof hoisted.fakeSpan
+      ) => unknown;
+      return fn(hoisted.fakeSpan);
+    },
   }),
   setupTracing: vi.fn(),
-  withPromptLayerOpenAIRequestContext: (
+  withPromptLayerProviderRequestContext: (
     _value: unknown,
     callback: () => unknown
   ) => callback(),

@@ -12,22 +12,38 @@ import {
   createEvalFetchRouter,
   type EvalFetchRoute,
 } from "@/test-fixtures/eval-fetch";
+import {
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import * as evalUtils from "@/evaluations/utils";
+import * as tracing from "@/tracing";
 
 describe("Eval runner", () => {
   let fetchMock: Mock;
+  let tracerProvider: NodeTracerProvider;
 
   beforeEach(() => {
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(evalUtils, "sleep").mockResolvedValue(undefined);
+    tracerProvider = new NodeTracerProvider({
+      spanProcessors: [
+        new SimpleSpanProcessor(new InMemorySpanExporter()),
+      ],
+    });
+    vi.spyOn(tracing, "setupTracing").mockReturnValue(
+      tracerProvider
+    );
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllGlobals();
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    await tracerProvider.shutdown();
   });
 
   it("exposes evals on the client", () => {

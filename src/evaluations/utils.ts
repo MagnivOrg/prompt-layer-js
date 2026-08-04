@@ -306,7 +306,6 @@ export const buildScorerColumnBody = (
 const API_HOST_TO_DASHBOARD_HOST: Record<string, string> = {
   "api.promptlayer.com": "dashboard.promptlayer.com",
   "api.eu.promptlayer.com": "dashboard.eu.promptlayer.com",
-  "api.dev.gcp.promptlayer.com": "dashboard.dev.gcp.promptlayer.com",
 };
 
 export const resolveDashboardBaseUrl = (apiBaseUrl: string): string => {

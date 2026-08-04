@@ -22,7 +22,11 @@ import { getTerminal } from "@/evaluations/terminal";
 import { traceTool, wrapWithSpan } from "@/span-wrapper";
 import { TemplateManager } from "@/templates";
 import { PromptTemplateCache } from "@/utils/template-cache";
-import { formatRunOutput } from "@/run-tracing";
+import { requireProviderSDK } from "@/utils/require-provider-sdk";
+import {
+  recordSpanError,
+  runSpanAttributes,
+} from "@/run-tracing";
 import {
   configureTracing,
   createPromptLayerSpanProcessor,
@@ -30,7 +34,7 @@ import {
   getTracer,
   setupTracing,
   shutdownTracing,
-  withPromptLayerOpenAIRequestContext,
+  withPromptLayerProviderRequestContext,
 } from "@/tracing";
 import { TrackManager } from "@/track";
 import {
@@ -79,6 +83,7 @@ import {
   openrouterRequest,
   readEnv,
   runWorkflowRequest,
+  SDK_VERSION,
   trackRequest,
   utilLogRequest,
   vertexaiRequest,
@@ -202,7 +207,8 @@ export class PromptLayer {
 
   get Anthropic() {
     try {
-      const module = require("@anthropic-ai/sdk").default;
+      const module =
+        requireProviderSDK("@anthropic-ai/sdk").default;
       return promptLayerBase(
         this.apiKey,
         this.baseURL,
@@ -219,7 +225,7 @@ export class PromptLayer {
 
   get OpenAI() {
     try {
-      const module = require("openai").default;
+      const module = requireProviderSDK("openai").default;
       return promptLayerBase(
         this.apiKey,
         this.baseURL,
@@ -229,7 +235,7 @@ export class PromptLayer {
       );
     } catch (e) {
       console.error(
-        "To use the OpenAI module, you must install the @openai/api package."
+        "To use the OpenAI module, you must install the openai package."
       );
     }
   }
@@ -252,19 +258,15 @@ export class PromptLayer {
     return tracer.startActiveSpan("PromptLayer Run", async (span) => {
       let spanOwnershipTransferred = false;
       try {
-        const functionInput = {
-          promptName,
-          promptVersion,
-          promptReleaseLabel,
-          inputVariables,
-          tags,
-          metadata,
-          groupId,
-          modelParameterOverrides,
-          stream,
-        };
-        span.setAttribute("prompt_name", promptName);
-        span.setAttribute("function_input", JSON.stringify(functionInput));
+        span.setAttributes(
+          runSpanAttributes(
+            promptName,
+            promptVersion,
+            promptReleaseLabel,
+            metadata,
+            SDK_VERSION
+          )
+        );
 
         const prompt_input_variables = inputVariables;
         const templateGetParams: GetPromptTemplateParams = {
@@ -277,17 +279,53 @@ export class PromptLayer {
         };
         if (inputVariables) templateGetParams.input_variables = inputVariables;
 
-        const promptBlueprint = await this.templates.get(
-          promptName,
-          templateGetParams
-        );
-
-        if (!promptBlueprint) {
-          throw new Error(
-            `Cannot proceed: prompt template '${promptName}' could not be fetched. ` +
-            `Check the warnings above for the actual error.`
-          );
+        const fetchAttributes: opentelemetry.Attributes = {
+          node_type: "PROMPT_TEMPLATE",
+          prompt_name: promptName,
+          "promptlayer.prompt.name": promptName,
+          "promptlayer.prompt.requested.name": promptName,
+        };
+        if (promptVersion !== undefined) {
+          fetchAttributes["promptlayer.prompt.requested.version"] =
+            String(promptVersion);
         }
+        if (promptReleaseLabel !== undefined) {
+          fetchAttributes["promptlayer.prompt.requested.label"] =
+            promptReleaseLabel;
+        }
+        const promptBlueprint = await tracer.startActiveSpan(
+          "Prompt template fetch",
+          {
+            attributes: fetchAttributes,
+            kind: opentelemetry.SpanKind.INTERNAL,
+          },
+          async (fetchSpan) => {
+            try {
+              const blueprint = await this.templates.get(
+                promptName,
+                templateGetParams
+              );
+              if (!blueprint) {
+                throw new Error(
+                  `Cannot proceed: prompt template '${promptName}' could not be fetched. ` +
+                  `Check the warnings above for the actual error.`
+                );
+              }
+              fetchSpan.setAttributes({
+                "promptlayer.prompt.id": String(blueprint.id),
+                "promptlayer.prompt.version": String(
+                  blueprint.version
+                ),
+              });
+              return blueprint;
+            } catch (error) {
+              recordSpanError(fetchSpan, error);
+              throw error;
+            } finally {
+              fetchSpan.end();
+            }
+          }
+        );
 
         const promptAttributes: opentelemetry.Attributes = {
           "promptlayer.prompt.name": promptName,
@@ -300,13 +338,7 @@ export class PromptLayer {
           promptAttributes["promptlayer.prompt.label"] =
             promptReleaseLabel;
         }
-        for (const [key, value] of Object.entries(
-          promptAttributes
-        )) {
-          if (value !== undefined) {
-            span.setAttribute(key, value);
-          }
-        }
+        span.setAttributes(promptAttributes);
 
         const promptTemplate = promptBlueprint.prompt_template;
         if (!promptBlueprint!.llm_kwargs) {
@@ -401,18 +433,13 @@ export class PromptLayer {
         let response: any;
         try {
           const invokeProvider = () =>
-            request_function(promptBlueprint!, kwargs);
-          response = await (
-            provider_type === "openai" ||
-            provider_type === "openai.azure"
-              ? withPromptLayerOpenAIRequestContext(
-                  {
-                    promptAttributes,
-                    requestLogSpanId: span.spanContext().spanId,
-                  },
-                  invokeProvider
-                )
-              : invokeProvider()
+            request_function(promptBlueprint, kwargs);
+          response = await withPromptLayerProviderRequestContext(
+            {
+              promptAttributes,
+              requestLogSpanId: span.spanContext().spanId,
+            },
+            invokeProvider
           );
         } catch (llmError: unknown) {
           const errorType = categorizeError(llmError);
@@ -436,27 +463,12 @@ export class PromptLayer {
           );
           spanOwnershipTransferred = true;
           return (async function* () {
-            let lastChunk: unknown;
             try {
               for await (const chunk of streamIterator) {
-                lastChunk = chunk;
                 yield chunk;
               }
-              if (lastChunk !== undefined) {
-                span.setAttribute(
-                  "function_output",
-                  formatRunOutput(lastChunk)
-                );
-              }
             } catch (error) {
-              span.recordException(
-                error instanceof Error ? error : new Error(String(error))
-              );
-              span.setStatus({
-                code: opentelemetry.SpanStatusCode.ERROR,
-                message:
-                  error instanceof Error ? error.message : "Unknown error",
-              });
+              recordSpanError(span, error);
               throw error;
             } finally {
               span.end();
@@ -470,14 +482,10 @@ export class PromptLayer {
           raw_response: response,
           prompt_blueprint: requestLog.prompt_blueprint,
         };
-        span.setAttribute("function_output", formatRunOutput(functionOutput));
 
         return functionOutput;
       } catch (error) {
-        span.setStatus({
-          code: opentelemetry.SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : "Unknown error",
-        });
+        recordSpanError(span, error);
         throw error;
       } finally {
         if (!spanOwnershipTransferred) {
@@ -623,6 +631,7 @@ export type {
   FlushableTracerProvider,
   OpenAITracingProvider,
   PromptLayerSpanProcessorOptions,
+  TracingProvider,
   TracingHandle,
 } from "@/tracing";
 

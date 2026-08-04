@@ -108,7 +108,7 @@ describe("setupTracing OTLP export", () => {
     expect(provider).toBeInstanceOf(NodeTracerProvider);
   });
 
-  it("reuses one provider and one OpenAI instrumentation", () => {
+  it("reuses one provider and one set of instrumentation registrations", () => {
     const first = setupTracing(
       true,
       "pl_test",
@@ -123,7 +123,32 @@ describe("setupTracing OTLP export", () => {
 
     expect(second).toBe(first);
     expect(OTLPTraceExporter).toHaveBeenCalledTimes(1);
-    expect(registerInstrumentations).toHaveBeenCalledTimes(1);
+    expect(registerInstrumentations).toHaveBeenCalledTimes(4);
+  });
+
+  it("registers upstream instrumentations and provider context adapters", () => {
+    provider = setupTracing(
+      true,
+      "pl_test",
+      "https://api.promptlayer.com"
+    );
+
+    expect(
+      vi
+        .mocked(registerInstrumentations)
+        .mock.calls.flatMap(
+          ([registration]) =>
+            registration.instrumentations?.map(
+              (instrumentation) =>
+                instrumentation.instrumentationName
+            ) ?? []
+        )
+    ).toEqual([
+      "@opentelemetry/instrumentation-openai",
+      "@opentelemetry/instrumentation-aws-sdk",
+      "promptlayer/instrumentation-anthropic-context",
+      "promptlayer/instrumentation-google-context",
+    ]);
   });
 
   it("does not shut down a caller-owned tracer provider", async () => {

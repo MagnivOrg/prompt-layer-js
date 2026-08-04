@@ -18,7 +18,7 @@ describe("instrumentOpenAIAgents", () => {
   it("registers the processor exclusively by default", async () => {
     const processor = await instrumentOpenAIAgents({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
     });
 
     expect(agentsModule.setTraceProcessors).toHaveBeenCalledWith([processor]);
@@ -28,7 +28,7 @@ describe("instrumentOpenAIAgents", () => {
   it("registers the processor non-exclusively when requested", async () => {
     const processor = await instrumentOpenAIAgents({
       apiKey: "pl_test",
-      baseURL: "https://api.promptlayer.dev",
+      baseURL: "https://api.promptlayer.test",
       exclusive: false,
     });
 
