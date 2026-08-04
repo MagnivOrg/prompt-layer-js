@@ -15,7 +15,6 @@ import {
   normalizeScorer,
   resolveConfigSourcesToColumnIds,
   scorerDependenciesFromConfig,
-  scorersReferenceTrace,
 } from "@/evaluations/validation";
 import { describe, expect, it } from "vitest";
 
@@ -139,24 +138,6 @@ describe("evaluations column helpers", () => {
         execution_trace: "tr-1",
       },
     });
-    expect(
-      scorersReferenceTrace([
-        llmAssertionScorer({
-          title: "x",
-          sourceColumn: "Trace",
-          prompt: "ok",
-        }),
-      ])
-    ).toBe(true);
-    expect(
-      scorersReferenceTrace([
-        llmAssertionScorer({
-          title: "x",
-          sourceColumn: "Output",
-          prompt: "ok",
-        }),
-      ])
-    ).toBe(false);
     expect(() =>
       scorerDependenciesFromConfig({ source: "missing" }, columnsByTitle)
     ).toThrow(/not found: missing/);

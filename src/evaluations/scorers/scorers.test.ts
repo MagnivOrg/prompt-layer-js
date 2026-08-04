@@ -22,7 +22,6 @@ import { buildScorerColumnBody } from "@/evaluations/utils";
 import {
   normalizeScorer,
   scorerDependenciesFromConfig,
-  scorersReferenceTrace,
 } from "@/evaluations/validation";
 import { describe, expect, it } from "vitest";
 
@@ -172,11 +171,6 @@ describe("predefined eval scorers", () => {
       },
     });
     expect(
-      scorersReferenceTrace([
-        trajectoryScorer({ expected: [["search"]] }),
-      ])
-    ).toBe(true);
-    expect(
       trajectoryScorer({
         sourceColumn: "Agent trace",
         expected: [["search"]],
@@ -267,7 +261,6 @@ describe("predefined eval scorers", () => {
       },
       _sdkDiagnosis: "trajectory",
     });
-    expect(scorersReferenceTrace([scorer])).toBe(true);
     const body = buildScorerColumnBody(scorer, []);
     expect(body).toEqual({
       title: "Trajectory assertions",
