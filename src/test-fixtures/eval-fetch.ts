@@ -32,6 +32,8 @@ type CreateEvalFetchRouterOptions = {
   stepVerdict?: string;
   stepRawValue?: unknown;
   stepError?: unknown;
+  tracePrice?: number | null;
+  traceLatency?: number | null;
   /** Extra routes; return a Response to handle, undefined to fall through. */
   overrides?: EvalFetchRoute;
 };
@@ -41,6 +43,8 @@ const defaultColumns = [
   { id: "c-expected", title: "expected", type: "TEXT" },
   { id: "c-output", title: "Output", type: "TEXT" },
   { id: "c-trace", title: "Trace", type: "TRACE" },
+  { id: "c-trace-price", title: "Trace.price", type: "ABSOLUTE_NUMERIC" },
+  { id: "c-trace-latency", title: "Trace.latency", type: "ABSOLUTE_NUMERIC" },
 ];
 
 /** Shared Table + scorecard HTTP router for eval integration tests. */
@@ -61,7 +65,8 @@ export const createEvalFetchRouter = (
   let importedRows = 0;
 
   return async (input: string | URL, init?: RequestInit) => {
-    const url = getUrlString(input);
+    const requestUrl = new URL(getUrlString(input));
+    const url = requestUrl.origin + requestUrl.pathname;
     const method = (init?.method || "GET").toUpperCase();
     const override = await options.overrides?.(url, method, init);
     if (override) return override;
@@ -135,6 +140,25 @@ export const createEvalFetchRouter = (
       );
     }
     if (url.includes(`/sheets/${sheetId}/rows`) && method === "GET") {
+      if (
+        requestUrl.searchParams.get(
+          "include_execution_metadata_aggregates"
+        ) === "true"
+      ) {
+        const rows = Array.from({ length: rowCount }, (_, index) =>
+          completedRow(index, {
+            "c-trace-price": {
+              id: `price-${index}`,
+              value: options.tracePrice ?? null,
+            },
+            "c-trace-latency": {
+              id: `latency-${index}`,
+              value: { value: options.traceLatency ?? 178 },
+            },
+          })
+        );
+        return jsonResponse({ success: true, data: rows, columns }, 200);
+      }
       return jsonResponse({ success: true, data: [] }, 200);
     }
     if (url.includes(`/sheets/${sheetId}/rows`) && method === "POST") {

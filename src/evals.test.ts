@@ -159,6 +159,8 @@ describe("Eval runner", () => {
     expect(result.results[0].input).toBe("hello");
     expect(result.results[0].output).toBe("hello");
     expect(result.results[0].scores.exact).toBe(1);
+    expect(result.results[0].price).toBeNull();
+    expect(result.results[0].latency).toBe(178);
 
     const scorecardPatchIndex = fetchMock.mock.calls.findIndex(
       ([input, init]) =>
@@ -193,6 +195,19 @@ describe("Eval runner", () => {
     );
     expect(traceImportIndex).toBeGreaterThanOrEqual(0);
     expect(scorecardPatchIndex).toBeLessThan(traceImportIndex);
+
+    const evalListRequests = fetchMock.mock.calls.filter(([input, init]) => {
+      const url = new URL(getUrlString(input));
+      const method = (init?.method || "GET").toUpperCase();
+      return (
+        method === "GET" &&
+        (url.pathname.endsWith("/columns") || url.pathname.endsWith("/rows"))
+      );
+    });
+    expect(evalListRequests.length).toBeGreaterThan(0);
+    for (const [input] of evalListRequests) {
+      expect(new URL(getUrlString(input)).searchParams.get("include_system_columns")).toBe("true");
+    }
   });
 
   it("creates and persists sparse custom fields before scorer dependencies", async () => {

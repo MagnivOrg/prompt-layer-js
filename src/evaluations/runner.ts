@@ -11,11 +11,12 @@ import {
   Table,
 } from "@/types";
 import * as tablesApi from "@/tables/api";
-import { extractColumns } from "@/tables/helpers";
+import { extractColumns, extractRows } from "@/tables/helpers";
 import { fillRowCells, waitForSheetOperations } from "./polling";
 import { waitForTraceRequestPrice } from "./tracePrice";
 import {
   clearBlankScaffoldRows,
+  EVAL_TABLE_LIST_PARAMS,
   ensureEvalScaffoldColumns,
   resolveCases,
   resolveSheet,
@@ -33,6 +34,7 @@ import {
   customFieldTitles,
   findLastRow,
   normalizeEvalCases,
+  parseCellValue,
 } from "./utils";
 import type { NormalizedEvalCase } from "./utils";
 import {
@@ -211,7 +213,12 @@ const persistTraceRows = async <TInput, TOutput>(args: {
         args.throwOnError,
         args.tableId,
         args.sheetId,
-        { order: "desc", limit: 1, include_columns: false }
+        {
+          ...EVAL_TABLE_LIST_PARAMS,
+          order: "desc",
+          limit: 1,
+          include_columns: false,
+        }
       );
       fallbackRow = findLastRow(rowsPayload);
     }
@@ -259,7 +266,8 @@ const persistTraceRows = async <TInput, TOutput>(args: {
 const buildResults = <TInput, TOutput>(
   executed: CaseExecution<TInput, TOutput>[],
   rowIndices: Array<number | null>,
-  scoresByRow: Record<number, Record<string, unknown>>
+  scoresByRow: Record<number, Record<string, unknown>>,
+  metadataByRow: Record<number, { price: number | null; latency: number | null }>
 ): EvalCaseResult<TInput, TOutput>[] => {
   const results: EvalCaseResult<TInput, TOutput>[] = [];
   executed.forEach((item, i) => {
@@ -270,6 +278,8 @@ const buildResults = <TInput, TOutput>(
         expectedValue: item.expected,
         outputValue: item.output,
         scores: rowIndex != null ? scoresByRow[rowIndex] || {} : {},
+        price: rowIndex != null ? metadataByRow[rowIndex]?.price : null,
+        latency: rowIndex != null ? metadataByRow[rowIndex]?.latency : null,
         traceId: item.traceId,
         spanId: item.spanId,
         rowIndex,
@@ -277,6 +287,70 @@ const buildResults = <TInput, TOutput>(
     );
   });
   return results;
+};
+
+const metricValue = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+
+const fetchExecutionMetadataByRow = async (args: {
+  apiKey: string;
+  baseURL: string;
+  throwOnError: boolean;
+  tableId: ResourceId;
+  sheetId: ResourceId;
+  columns: Column[];
+}): Promise<Record<number, { price: number | null; latency: number | null }>> => {
+  const payload = await tablesApi.listAllSheetRows(
+    args.apiKey,
+    args.baseURL,
+    args.throwOnError,
+    args.tableId,
+    args.sheetId,
+    {
+      ...EVAL_TABLE_LIST_PARAMS,
+      include_execution_metadata_aggregates: true,
+      include_columns: true,
+    }
+  );
+  const payloadColumns = Array.isArray(payload?.columns)
+    ? (payload.columns as Column[])
+    : [];
+  const byTitle = columnsByTitle([
+    ...args.columns,
+    ...payloadColumns,
+  ]);
+  const priceColumn = byTitle["Trace.price"];
+  const latencyColumn = byTitle["Trace.latency"];
+  const result: Record<
+    number,
+    { price: number | null; latency: number | null }
+  > = {};
+  for (const row of extractRows(payload)) {
+    if (row.row_index == null) continue;
+    const cells = (row.cells as Record<string, unknown>) || {};
+    const parseMetric = (column?: Column): number | null => {
+      if (!column) return null;
+      const cell = cells[String(column.id)];
+      return metricValue(
+        parseCellValue(
+          cell && typeof cell === "object"
+            ? (cell as Record<string, unknown>)
+            : null
+        )
+      );
+    };
+    result[Number(row.row_index)] = {
+      price: parseMetric(priceColumn),
+      latency: parseMetric(latencyColumn),
+    };
+  }
+  return result;
 };
 
 const buildEvalResult = <TInput, TOutput>(args: {
@@ -411,7 +485,8 @@ export const runEval = async <TInput, TOutput>(
     args.baseURL,
     args.throwOnError,
     table.id,
-    sheet.id
+    sheet.id,
+    EVAL_TABLE_LIST_PARAMS
   );
   let columns = extractColumns(columnsResponse || {});
   columns = await ensureEvalScaffoldColumns(
@@ -527,7 +602,20 @@ export const runEval = async <TInput, TOutput>(
     progress: scorecardPayload.progress,
   };
 
-  const caseResults = buildResults(executed, rowIndices, scoresByRow);
+  const metadataByRow = await fetchExecutionMetadataByRow({
+    apiKey: args.apiKey,
+    baseURL: args.baseURL,
+    throwOnError: args.throwOnError,
+    tableId: table.id,
+    sheetId: sheet.id,
+    columns,
+  });
+  const caseResults = buildResults(
+    executed,
+    rowIndices,
+    scoresByRow,
+    metadataByRow
+  );
   const failedIndices = collectFailingRowIndices(caseResults);
   const scoreCards = scorerPassRates(caseResults);
 
