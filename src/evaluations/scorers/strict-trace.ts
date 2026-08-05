@@ -18,7 +18,7 @@ const parseJsonValue = (raw: unknown): unknown => {
 };
 
 const parseToolList = (entries: unknown): string[] | null => {
-  if (!Array.isArray(entries) || !entries.length) {
+  if (!Array.isArray(entries)) {
     return null;
   }
   const tools: string[] = [];
@@ -81,6 +81,9 @@ const matchToolSequence = (
   expected: string[],
   mode: TrajectoryMode
 ): boolean => {
+  if (!expected.length) {
+    return !actual.length;
+  }
   if (mode === "strict") {
     return (
       actual.length === expected.length &&
