@@ -312,7 +312,7 @@ export const resolveCaptureContent = (
   if (configured !== undefined) return configured;
   const value = process.env
     .OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT;
-  if (value === undefined) return false;
+  if (value === undefined) return true;
   return [
     "1",
     "true",

@@ -9,8 +9,9 @@
  * GOOGLE_CLOUD_LOCATION are set. GOOGLE_VERTEX_MODEL can override the
  * model used for Vertex; otherwise GOOGLE_GENAI_MODEL is reused.
  *
+ * Message content is captured by default. Set
+ * OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false to exclude it.
  * Run with:
- * OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true \
  * node --import promptlayer/register \
  * examples/tracing/trace_google_genai.mjs
  */

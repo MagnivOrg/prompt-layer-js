@@ -133,7 +133,7 @@ Tracing registers upstream OpenTelemetry instrumentations for the provider SDKs 
 
 Install `@aws-sdk/client-bedrock-runtime` in applications that call Bedrock directly. The separate `@anthropic-ai/bedrock-sdk` client is not included in provider auto-instrumentation.
 
-Message content is excluded by default. Set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` or pass `captureContent: true` to `configureTracing` to include it. For Bedrock, this captures Converse inputs and non-streaming Converse outputs using GenAI message attributes. Enabling content capture can export prompts, responses, tool arguments, and other application data; only enable it when that data is appropriate to send to your configured trace backend.
+Message content is captured by default. Set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false` or pass `captureContent: false` to `configureTracing` to exclude it. For Bedrock, content capture includes Converse inputs and non-streaming Converse outputs using GenAI message attributes. Content capture can export prompts, responses, tool arguments, and other application data; disable it when that data is not appropriate to send to your configured trace backend.
 
 Runnable coverage examples are available for [OpenAI and Azure OpenAI](examples/tracing/trace_openai.mjs), [Anthropic and Anthropic Vertex](examples/tracing/trace_anthropic.mjs), [Google GenAI and Vertex AI](examples/tracing/trace_google_genai.mjs), [AWS Bedrock Runtime](examples/tracing/trace_bedrock.mjs), and [PromptLayer.run with provider overrides](examples/tracing/trace_promptlayer_run.mjs). Each API check is isolated so a failure does not prevent the remaining checks from running; optional cloud-hosted checks report which environment variables are missing.
 
@@ -159,7 +159,7 @@ The SDK relies on the following environment variables:
 | `PROMPTLAYER_BASE_URL` | No | Overrides the PromptLayer API base URL. Defaults to `https://api.promptlayer.com`. |
 | `PROMPTLAYER_OTLP_TRACES_ENDPOINT` | No | Overrides the OTLP trace endpoint (`/v1/traces`) used when SDK tracing is enabled. |
 | `PROMPTLAYER_TRACEPARENT` | No | Optional trace context passed through the Claude Agents integration. |
-| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | No | Enables provider prompt and response content capture when set to a truthy value. |
+| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | No | Controls provider prompt and response content capture. Capture is enabled by default; set this to `false` to disable it. |
 
 ## Client Resources
 
