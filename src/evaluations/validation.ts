@@ -15,7 +15,6 @@ import {
 } from "./scores";
 import {
   RESERVED_EVAL_COLUMN_TITLES,
-  TRACE_TEXT_COLUMNS,
   findColumnByTitle,
 } from "./utils";
 import type { EvalResult } from "@/types";
@@ -522,31 +521,4 @@ export const resolveConfigSourcesToColumnIds = (
     );
   }
   return resolved;
-};
-
-const configReferencesTrace = (
-  config: Record<string, unknown> | null | undefined
-): boolean => {
-  if (!config || typeof config !== "object") return false;
-  const traceTitles = new Set<string>(TRACE_TEXT_COLUMNS);
-  for (const [title] of iterScorerSources(config)) {
-    if (typeof title === "string" && traceTitles.has(title)) return true;
-  }
-  const code = config.code;
-  if (typeof code === "string") {
-    for (const title of TRACE_TEXT_COLUMNS) {
-      if (codeReferencesColumnTitle(code, title)) return true;
-    }
-  }
-  return false;
-};
-
-export const scorersReferenceTrace = (scorers: EvalScorerColumn[]): boolean => {
-  return scorers.some((scorer) => configReferencesTrace(scorer.config));
-};
-
-export const columnsReferenceTrace = (
-  columns: EvalProcessingColumn[]
-): boolean => {
-  return columns.some((column) => configReferencesTrace(column.config));
 };

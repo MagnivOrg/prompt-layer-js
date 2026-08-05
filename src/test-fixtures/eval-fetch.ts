@@ -40,6 +40,7 @@ const defaultColumns = [
   { id: "c-input", title: "input", type: "TEXT" },
   { id: "c-expected", title: "expected", type: "TEXT" },
   { id: "c-output", title: "Output", type: "TEXT" },
+  { id: "c-trace", title: "Trace", type: "TRACE" },
 ];
 
 /** Shared Table + scorecard HTTP router for eval integration tests. */
@@ -50,13 +51,14 @@ export const createEvalFetchRouter = (
   const sheetId = options.sheetId ?? "s1";
   const tableTitle = options.tableTitle ?? "my-eval";
   const sheetTitle = options.sheetTitle ?? "Experiment #1";
-  const columns = options.columns ?? defaultColumns;
+  const columns = [...(options.columns ?? defaultColumns)];
   const rowCount = options.rowCount ?? 1;
   const aggregateScore = options.aggregateScore ?? 1;
   const stepScore = options.stepScore ?? 1;
   const stepVerdict = options.stepVerdict ?? "pass";
   const stepRawValue = options.stepRawValue ?? stepScore;
   let resolvedSteps = options.scorecardSteps;
+  let importedRows = 0;
 
   return async (input: string | URL, init?: RequestInit) => {
     const url = getUrlString(input);
@@ -99,6 +101,38 @@ export const createEvalFetchRouter = (
     }
     if (url.endsWith(`/sheets/${sheetId}/columns`) && method === "GET") {
       return jsonResponse({ success: true, data: columns }, 200);
+    }
+    if (url.endsWith(`/sheets/${sheetId}/columns`) && method === "POST") {
+      const body = JSON.parse(String(init?.body || "{}"));
+      const column = {
+        id: `c-${String(body.title).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        title: String(body.title),
+        type: String(body.type),
+      };
+      columns.push(column);
+      return jsonResponse({ success: true, column }, 201);
+    }
+    if (url.includes("/dataset-versions/add-trace") && method === "POST") {
+      const rowIndex = importedRows++;
+      return jsonResponse(
+        {
+          success: true,
+          row_index: rowIndex,
+          row: completedRow(
+            rowIndex,
+            Object.fromEntries(
+              columns.map((column) => [
+                column.id,
+                {
+                  id: `cell-${rowIndex}-${column.id}`,
+                  value: null,
+                },
+              ])
+            )
+          ),
+        },
+        201
+      );
     }
     if (url.includes(`/sheets/${sheetId}/rows`) && method === "GET") {
       return jsonResponse({ success: true, data: [] }, 200);

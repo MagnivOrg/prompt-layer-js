@@ -186,13 +186,13 @@ describe("Eval runner", () => {
       )
     ).toBe(false);
 
-    const rowPostIndex = fetchMock.mock.calls.findIndex(
+    const traceImportIndex = fetchMock.mock.calls.findIndex(
       ([input, init]) =>
-        getUrlString(input).includes("/sheets/s1/rows") &&
+        getUrlString(input).includes("/dataset-versions/add-trace") &&
         (init?.method || "GET").toUpperCase() === "POST"
     );
-    expect(rowPostIndex).toBeGreaterThanOrEqual(0);
-    expect(scorecardPatchIndex).toBeLessThan(rowPostIndex);
+    expect(traceImportIndex).toBeGreaterThanOrEqual(0);
+    expect(scorecardPatchIndex).toBeLessThan(traceImportIndex);
   });
 
   it("creates and persists sparse custom fields before scorer dependencies", async () => {
@@ -202,7 +202,7 @@ describe("Eval runner", () => {
     });
     const { jsonResponse } = await import("@/test-helpers");
     const columns: Array<{ id: string; title: string; type: string }> = [];
-    let rowBody: Record<string, unknown> | null = null;
+    const importedValues: Array<Record<string, unknown>> = [];
 
     fetchMock.mockImplementation(
       createEvalFetchRouter({
@@ -220,6 +220,7 @@ describe("Eval runner", () => {
               "Topic Name": "c-topic",
               locale: "c-locale",
               Output: "c-output",
+              Trace: "c-trace",
             };
             const column = {
               id: ids[body.title],
@@ -235,19 +236,37 @@ describe("Eval runner", () => {
             expect(body.steps[0].primitive_config.source).toBe("c-topic");
             return undefined;
           }
-          if (url.includes("/sheets/s1/rows") && method === "POST") {
-            rowBody = JSON.parse(String(init?.body || "{}"));
+          if (url.includes("/dataset-versions/add-trace") && method === "POST") {
+            const rowIndex = importedValues.length;
+            importedValues.push({});
             return jsonResponse(
               {
                 success: true,
-                rows: [
-                  completedRow(0, {}),
-                  completedRow(1, {}),
-                ],
-                row_indices: [0, 1],
+                row_index: rowIndex,
+                row: completedRow(
+                  rowIndex,
+                  Object.fromEntries(
+                    columns.map((column) => [
+                      column.id,
+                      {
+                        id: `cell-${rowIndex}-${column.id}`,
+                        value: null,
+                      },
+                    ])
+                  )
+                ),
               },
               201
             );
+          }
+          if (url.includes("/cells/cell-") && method === "PATCH") {
+            const match = url.match(/cells\/cell-(\d+)-(.+)$/);
+            if (match) {
+              importedValues[Number(match[1])][match[2]] = JSON.parse(
+                String(init?.body || "{}")
+              ).value;
+            }
+            return jsonResponse({ success: true }, 200);
           }
           return undefined;
         }) satisfies EvalFetchRoute,
@@ -282,8 +301,9 @@ describe("Eval runner", () => {
       "Topic Name",
       "locale",
       "Output",
+      "Trace",
     ]);
-    expect(rowBody?.values).toEqual([
+    expect(importedValues).toEqual([
       expect.objectContaining({
         "c-expected-trace": JSON.stringify({ requiredTools: ["search"] }),
         "c-topic": "science",
@@ -490,8 +510,9 @@ describe("Eval runner", () => {
     const scorecardPatchIndex = callIndex(
       (url, method) => url.endsWith("/sheets/s1/scorecard") && method === "PATCH"
     );
-    const rowPostIndex = callIndex(
-      (url, method) => url.includes("/sheets/s1/rows") && method === "POST"
+    const traceImportIndex = callIndex(
+      (url, method) =>
+        url.includes("/dataset-versions/add-trace") && method === "POST"
     );
     const operationsIndex = callIndex(
       (url, method) =>
@@ -504,8 +525,8 @@ describe("Eval runner", () => {
 
     expect(extractCreateIndex).toBeGreaterThanOrEqual(0);
     expect(scorecardPatchIndex).toBeGreaterThan(extractCreateIndex);
-    expect(rowPostIndex).toBeGreaterThan(scorecardPatchIndex);
-    expect(operationsIndex).toBeGreaterThan(rowPostIndex);
+    expect(traceImportIndex).toBeGreaterThan(scorecardPatchIndex);
+    expect(operationsIndex).toBeGreaterThan(traceImportIndex);
     expect(recalculateIndex).toBeGreaterThan(operationsIndex);
   });
 
@@ -591,7 +612,7 @@ describe("Eval runner", () => {
     expect(order).toEqual([2, 1, 0]);
   });
 
-  it("imports traces and resolves output from the Trace column", async () => {
+  it("scaffolds and imports traces for an Output-only scorer", async () => {
     const client = new PromptLayer({
       apiKey: "test-api-key",
       baseURL: "https://api.promptlayer.com",
@@ -712,10 +733,17 @@ describe("Eval runner", () => {
         },
       ],
       runner: () => "runner-output",
-      scorers: [trajectoryScorer({ expected: [["search"]] })],
+      scorers: [
+        containsScorer({
+          title: "output-check",
+          sourceColumn: "Output",
+          expected: "from-trace",
+        }),
+      ],
     });
 
     expect(result.results[0].output).toBe("from-trace");
+    expect(createdTrace).toBe(true);
     expect(
       fetchMock.mock.calls.some(
         ([input, init]) =>
@@ -799,7 +827,7 @@ describe("Eval runner", () => {
       baseURL: "https://api.promptlayer.com",
     });
     const { jsonResponse } = await import("@/test-helpers");
-    let copiedRows: any;
+    let copiedCustomValue: unknown;
 
     fetchMock.mockImplementation(
       createEvalFetchRouter({
@@ -858,23 +886,9 @@ describe("Eval runner", () => {
               );
             }
           }
-          if (url.includes("/sheets/s1/rows") && method === "POST") {
-            copiedRows = JSON.parse(String(_init?.body || "{}"));
-            return jsonResponse(
-              {
-                success: true,
-                rows: [
-                  completedRow(0, {
-                    "c-input": { id: "cell-in", value: "from-table" },
-                    "c-expected": { id: "cell-ex", value: "from-table" },
-                    "c-output": { id: "cell-out", value: "from-table" },
-                    "c-custom": { id: "cell-custom", value: "copied-exactly" },
-                  }),
-                ],
-                row_indices: [0],
-              },
-              201
-            );
+          if (url.includes("/cells/cell-0-c-custom") && method === "PATCH") {
+            copiedCustomValue = JSON.parse(String(_init?.body || "{}")).value;
+            return jsonResponse({ success: true }, 200);
           }
           return undefined;
         }) satisfies EvalFetchRoute,
@@ -891,8 +905,6 @@ describe("Eval runner", () => {
 
     expect(result.results[0].input).toBe("from-table");
     expect(result.results[0].output).toBe("from-table");
-    expect(copiedRows.values[0]["c-custom"]).toBe("copied-exactly");
-    expect(copiedRows.values[0]).not.toHaveProperty("d-computed");
-    expect(copiedRows.values[0]).not.toHaveProperty("d-generated");
+    expect(copiedCustomValue).toBe("copied-exactly");
   });
 });
