@@ -403,6 +403,8 @@ export const buildCaseResult = <TInput, TOutput>(args: {
   expectedValue: unknown;
   outputValue: TOutput;
   scores: Record<string, unknown>;
+  price?: number | null;
+  latency?: number | null;
   traceId: string;
   spanId: string;
   rowIndex: number | null;
@@ -411,6 +413,8 @@ export const buildCaseResult = <TInput, TOutput>(args: {
   expected: args.expectedValue,
   output: args.outputValue,
   scores: args.scores,
+  price: args.price ?? null,
+  latency: args.latency ?? null,
   traceId: args.traceId || null,
   spanId: args.spanId || null,
   rowIndex: args.rowIndex,

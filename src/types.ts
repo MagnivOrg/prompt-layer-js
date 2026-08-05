@@ -1159,6 +1159,10 @@ export interface EvalCaseResult<TInput = unknown, TOutput = unknown> {
   expected?: unknown;
   output: TOutput;
   scores: Record<string, unknown>;
+  /** Total trace price in USD, when available. */
+  price: number | null;
+  /** Total trace latency in milliseconds, when available. */
+  latency: number | null;
   /** Fetch the full trace via PromptLayer tracing APIs / dashboard. */
   traceId: string | null;
   spanId: string | null;
@@ -1180,8 +1184,8 @@ export interface EvalResult<TInput = unknown, TOutput = unknown> {
   scoreCards: EvalScoreCard[];
   totalRows: number;
   /**
-   * Per-case summaries (input/output/scores/ids). Full traces and sheet score
-   * payloads are not inlined — refetch with:
+   * Per-case summaries (input/output/scores/price/latency/ids). Full traces and
+   * sheet score payloads are not inlined — refetch with:
    * `client.tables.sheets(tableId).forSheet(sheetId).score.get()`
    * and `...rows.listAll()`, or open `url`.
    */

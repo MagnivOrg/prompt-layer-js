@@ -159,6 +159,8 @@ describe("Eval runner", () => {
     expect(result.results[0].input).toBe("hello");
     expect(result.results[0].output).toBe("hello");
     expect(result.results[0].scores.exact).toBe(1);
+    expect(result.results[0].price).toBeNull();
+    expect(result.results[0].latency).toBe(178);
 
     const scorecardPatchIndex = fetchMock.mock.calls.findIndex(
       ([input, init]) =>
