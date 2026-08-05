@@ -2,10 +2,59 @@
 import { Command } from "commander";
 import { DefaultEvalTerminal } from "@/evaluations/terminal";
 import { runEvalCommand } from "./eval-run";
+import { runSetupCommand, type SetupTarget } from "./setup/run";
 
 const program = new Command()
   .name("promptlayer")
   .description("PromptLayer command-line interface");
+
+const addSetupOptions = (command: Command) =>
+  command
+    .option(
+      "-a, --agent <agents...>",
+      'Agents to configure (cursor, claude, codex, or "*")'
+    )
+    .option("-f, --force", "Overwrite existing skill or MCP config entries", false);
+
+const runSetup = async (target: SetupTarget, options: {
+  agent?: string[];
+  force?: boolean;
+}) => {
+  await runSetupCommand({
+    target,
+    agents: options.agent,
+    force: options.force,
+  });
+};
+
+const setup = addSetupOptions(
+  program
+    .command("setup")
+    .description(
+      "Install PromptLayer coding-agent skills and the Docs MCP server"
+    )
+    .action(async (options) => {
+      await runSetup("all", options);
+    })
+);
+
+addSetupOptions(
+  setup
+    .command("skills")
+    .description("Install PromptLayer skill files for coding agents")
+    .action(async (options) => {
+      await runSetup("skills", options);
+    })
+);
+
+addSetupOptions(
+  setup
+    .command("mcp")
+    .description("Install the PromptLayer Docs MCP server into agent configs")
+    .action(async (options) => {
+      await runSetup("mcp", options);
+    })
+);
 
 program
   .command("eval")

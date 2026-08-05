@@ -105,16 +105,37 @@ const MAP_PROVIDER_TO_FUNCTION: Record<string, any> = {
   mistral: mistralRequest,
 };
 
+/**
+ * Options for constructing a {@link PromptLayer} client.
+ *
+ * Prefer the published JavaScript SDK docs over inspecting bundled internals:
+ * https://docs.promptlayer.com/sdks/javascript
+ *
+ * @see https://docs.promptlayer.com/sdks/javascript
+ * @see https://docs.promptlayer.com/llms.txt
+ */
 export interface ClientOptions {
+  /** PromptLayer API key. Defaults to `PROMPTLAYER_API_KEY`. */
   apiKey?: string;
+  /**
+   * When true, configures OpenTelemetry tracing export to PromptLayer.
+   * @see https://docs.promptlayer.com/features/observability/traces/auto-instrumentation/overview
+   */
   enableTracing?: boolean;
   workspaceId?: number;
+  /**
+   * When true (default), many API failures throw. When false, methods often
+   * return `null`, `false`, or empty fallbacks instead.
+   * @see https://docs.promptlayer.com/sdks/javascript#error-handling
+   */
   throwOnError?: boolean;
+  /** Overrides the PromptLayer API base URL. Defaults to `PROMPTLAYER_BASE_URL` or `https://api.promptlayer.com`. */
   baseURL?: string;
   /**
    * When > 0, enables in-memory TTL caching of prompt templates.
    * Templates are fetched unrendered and substituted locally, reducing
    * API calls. Default: 0 (disabled).
+   * @see https://docs.promptlayer.com/sdks/javascript#sdk-cache
    */
   cacheTtlSeconds?: number;
 }
@@ -139,19 +160,71 @@ const isWorkflowResultsDict = (obj: any): boolean => {
   });
 };
 
+/**
+ * Official PromptLayer JavaScript client.
+ *
+ * Start with {@link PromptLayer.run} for registry prompts or
+ * {@link PromptLayer.templates} to fetch and render templates. For agent
+ * tooling, use the docs at https://docs.promptlayer.com/sdks/javascript and
+ * https://docs.promptlayer.com/llms.txt rather than scanning package internals.
+ *
+ * @example
+ * ```ts
+ * const pl = new PromptLayer({ apiKey: process.env.PROMPTLAYER_API_KEY });
+ * const result = await pl.run({
+ *   promptName: "support-reply",
+ *   inputVariables: { customer_name: "Ada" },
+ * });
+ * ```
+ *
+ * @see https://docs.promptlayer.com/sdks/javascript
+ * @see https://docs.promptlayer.com/llms.txt
+ */
 export class PromptLayer {
   apiKey: string;
   baseURL: string;
+  /**
+   * Prompt template retrieval, listing, publishing, and cache invalidation.
+   * @see https://docs.promptlayer.com/features/prompt-registry/overview
+   */
   templates: TemplateManager;
+  /**
+   * Skill collection pull, publish, and update operations.
+   * @see https://docs.promptlayer.com/features/skill-collections/overview
+   */
   skills: SkillManager;
+  /**
+   * Tables API for datasets and evaluation sheets.
+   * @see https://docs.promptlayer.com/features/tables/overview
+   */
   tables: TableManager;
+  /**
+   * SDK eval runners and related helpers.
+   * @see https://docs.promptlayer.com/sdks/evals/overview
+   */
   evals: EvalManager;
+  /**
+   * Group creation for organizing related requests.
+   * @see https://docs.promptlayer.com/features/observability/request-logs/request-ids
+   */
   group: GroupManager;
+  /**
+   * Request annotation utilities for metadata, prompt linkage, scores, and groups.
+   * @see https://docs.promptlayer.com/features/observability/request-logs/metadata
+   */
   track: TrackManager;
   enableTracing: boolean;
   throwOnError: boolean;
   tracerProvider: NodeTracerProvider | null;
+  /**
+   * Wrap a function in a PromptLayer span when tracing is enabled.
+   * @see https://docs.promptlayer.com/features/observability/traces/manual-tracing
+   */
   wrapWithSpan: typeof wrapWithSpan;
+  /**
+   * Trace a tool-style function with a named span.
+   * @see https://docs.promptlayer.com/features/observability/traces/manual-tracing
+   */
   traceTool: typeof traceTool;
 
   constructor({
@@ -201,10 +274,20 @@ export class PromptLayer {
     );
   }
 
+  /**
+   * Clear cached prompt templates. Pass a name to invalidate one entry, or omit
+   * to clear the entire template cache.
+   * @see https://docs.promptlayer.com/sdks/javascript#sdk-cache
+   */
   invalidate(promptName?: string): void {
     this.templates.invalidate(promptName);
   }
 
+  /**
+   * Anthropic SDK proxy that logs requests to PromptLayer.
+   * Requires the `@anthropic-ai/sdk` package.
+   * @see https://docs.promptlayer.com/sdks/javascript
+   */
   get Anthropic() {
     try {
       const module =
@@ -223,6 +306,11 @@ export class PromptLayer {
     }
   }
 
+  /**
+   * OpenAI SDK proxy that logs requests to PromptLayer.
+   * Requires the `openai` package.
+   * @see https://docs.promptlayer.com/sdks/javascript
+   */
   get OpenAI() {
     try {
       const module = requireProviderSDK("openai").default;
@@ -240,6 +328,12 @@ export class PromptLayer {
     }
   }
 
+  /**
+   * Fetch a prompt from the Prompt Registry and run it with the configured provider.
+   * This is the recommended high-level entry point for most integrations.
+   *
+   * @see https://docs.promptlayer.com/sdks/javascript#using-the-run-method-recommended
+   */
   async run({
     promptName,
     promptVersion,
@@ -495,6 +589,11 @@ export class PromptLayer {
     });
   }
 
+  /**
+   * Execute a PromptLayer workflow by name, optionally pinning a label or version.
+   *
+   * @see https://docs.promptlayer.com/sdks/javascript#running-workflows
+   */
   async runWorkflow({
     workflowName,
     inputVariables = {},
@@ -548,6 +647,12 @@ export class PromptLayer {
     }
   }
 
+  /**
+   * Manually log a request to PromptLayer when you are not using a provider proxy
+   * or {@link PromptLayer.run}.
+   *
+   * @see https://docs.promptlayer.com/features/observability/request-logs/custom-logging
+   */
   async logRequest(body: LogRequest) {
     return utilLogRequest(this.apiKey, this.baseURL, body, this.throwOnError);
   }
@@ -635,6 +740,11 @@ export type {
   TracingHandle,
 } from "@/tracing";
 
+/**
+ * Convenience helper that constructs a PromptLayer client and runs an eval.
+ *
+ * @see https://docs.promptlayer.com/sdks/evals/overview
+ */
 export const evaluate = <TInput = unknown, TOutput = unknown>(
   name: string,
   options: EvaluateOptions<TInput, TOutput>

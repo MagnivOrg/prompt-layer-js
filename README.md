@@ -14,6 +14,27 @@
 
 This library provides convenient access to the PromptLayer API from applications written in JavaScript.
 
+## AI coding agents
+
+- JavaScript SDK guide: https://docs.promptlayer.com/sdks/javascript
+- Curated docs index (`llms.txt`): https://docs.promptlayer.com/llms.txt
+- Full docs corpus (`llms-full.txt`): https://docs.promptlayer.com/llms-full.txt
+
+Install PromptLayer skill files and the Docs MCP server into your coding agents:
+
+```bash
+npx promptlayer setup
+```
+
+This writes the PromptLayer docs skill and the SDK evals skill (`sdk-eval-builder`) for Cursor and Claude Code, and adds the Docs MCP server (`https://docs.promptlayer.com/mcp`) to their project configs. Useful variants:
+
+```bash
+npx promptlayer setup skills
+npx promptlayer setup mcp
+npx promptlayer setup --agent cursor --agent claude
+npx promptlayer setup --force
+```
+
 ## Installation
 
 ```bash
