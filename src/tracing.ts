@@ -332,6 +332,13 @@ const forceFlushProvider = async (
   }
 };
 
+/**
+ * Configure provider auto-instrumentation and OTLP export to PromptLayer.
+ *
+ * Prefer this over inspecting bundled internals when enabling tracing.
+ *
+ * @see https://docs.promptlayer.com/features/observability/traces/auto-instrumentation/overview
+ */
 export const configureTracing = (
   options: ConfigureTracingOptions = {}
 ): TracingHandle => {
