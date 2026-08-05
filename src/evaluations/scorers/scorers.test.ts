@@ -244,6 +244,26 @@ describe("predefined eval scorers", () => {
         "non_strict"
       )
     ).toBe(true);
+    expect(
+      scoreTrajectory(
+        trace,
+        [["search", "checkout"]],
+        "strict"
+      )
+    ).toBe(true);
+    expect(
+      scoreTrajectory(trace, '[["search", "checkout"]]', "strict")
+    ).toBe(true);
+    expect(
+      scoreTrajectory(
+        trace,
+        { accepted_scenarios: [["search", "checkout"]] },
+        "strict"
+      )
+    ).toBe(true);
+    expect(() => scoreTrajectory(trace, '[["search"], [42]]')).toThrow(
+      /Trajectory expected value/
+    );
   });
 
   it("builds column-source TRAJECTORY payloads and diagnoses tool-list failures", () => {

@@ -1,4 +1,5 @@
 import { extractToolNames } from "../trace-tree";
+import { validationError } from "../errors";
 
 export type TrajectoryMode = "strict" | "non_strict";
 
@@ -34,23 +35,24 @@ export const parseExpectedToolListsFromSource = (
   raw: unknown
 ): string[][] | null => {
   const parsed = parseJsonValue(raw);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return null;
-  }
-
-  const scenarios = (parsed as Record<string, unknown>).accepted_scenarios;
+  const scenarios = Array.isArray(parsed)
+    ? parsed
+    : parsed && typeof parsed === "object"
+      ? (parsed as Record<string, unknown>).accepted_scenarios
+      : null;
   if (!Array.isArray(scenarios) || !scenarios.length) {
     return null;
   }
 
   const toolLists: string[][] = [];
   for (const scenario of scenarios) {
-    if (!scenario || typeof scenario !== "object" || Array.isArray(scenario)) {
-      return null;
-    }
-    const toolList = parseToolList(
-      (scenario as Record<string, unknown>).required_tools
-    );
+    const toolList = Array.isArray(scenario)
+      ? parseToolList(scenario)
+      : scenario && typeof scenario === "object"
+        ? parseToolList(
+            (scenario as Record<string, unknown>).required_tools
+          )
+        : null;
     if (!toolList) return null;
     toolLists.push(toolList);
   }
@@ -95,7 +97,12 @@ export const scoreStrictTrace = (
   mode: TrajectoryMode = "strict"
 ): number => {
   const expectedLists = parseExpectedToolListsFromSource(expected);
-  if (!expectedLists?.length) return 0;
+  if (!expectedLists?.length) {
+    throw validationError(
+      "Trajectory expected value must be a non-empty array of tool-name arrays, " +
+        'or an object with accepted_scenarios containing required_tools arrays.'
+    );
+  }
   const actual = extractToolNames(trace);
   return expectedLists.some((expectedTools) =>
     matchToolSequence(actual, expectedTools, mode)
