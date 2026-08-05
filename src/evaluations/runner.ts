@@ -16,6 +16,7 @@ import { fillRowCells, waitForSheetOperations } from "./polling";
 import { waitForTraceRequestPrice } from "./tracePrice";
 import {
   clearBlankScaffoldRows,
+  EVAL_TABLE_LIST_PARAMS,
   ensureEvalScaffoldColumns,
   resolveCases,
   resolveSheet,
@@ -211,7 +212,12 @@ const persistTraceRows = async <TInput, TOutput>(args: {
         args.throwOnError,
         args.tableId,
         args.sheetId,
-        { order: "desc", limit: 1, include_columns: false }
+        {
+          ...EVAL_TABLE_LIST_PARAMS,
+          order: "desc",
+          limit: 1,
+          include_columns: false,
+        }
       );
       fallbackRow = findLastRow(rowsPayload);
     }
@@ -411,7 +417,8 @@ export const runEval = async <TInput, TOutput>(
     args.baseURL,
     args.throwOnError,
     table.id,
-    sheet.id
+    sheet.id,
+    EVAL_TABLE_LIST_PARAMS
   );
   let columns = extractColumns(columnsResponse || {});
   columns = await ensureEvalScaffoldColumns(

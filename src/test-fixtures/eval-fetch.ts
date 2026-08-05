@@ -61,7 +61,7 @@ export const createEvalFetchRouter = (
   let importedRows = 0;
 
   return async (input: string | URL, init?: RequestInit) => {
-    const url = getUrlString(input);
+    const url = getUrlString(input).split("?")[0];
     const method = (init?.method || "GET").toUpperCase();
     const override = await options.overrides?.(url, method, init);
     if (override) return override;

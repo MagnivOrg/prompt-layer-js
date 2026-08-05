@@ -502,10 +502,12 @@ export const listSheetColumns = (
   baseURL: string,
   throwOnError: boolean,
   tableId: ResourceId,
-  sheetId: ResourceId
+  sheetId: ResourceId,
+  params?: Record<string, string | number | boolean>
 ): Promise<ColumnListResponse | null> =>
   request(apiKey, throwOnError, tableSheetColumnsEndpoint(baseURL, tableId, sheetId), {
     action: "listing your sheet columns",
+    params,
   });
 
 export const createSheetColumn = (

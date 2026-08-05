@@ -29,6 +29,10 @@ import {
 import { apiError, notFoundError } from "./errors";
 import { scorerDependenciesFromConfig } from "./validation";
 
+export const EVAL_TABLE_LIST_PARAMS = {
+  include_system_columns: true,
+} as const;
+
 export const clearBlankScaffoldRows = async (
   apiKey: string,
   baseURL: string,
@@ -42,7 +46,12 @@ export const clearBlankScaffoldRows = async (
     throwOnError,
     tableId,
     sheetId,
-    { order: "asc", limit: 20, include_columns: false }
+    {
+      ...EVAL_TABLE_LIST_PARAMS,
+      order: "asc",
+      limit: 20,
+      include_columns: false,
+    }
   );
   const blankIndices = blankRowIndices(rowsPayload);
   if (!blankIndices.length) return;
@@ -482,7 +491,8 @@ export const resolveCases = async <TInput>(
     baseURL,
     throwOnError,
     tableId,
-    sheetId
+    sheetId,
+    EVAL_TABLE_LIST_PARAMS
   );
   const sourceColumns = extractColumns(columnsResponse || {});
   const rowsPayload = await tablesApi.listAllSheetRows(
@@ -490,7 +500,8 @@ export const resolveCases = async <TInput>(
     baseURL,
     throwOnError,
     tableId,
-    sheetId
+    sheetId,
+    EVAL_TABLE_LIST_PARAMS
   );
   return casesFromRows<TInput>(rowsPayload, sourceColumns);
 };
