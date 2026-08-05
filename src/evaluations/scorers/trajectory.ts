@@ -80,9 +80,9 @@ export function trajectoryScorer(
       );
     }
     normalizedScenarios = expected.map((scenario) => {
-      if (!Array.isArray(scenario) || !scenario.length) {
+      if (!Array.isArray(scenario)) {
         throw validationError(
-          "trajectoryScorer each expected scenario must be a non-empty array."
+          "trajectoryScorer each expected scenario must be an array."
         );
       }
       return scenario.map((tool) =>

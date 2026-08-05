@@ -181,6 +181,9 @@ describe("predefined eval scorers", () => {
         expectedColumn: "Expected trajectory",
       }).config?.expected_source
     ).toBe("Expected trajectory");
+    expect(trajectoryScorer({ expected: [[]] }).config?.accepted_scenarios).toEqual([
+      [],
+    ]);
 
     expect(
       trajectoryScorer({
@@ -244,6 +247,47 @@ describe("predefined eval scorers", () => {
         "non_strict"
       )
     ).toBe(true);
+    expect(
+      scoreTrajectory(
+        trace,
+        [["search", "checkout"]],
+        "strict"
+      )
+    ).toBe(true);
+    expect(
+      scoreTrajectory(trace, '[["search", "checkout"]]', "strict")
+    ).toBe(true);
+    expect(
+      scoreTrajectory(
+        trace,
+        { accepted_scenarios: [["search", "checkout"]] },
+        "strict"
+      )
+    ).toBe(true);
+    expect(
+      scoreTrajectory(
+        { name: "root", children: [] },
+        { accepted_scenarios: [{ required_tools: [] }] },
+        "strict"
+      )
+    ).toBe(true);
+    expect(
+      scoreTrajectory(
+        { name: "root", children: [{ name: "Tool: search", children: [] }] },
+        { accepted_scenarios: [{ required_tools: [] }] },
+        "strict"
+      )
+    ).toBe(false);
+    expect(
+      scoreTrajectory(
+        { name: "root", children: [{ name: "Tool: search", children: [] }] },
+        { accepted_scenarios: [{ required_tools: [] }] },
+        "non_strict"
+      )
+    ).toBe(false);
+    expect(() => scoreTrajectory(trace, '[["search"], [42]]')).toThrow(
+      /Trajectory expected value/
+    );
   });
 
   it("builds column-source TRAJECTORY payloads and diagnoses tool-list failures", () => {
