@@ -184,6 +184,26 @@ describe("extractLastAssistantMessage", () => {
     expect(extractLastAssistantMessage(trace)).toBe(expected);
   });
 
+  it("ignores Google content without the model role", () => {
+    const trace = {
+      name: "root",
+      request_log: {
+        request_response: {
+          candidates: [
+            {
+              content: {
+                role: "user",
+                parts: [{ text: "not an assistant response" }],
+              },
+            },
+          ],
+        },
+      },
+      children: [],
+    };
+    expect(extractLastAssistantMessage(trace)).toBeNull();
+  });
+
   it("normalizes Anthropic tool_use blocks", () => {
     const trace = {
       name: "root",

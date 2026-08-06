@@ -232,7 +232,9 @@ const normalizeGoogleContent = (content: unknown): unknown | null => {
   if (!content || typeof content !== "object" || Array.isArray(content)) {
     return null;
   }
-  const parts = (content as Record<string, unknown>).parts;
+  const contentRecord = content as Record<string, unknown>;
+  if (contentRecord.role !== "model") return null;
+  const parts = contentRecord.parts;
   if (!Array.isArray(parts)) return null;
 
   const textParts: string[] = [];
