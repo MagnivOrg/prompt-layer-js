@@ -18,15 +18,17 @@ export const extractLastAssistantMessage = (trace: unknown): unknown | null => {
   return candidates.length ? candidates[candidates.length - 1] : null;
 };
 
-/** Prefer Trace-derived last assistant message; else `fallback`. */
+/** Use a non-null runner output; otherwise derive the assistant output from Trace. */
 export const resolveOutputFromTraceRow = (
   row: Record<string, unknown> | null | undefined,
   columnsByTitleMap: Record<string, Column>,
   fallback: unknown = null
 ): unknown => {
+  if (fallback !== null && fallback !== undefined) {
+    return fallback;
+  }
   const trace = traceCellValue(row, columnsByTitleMap);
-  const derived = extractLastAssistantMessage(trace);
-  return derived === null ? fallback : derived;
+  return extractLastAssistantMessage(trace);
 };
 
 const traceCellValue = (
@@ -96,11 +98,30 @@ const assistantFromRequestResponse = (response: unknown): unknown | null => {
     }
   }
 
-  // Anthropic Messages API
-  if (record.type === "message" || "stop_reason" in record) {
-    const role = record.role;
-    if (role === undefined || role === null || role === "assistant") {
-      return normalizeAnthropicResponse(record);
+  // Anthropic Messages API. Backend-normalized responses intentionally omit
+  // `type` and may omit `stop_reason`, so role + content is the stable shape.
+  const role = record.role;
+  if (
+    (role === undefined || role === null || role === "assistant") &&
+    (typeof record.content === "string" || Array.isArray(record.content))
+  ) {
+    return normalizeAnthropicResponse(record);
+  }
+
+  // Legacy Anthropic Completions API.
+  if (typeof record.completion === "string") {
+    return maybeParseJson(record.completion);
+  }
+
+  // Google Gemini / Vertex generate-content.
+  const candidates = record.candidates;
+  if (Array.isArray(candidates) && candidates.length) {
+    const candidate = candidates[0];
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+      const message = normalizeGoogleContent(
+        (candidate as Record<string, unknown>).content
+      );
+      if (message !== null) return message;
     }
   }
 
@@ -133,6 +154,13 @@ const assistantFromRequestResponse = (response: unknown): unknown | null => {
         };
       }
     }
+  }
+
+  // Amazon Bedrock Converse.
+  if (outputList && typeof outputList === "object" && !Array.isArray(outputList)) {
+    const message = (outputList as Record<string, unknown>).message;
+    const normalized = normalizeBedrockMessage(message);
+    if (normalized !== null) return normalized;
   }
 
   return null;
@@ -198,6 +226,79 @@ const normalizeAnthropicResponse = (
     return maybeParseJson(text);
   }
   return null;
+};
+
+const normalizeGoogleContent = (content: unknown): unknown | null => {
+  if (!content || typeof content !== "object" || Array.isArray(content)) {
+    return null;
+  }
+  const parts = (content as Record<string, unknown>).parts;
+  if (!Array.isArray(parts)) return null;
+
+  const textParts: string[] = [];
+  const toolCalls: Record<string, unknown>[] = [];
+  for (const part of parts) {
+    if (!part || typeof part !== "object" || Array.isArray(part)) continue;
+    const record = part as Record<string, unknown>;
+    if (typeof record.text === "string" && !record.thought) {
+      textParts.push(record.text);
+    }
+    const functionCall = record.function_call;
+    if (
+      functionCall &&
+      typeof functionCall === "object" &&
+      !Array.isArray(functionCall)
+    ) {
+      const call = functionCall as Record<string, unknown>;
+      const args = call.args ?? {};
+      toolCalls.push({
+        id: call.id,
+        type: "function",
+        function: {
+          name: call.name,
+          arguments: typeof args === "string" ? args : JSON.stringify(args),
+        },
+      });
+    }
+  }
+
+  const text = textParts.length ? textParts.join("\n") : null;
+  if (toolCalls.length) return { content: text, tool_calls: toolCalls };
+  return text !== null ? maybeParseJson(text) : null;
+};
+
+const normalizeBedrockMessage = (message: unknown): unknown | null => {
+  if (!message || typeof message !== "object" || Array.isArray(message)) {
+    return null;
+  }
+  const record = message as Record<string, unknown>;
+  if ((record.role ?? "assistant") !== "assistant" || !Array.isArray(record.content)) {
+    return null;
+  }
+
+  const textParts: string[] = [];
+  const toolCalls: Record<string, unknown>[] = [];
+  for (const block of record.content) {
+    if (!block || typeof block !== "object" || Array.isArray(block)) continue;
+    const entry = block as Record<string, unknown>;
+    if (typeof entry.text === "string") textParts.push(entry.text);
+    const toolUse = entry.toolUse;
+    if (toolUse && typeof toolUse === "object" && !Array.isArray(toolUse)) {
+      const tool = toolUse as Record<string, unknown>;
+      toolCalls.push({
+        id: tool.toolUseId,
+        type: "function",
+        function: {
+          name: tool.name,
+          arguments: JSON.stringify(tool.input ?? {}),
+        },
+      });
+    }
+  }
+
+  const text = textParts.length ? textParts.join("\n") : null;
+  if (toolCalls.length) return { content: text, tool_calls: toolCalls };
+  return text !== null ? maybeParseJson(text) : null;
 };
 
 const normalizeResponsesMessage = (
