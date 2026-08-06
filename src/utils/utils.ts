@@ -21,7 +21,8 @@ import type { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import { Centrifuge } from "centrifuge";
 import { createRequire } from "node:module";
 import type TypeOpenAI from "openai";
-import pRetry from "p-retry";
+import pRetry, { AbortError } from "p-retry";
+import { isConnectionResetError } from "./errors";
 import { requireProviderSDK } from "./require-provider-sdk";
 import {
   MAP_PROVIDER_TO_FUNCTION_NAME,
@@ -144,9 +145,38 @@ interface WaitForWorkflowCompletionParams {
   baseURL: string;
 }
 
+const MAX_CONNECTION_RETRIES = 2;
+
+/**
+ * Issues a fetch, retrying up to twice on a transport-level connection reset
+ * before a response is received. Retries are immediate on a fresh connection;
+ * any error that arrives after a response/status is re-thrown unchanged.
+ */
+const fetchWithConnectRetry = async (
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> => {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MAX_CONNECTION_RETRIES; attempt++) {
+    try {
+      return await fetch(input, init);
+    } catch (error) {
+      if (!isConnectionResetError(error)) {
+        throw error;
+      }
+      lastError = error;
+    }
+  }
+  throw new AbortError(lastError as Error);
+};
+
 /**
  * Wrapper around fetch that retries on 5xx server errors with exponential backoff.
  * Uses p-retry for industry-standard retry logic with exponential backoff.
+ *
+ * Connection-reset failures that happen before a response is received are
+ * retried up to twice immediately via {@link fetchWithConnectRetry},
+ * independent of the 5xx/429 backoff logic below.
  *
  * @param input - The URL or Request object to fetch
  * @param init - The request initialization options
@@ -158,7 +188,7 @@ export const fetchWithRetry = async (
 ): Promise<Response> => {
   return pRetry(
     async () => {
-      const response = await fetch(input, init);
+      const response = await fetchWithConnectRetry(input, init);
 
       if ((response.status >= 500 && response.status < 600) || (response.status === 429)) {
         throw new PromptLayerRetryableHttpError(

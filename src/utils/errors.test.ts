@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { categorizeError, ErrorType } from "@/utils/errors";
+import {
+  categorizeError,
+  ErrorType,
+  isConnectionResetError,
+} from "@/utils/errors";
 import {
   RateLimitError,
   AuthenticationError,
@@ -64,5 +68,50 @@ describe("categorizeError", () => {
   // Branch: non-Error thrown → String(error) path, getClassName returns ""
   it("returns UNKNOWN_ERROR for a non-Error value", () => {
     expect(categorizeError("oops")).toBe(ErrorType.UNKNOWN_ERROR);
+  });
+});
+
+describe("isConnectionResetError", () => {
+  it("detects Node ECONNRESET via error.code", () => {
+    const err = Object.assign(new Error("read ECONNRESET"), {
+      code: "ECONNRESET",
+    });
+    expect(isConnectionResetError(err)).toBe(true);
+  });
+
+  it("detects undici UND_ERR_SOCKET via wrapped cause.code", () => {
+    const err = new TypeError("fetch failed", {
+      cause: Object.assign(new Error("other side closed"), {
+        code: "UND_ERR_SOCKET",
+      }),
+    });
+    expect(isConnectionResetError(err)).toBe(true);
+  });
+
+  it("detects 'socket hang up' via message", () => {
+    expect(isConnectionResetError(new Error("socket hang up"))).toBe(true);
+  });
+
+  it("detects 'other side closed' via message", () => {
+    expect(isConnectionResetError(new Error("other side closed"))).toBe(true);
+  });
+
+  it("detects 'terminated' via message (undici premature close)", () => {
+    expect(isConnectionResetError(new Error("terminated"))).toBe(true);
+  });
+
+  it("returns false for a plain application error", () => {
+    expect(isConnectionResetError(new Error("Bad request"))).toBe(false);
+  });
+
+  it("returns false for a non-connection error code", () => {
+    const err = Object.assign(new Error("nope"), { code: "ENOTFOUND" });
+    expect(isConnectionResetError(err)).toBe(false);
+  });
+
+  it("returns false for null/undefined/non-object", () => {
+    expect(isConnectionResetError(null)).toBe(false);
+    expect(isConnectionResetError(undefined)).toBe(false);
+    expect(isConnectionResetError("ECONNRESET")).toBe(false);
   });
 });
