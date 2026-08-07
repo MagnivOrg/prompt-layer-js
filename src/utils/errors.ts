@@ -1,3 +1,51 @@
+// Node/undici error codes for a transport-level connection reset or close.
+const CONNECTION_RESET_CODES = new Set([
+  "ECONNRESET",
+  "UND_ERR_SOCKET",
+  "ETIMEDOUT",
+  "EPIPE",
+]);
+
+const CONNECTION_RESET_MESSAGES = [
+  "socket hang up",
+  "other side closed",
+  "terminated",
+  "econnreset",
+  "und_err_socket",
+  "premature close",
+  "network socket disconnected",
+];
+
+/**
+ * Returns true when the error is a transport-level connection reset. Checks the
+ * error's `code`, a wrapped `cause.code` (how undici surfaces socket errors),
+ * then falls back to known error messages.
+ */
+export function isConnectionResetError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const err = error as { code?: unknown; cause?: unknown; message?: unknown };
+
+  if (typeof err.code === "string" && CONNECTION_RESET_CODES.has(err.code)) {
+    return true;
+  }
+
+  const cause = err.cause as { code?: unknown } | undefined;
+  if (
+    cause &&
+    typeof cause.code === "string" &&
+    CONNECTION_RESET_CODES.has(cause.code)
+  ) {
+    return true;
+  }
+
+  const message =
+    typeof err.message === "string" ? err.message.toLowerCase() : "";
+  return CONNECTION_RESET_MESSAGES.some((needle) => message.includes(needle));
+}
+
 export enum ErrorType {
   PROVIDER_RATE_LIMIT = "PROVIDER_RATE_LIMIT",
   PROVIDER_QUOTA_LIMIT = "PROVIDER_QUOTA_LIMIT",
