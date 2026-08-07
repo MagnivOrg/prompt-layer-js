@@ -752,12 +752,12 @@ describe("Eval runner", () => {
         containsScorer({
           title: "output-check",
           sourceColumn: "Output",
-          expected: "from-trace",
+          expected: "runner-output",
         }),
       ],
     });
 
-    expect(result.results[0].output).toBe("from-trace");
+    expect(result.results[0].output).toBe("runner-output");
     expect(createdTrace).toBe(true);
     expect(
       fetchMock.mock.calls.some(

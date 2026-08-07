@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { PromptLayerValidationError } from "@/errors";
-import { extractLastAssistantMessage } from "./trace-output";
+import {
+  extractLastAssistantMessage,
+  resolveOutputFromTraceRow,
+} from "./trace-output";
 import { assertNotStreamResult, flushTraces } from "./tracing";
 import { assertPassingScore } from "./validation";
 import { scorerValueFailed } from "./scores";
@@ -136,6 +139,71 @@ describe("extractLastAssistantMessage", () => {
     expect(extractLastAssistantMessage(trace)).toBe("hello from anthropic");
   });
 
+  it.each([
+    [
+      "backend-normalized Anthropic",
+      {
+        role: "assistant",
+        model: "claude-sonnet-4",
+        content: [{ type: "text", text: "normalized anthropic" }],
+      },
+      "normalized anthropic",
+    ],
+    [
+      "Google Gemini",
+      {
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [{ text: "normalized google" }],
+            },
+          },
+        ],
+      },
+      "normalized google",
+    ],
+    [
+      "Amazon Bedrock",
+      {
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: "normalized bedrock" }],
+          },
+        },
+      },
+      "normalized bedrock",
+    ],
+  ])("extracts %s responses", (_name, requestResponse, expected) => {
+    const trace = {
+      name: "root",
+      request_log: { request_response: requestResponse },
+      children: [],
+    };
+    expect(extractLastAssistantMessage(trace)).toBe(expected);
+  });
+
+  it("ignores Google content without the model role", () => {
+    const trace = {
+      name: "root",
+      request_log: {
+        request_response: {
+          candidates: [
+            {
+              content: {
+                role: "user",
+                parts: [{ text: "not an assistant response" }],
+              },
+            },
+          ],
+        },
+      },
+      children: [],
+    };
+    expect(extractLastAssistantMessage(trace)).toBeNull();
+  });
+
   it("normalizes Anthropic tool_use blocks", () => {
     const trace = {
       name: "root",
@@ -237,6 +305,34 @@ describe("extractLastAssistantMessage", () => {
       children: [],
     };
     expect(extractLastAssistantMessage(trace)).toBe("from kwargs");
+  });
+
+  it("prefers a non-null runner output and uses Trace for null", () => {
+    const columns = {
+      Trace: { id: "trace-column", title: "Trace", type: "TRACE" },
+    } as any;
+    const row = {
+      cells: {
+        "trace-column": {
+          value: {
+            name: "root",
+            request_log: {
+              request_response: {
+                choices: [
+                  { message: { role: "assistant", content: "from-trace" } },
+                ],
+              },
+            },
+            children: [],
+          },
+        },
+      },
+    };
+
+    expect(resolveOutputFromTraceRow(row, columns, "runner-output")).toBe(
+      "runner-output"
+    );
+    expect(resolveOutputFromTraceRow(row, columns, null)).toBe("from-trace");
   });
 });
 
