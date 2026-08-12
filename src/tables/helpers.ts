@@ -121,7 +121,10 @@ export const emptySheetCreateBody = (title: string): CreateSheet =>
   withDefaultEmptySheetSource({ title });
 
 export const buildUpdateSheetBody = (body: UpdateSheet) =>
-  omitUndefined({ title: body.title });
+  omitUndefined({
+    title: body.title,
+    expected_row_count: body.expected_row_count,
+  });
 
 export const buildAddRowsBody = (body: AddTableRows) =>
   omitUndefined({

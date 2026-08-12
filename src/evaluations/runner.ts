@@ -466,6 +466,16 @@ export const runEval = async <TInput, TOutput>(
     }
   );
 
+  // Print early so the dashboard can be opened while cases are still running
+  // (matches Python SDK prepare_eval behavior).
+  const dashboardUrl = buildTableDashboardUrl({
+    apiBaseUrl: args.baseURL,
+    workspaceId: table.workspace_id,
+    tableId: table.id,
+    sheetId: sheet.id,
+  });
+  if (dashboardUrl) getTerminal().link(dashboardUrl);
+
   getTerminal().step("Loading dataset");
   const resolvedCases = await resolveCases(
     args.apiKey,
@@ -526,6 +536,18 @@ export const runEval = async <TInput, TOutput>(
   );
 
   const byTitle = columnsByTitle(columns);
+
+  // Tell the open dashboard the planned case count so progress shows "N of 10"
+  // instead of "N of N" while rows are still being written.
+  await tablesApi.updateSheet(
+    args.apiKey,
+    args.baseURL,
+    args.throwOnError,
+    table.id,
+    sheet.id,
+    { expected_row_count: cases.length }
+  );
+
   getTerminal().step(
     `Running cases (${cases.length} case${cases.length === 1 ? "" : "s"}, concurrency=${maxConcurrency})`
   );
@@ -645,6 +667,6 @@ export const runEval = async <TInput, TOutput>(
     result,
     failingRowIndices: failedIndices,
   });
-  if (result.url) getTerminal().link(result.url);
+  // Link was already printed after sheet prep so the dashboard can be opened mid-run.
   return result;
 };

@@ -73,7 +73,10 @@ export const createEvalFetchRouter = (
 
     if (url.endsWith("/api/public/v2/tables") && method === "GET") {
       return jsonResponse(
-        { success: true, data: [{ id: tableId, title: tableTitle }] },
+        {
+          success: true,
+          data: [{ id: tableId, title: tableTitle, workspace_id: 1 }],
+        },
         200
       );
     }
@@ -102,6 +105,32 @@ export const createEvalFetchRouter = (
       return jsonResponse(
         { success: true, sheet: { id: sheetId, title: sheetTitle } },
         201
+      );
+    }
+    if (
+      url.endsWith(`/tables/${tableId}/sheets/${sheetId}`) &&
+      method === "PATCH"
+    ) {
+      const body = JSON.parse(String(init?.body || "{}")) as Record<
+        string,
+        unknown
+      >;
+      const nextTitle =
+        typeof body.title === "string" && body.title.trim()
+          ? body.title
+          : sheetTitle;
+      return jsonResponse(
+        {
+          success: true,
+          sheet: {
+            id: sheetId,
+            title: nextTitle,
+            ...(typeof body.expected_row_count === "number"
+              ? { expected_row_count: body.expected_row_count }
+              : {}),
+          },
+        },
+        200
       );
     }
     if (url.endsWith(`/sheets/${sheetId}/columns`) && method === "GET") {

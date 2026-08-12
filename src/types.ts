@@ -948,6 +948,8 @@ export interface CreateSheet {
 
 export interface UpdateSheet {
   title?: string;
+  /** Planned row count (e.g. eval case count) for live progress denominators. */
+  expected_row_count?: number;
 }
 
 export interface CreateColumn {
