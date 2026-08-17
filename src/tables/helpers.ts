@@ -124,6 +124,7 @@ export const buildUpdateSheetBody = (body: UpdateSheet) =>
   omitUndefined({
     title: body.title,
     expected_row_count: body.expected_row_count,
+    eval_run_status: body.eval_run_status,
   });
 
 export const buildAddRowsBody = (body: AddTableRows) =>

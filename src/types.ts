@@ -950,6 +950,8 @@ export interface UpdateSheet {
   title?: string;
   /** Planned row count (e.g. eval case count) for live progress denominators. */
   expected_row_count?: number;
+  /** Explicit Eval SDK populate lifecycle for the dashboard Running banner. */
+  eval_run_status?: "running" | "completed" | "aborted";
 }
 
 export interface CreateColumn {
