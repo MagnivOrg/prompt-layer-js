@@ -5,6 +5,7 @@ import {
   baseSpanAttributes,
   baseTraceAttributes,
   spanDataAttributes,
+  spanUserInput,
   spanKindFor,
   spanNameFor,
 } from "@/integrations/openai-agents/mapping";
@@ -41,9 +42,17 @@ interface UpstreamTraceContext {
 
 type TraceMetadataRecord = Record<string, unknown>;
 
+// The run's opening user message, stamped on the root so the trace headline shows it instead
+// of the first LLM call's system prompt. Output is left to the request logs on purpose: the last
+// LLM reply is not reliably the run's answer (guardrails, summarizers), and choosing correctly
+// would need input from the caller.
+export const TRACE_INPUT_ATTRIBUTE = "input.value";
+const INPUT_VALUE_MAX_CHARS = 4000;
+
 interface TraceState {
   rootSpan: OtlpSpanRecord;
   spans: Map<string, OtlpSpanRecord>;
+  input?: string;
 }
 
 export interface PromptLayerOpenAIAgentsProcessorOptions {
@@ -122,6 +131,13 @@ export class PromptLayerOpenAIAgentsProcessor implements TracingProcessor {
     );
     state.rootSpan.endTimeUnixNano = rootEnd;
 
+    if (state.input) {
+      state.rootSpan.attributes[TRACE_INPUT_ATTRIBUTE] = state.input.slice(
+        0,
+        INPUT_VALUE_MAX_CHARS
+      );
+    }
+
     const payload = buildOtlpJsonPayload([state.rootSpan, ...childSpans]);
     this.traceStates.delete(trace.traceId);
     this.completedTraceQueue.set(trace.traceId, payload);
@@ -159,6 +175,13 @@ export class PromptLayerOpenAIAgentsProcessor implements TracingProcessor {
       ...record.attributes,
       ...spanDataAttributes(span.spanData, this.includeRawPayloads),
     };
+
+    if (!state.input) {
+      const input = spanUserInput(span.spanData);
+      if (input) {
+        state.input = input;
+      }
+    }
     record.endTimeUnixNano =
       isoToUnixNano(span.endedAt) ?? record.endTimeUnixNano ?? nowUnixNano();
     record.status = this.statusForSpan(span);

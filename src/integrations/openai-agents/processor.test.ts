@@ -672,4 +672,100 @@ describe("PromptLayerOpenAIAgentsProcessor", () => {
 
     consoleErrorSpy.mockRestore();
   });
+
+  it("stamps the root span with the first user message only", async () => {
+    const processor = new PromptLayerOpenAIAgentsProcessor({
+      apiKey: "pl_test",
+      baseURL: "https://api.promptlayer.test",
+    });
+    const trace = {
+      traceId: "trace_0af7651916cd43dd8448eb211c80319c",
+      name: "Support run",
+      groupId: null,
+      metadata: {},
+    } as any;
+    const makeGeneration = (spanId: string, input: any[], answer: string) =>
+      ({
+        traceId: trace.traceId,
+        spanId,
+        parentId: null,
+        startedAt: "2026-03-17T14:15:16.000000000Z",
+        endedAt: "2026-03-17T14:15:17.000000000Z",
+        error: null,
+        traceMetadata: trace.metadata,
+        spanData: {
+          type: "generation",
+          model: "gpt-4.1",
+          input,
+          output: [{ role: "assistant", content: answer }],
+          usage: {},
+        },
+      }) as any;
+
+    const first = makeGeneration(
+      "span_1",
+      [
+        { role: "system", content: "You are a support agent." },
+        { role: "user", content: "Where is my order?" },
+      ],
+      "It ships tomorrow."
+    );
+    const second = makeGeneration(
+      "span_2",
+      [{ role: "user", content: "Thanks!" }],
+      "Happy to help."
+    );
+
+    await processor.onTraceStart(trace);
+    await processor.onSpanStart(first);
+    await processor.onSpanEnd(first);
+    await processor.onSpanStart(second);
+    await processor.onSpanEnd(second);
+    await processor.onTraceEnd(trace);
+
+    const [, request] = fetchWithRetryMock.mock.calls[0];
+    const payload = JSON.parse(String(request?.body));
+    const spans = payload.resourceSpans[0].scopeSpans[0].spans;
+    const rootSpan = spans.find((item: any) => item.name === "OpenAI session");
+
+    const attrs = keyValuesToObject(rootSpan.attributes);
+    // Opening user turn, not the system prompt and not a later turn
+    expect(attrs["input.value"]).toBe("Where is my order?");
+    // Output is left to request logs on purpose
+    expect(attrs["output.value"]).toBeUndefined();
+  });
+
+  it("leaves the root without an input stamp when no user message exists", async () => {
+    const processor = new PromptLayerOpenAIAgentsProcessor({
+      apiKey: "pl_test",
+      baseURL: "https://api.promptlayer.test",
+    });
+    const trace = {
+      traceId: "trace_0af7651916cd43dd8448eb211c80319c",
+      name: "Tool only run",
+      groupId: null,
+      metadata: {},
+    } as any;
+    const tool = {
+      traceId: trace.traceId,
+      spanId: "span_tool",
+      parentId: null,
+      startedAt: "2026-03-17T14:15:16.000000000Z",
+      endedAt: "2026-03-17T14:15:17.000000000Z",
+      error: null,
+      traceMetadata: trace.metadata,
+      spanData: { type: "function", name: "notify", input: "{}", output: "ok" },
+    } as any;
+
+    await processor.onTraceStart(trace);
+    await processor.onSpanStart(tool);
+    await processor.onSpanEnd(tool);
+    await processor.onTraceEnd(trace);
+
+    const [, request] = fetchWithRetryMock.mock.calls[0];
+    const payload = JSON.parse(String(request?.body));
+    const spans = payload.resourceSpans[0].scopeSpans[0].spans;
+    const rootSpan = spans.find((item: any) => item.name === "OpenAI session");
+    expect(keyValuesToObject(rootSpan.attributes)["input.value"]).toBeUndefined();
+  });
 });
