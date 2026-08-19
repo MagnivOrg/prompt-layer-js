@@ -141,6 +141,10 @@ export const snapExpectedRowCountAfterInterrupt = publishEvalRunAbort;
  *
  * On unexpected failure (runner throw, API error, network), also PATCH
  * `eval_run_status: aborted` so the dashboard does not stay stuck on Running.
+ *
+ * Keep cleanup registered through optional `afterPopulate` (typically PATCH
+ * `completed`) so SIGINT in the gap after populate returns cannot leave the
+ * dashboard on Running or let a late `completed` overwrite `aborted`.
  */
 export const withEvalInterruptSnap = async <T>(
   args: {
@@ -150,14 +154,20 @@ export const withEvalInterruptSnap = async <T>(
     sheetId: ResourceId;
     getKnownWritten?: () => number;
   },
-  run: () => Promise<T>
+  run: () => Promise<T>,
+  afterPopulate?: () => Promise<void>
 ): Promise<T> => {
-  let terminalPublished = false;
+  type Settled = "none" | "aborted" | "completed";
+  // Object + reader so TS does not narrow across awaits — SIGINT cleanup can
+  // flip this while `run` / `afterPopulate` are in flight.
+  const gate: { settled: Settled } = { settled: "none" };
+  const settledNow = (): Settled => gate.settled;
+
   const publishAbortOnce = async (): Promise<void> => {
-    if (terminalPublished) {
+    if (settledNow() === "aborted") {
       return;
     }
-    terminalPublished = true;
+    gate.settled = "aborted";
     await publishEvalRunAbort({
       apiKey: args.apiKey,
       baseURL: args.baseURL,
@@ -165,9 +175,34 @@ export const withEvalInterruptSnap = async <T>(
       sheetId: args.sheetId,
     });
   };
+
   setEvalInterruptCleanup(() => publishAbortOnce());
   try {
-    return await run();
+    const result = await run();
+    if (afterPopulate) {
+      if (settledNow() === "aborted") {
+        return result;
+      }
+      try {
+        await afterPopulate();
+      } catch (error) {
+        await publishAbortOnce();
+        throw error;
+      }
+      if (settledNow() === "aborted") {
+        // SIGINT won during the completed PATCH — re-assert abort so a racing
+        // completed response cannot leave the dashboard on Running/Completed.
+        await publishEvalRunAbort({
+          apiKey: args.apiKey,
+          baseURL: args.baseURL,
+          tableId: args.tableId,
+          sheetId: args.sheetId,
+        });
+      } else {
+        gate.settled = "completed";
+      }
+    }
+    return result;
   } catch (error) {
     await publishAbortOnce();
     throw error;
@@ -712,8 +747,9 @@ export const runEval = async <TInput, TOutput>(
 
   const writtenCounter = [0];
 
-  // Only wrap populate (runners + persist). Scorecard/compute run after
-  // `eval_run_status: completed` so a later failure must not overwrite it with aborted.
+  // Wrap populate + the completed PATCH so SIGINT in the gap cannot leave the
+  // dashboard on Running. Scorecard/compute stay outside so their failures do
+  // not overwrite `completed` with `aborted`.
   const { executed, rowIndices } = await withEvalInterruptSnap(
     {
       apiKey: args.apiKey,
@@ -747,17 +783,18 @@ export const runEval = async <TInput, TOutput>(
           writtenCounter[0] += 1;
         },
       });
+    },
+    async () => {
+      // Case writers finished — hand the Running banner off to scorecard/compute.
+      await tablesApi.updateSheet(
+        args.apiKey,
+        args.baseURL,
+        false,
+        table.id,
+        sheet.id,
+        { eval_run_status: "completed" }
+      );
     }
-  );
-
-  // Case writers finished — hand the Running banner off to scorecard/compute.
-  await tablesApi.updateSheet(
-    args.apiKey,
-    args.baseURL,
-    false,
-    table.id,
-    sheet.id,
-    { eval_run_status: "completed" }
   );
 
   const processingIds = processingColumnIds(columns, processingColumns);

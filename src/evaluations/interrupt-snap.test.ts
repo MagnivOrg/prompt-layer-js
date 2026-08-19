@@ -114,4 +114,100 @@ describe("eval interrupt abort publish", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("keeps abort cleanup registered until afterPopulate completes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { runEvalInterruptCleanup } = await import("@/evaluations/interrupt");
+    let cleanupAliveDuringAfter = false;
+
+    await withEvalInterruptSnap(
+      {
+        apiKey: "pl_test",
+        baseURL: "https://api.promptlayer.com",
+        tableId: "t1",
+        sheetId: "s1",
+      },
+      async () => "ok",
+      async () => {
+        await runEvalInterruptCleanup();
+        cleanupAliveDuringAfter = fetchMock.mock.calls.length > 0;
+      }
+    );
+
+    expect(cleanupAliveDuringAfter).toBe(true);
+    // Interrupt during afterPopulate may re-assert abort after the callback returns.
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(
+      fetchMock.mock.calls.every(
+        ([, init]) => JSON.parse(init.body).eval_run_status === "aborted"
+      )
+    ).toBe(true);
+  });
+
+  it("skips completed afterPopulate when abort already won", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { runEvalInterruptCleanup } = await import("@/evaluations/interrupt");
+    const afterPopulate = vi.fn().mockResolvedValue(undefined);
+
+    await withEvalInterruptSnap(
+      {
+        apiKey: "pl_test",
+        baseURL: "https://api.promptlayer.com",
+        tableId: "t1",
+        sheetId: "s1",
+      },
+      async () => {
+        await runEvalInterruptCleanup();
+        return "ok";
+      },
+      afterPopulate
+    );
+
+    expect(afterPopulate).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      eval_run_status: "aborted",
+    });
+  });
+
+  it("PATCHes aborted when afterPopulate throws", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      withEvalInterruptSnap(
+        {
+          apiKey: "pl_test",
+          baseURL: "https://api.promptlayer.com",
+          tableId: "t1",
+          sheetId: "s1",
+        },
+        async () => "ok",
+        async () => {
+          throw new Error("completed PATCH failed");
+        }
+      )
+    ).rejects.toThrow("completed PATCH failed");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      eval_run_status: "aborted",
+    });
+  });
 });

@@ -759,6 +759,35 @@ export const spanDataAttributes = (
   }
 };
 
+export const spanUserInput = (spanData: SpanData): string | undefined => {
+  if (spanData.type === "generation") {
+    return lastMessageContent(normalizeMessages(spanData.input), "user");
+  }
+  if (spanData.type === "response") {
+    const responseObject = isPlainObject(spanData._response)
+      ? spanData._response
+      : {};
+    return lastMessageContent(
+      normalizeResponseItems(spanData._input ?? responseObject.input),
+      "user"
+    );
+  }
+  return undefined;
+};
+
+const lastMessageContent = (
+  messages: NormalizedMessage[],
+  role: string
+): string | undefined => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role === role && message.content) {
+      return String(message.content);
+    }
+  }
+  return undefined;
+};
+
 export const OTLP_STATUS_CODE_UNSET = 0;
 export const OTLP_STATUS_CODE_OK = 1;
 export const OTLP_STATUS_CODE_ERROR = 2;

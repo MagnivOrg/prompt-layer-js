@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import base64
+import binascii
 import json
 import os
 import secrets
@@ -47,12 +49,21 @@ def normalize_hex_id(raw: str, expected_len: int, fallback: str) -> str:
     return clean
 
 
-def normalize_span_kind(kind) -> int:
-    try:
-        value = int(kind)
-    except Exception:
-        return 0
-    return value if 0 <= value <= 5 else 0
+def hex_to_base64(hex_value: str) -> str:
+    raw = binascii.unhexlify(hex_value)
+    return base64.b64encode(raw).decode("ascii")
+
+
+def kind_int_to_string(kind) -> str:
+    value = str(kind)
+    return {
+        "0": "SPAN_KIND_UNSPECIFIED",
+        "1": "SPAN_KIND_INTERNAL",
+        "2": "SPAN_KIND_SERVER",
+        "3": "SPAN_KIND_CLIENT",
+        "4": "SPAN_KIND_PRODUCER",
+        "5": "SPAN_KIND_CONSUMER",
+    }.get(value, "SPAN_KIND_UNSPECIFIED")
 
 
 def otlp_attribute_value(value):
@@ -83,16 +94,16 @@ def build_span(spec: SpanSpec):
         attributes.append({"key": key, "value": otlp_attribute_value(value)})
 
     span = {
-        "traceId": trace_id,
-        "spanId": span_id,
+        "traceId": hex_to_base64(trace_id),
+        "spanId": hex_to_base64(span_id),
         "name": spec.name,
-        "kind": normalize_span_kind(spec.kind),
+        "kind": kind_int_to_string(spec.kind),
         "startTimeUnixNano": str(spec.start_ns),
         "endTimeUnixNano": str(spec.end_ns),
         "attributes": attributes,
     }
     if parent_span:
-        span["parentSpanId"] = parent_span
+        span["parentSpanId"] = hex_to_base64(parent_span)
     return span
 
 
