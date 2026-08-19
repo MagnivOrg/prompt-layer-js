@@ -8,10 +8,13 @@ import {
   ResourceId,
   Column,
   Sheet,
+  SheetResponse,
   Table,
 } from "@/types";
 import * as tablesApi from "@/tables/api";
-import { extractColumns, extractRows } from "@/tables/helpers";
+import { extractColumns, extractRows, buildUpdateSheetBody } from "@/tables/helpers";
+import { tableSheetEndpoint } from "@/utils/endpoints";
+import { getCommonHeaders } from "@/utils/utils";
 import { fillRowCells, waitForSheetOperations } from "./polling";
 import { waitForTraceRequestPrice } from "./tracePrice";
 import {
@@ -56,6 +59,7 @@ import {
 } from "./scorecard";
 import { resolveOutputFromTraceRow } from "./trace-output";
 import { formatScoreValue, getTerminal } from "./terminal";
+import { setEvalInterruptCleanup } from "./interrupt";
 
 type CaseExecution<TInput = unknown, TOutput = unknown> = {
   input: TInput;
@@ -65,6 +69,111 @@ type CaseExecution<TInput = unknown, TOutput = unknown> = {
   output: TOutput;
   traceId: string;
   spanId: string;
+};
+
+/** Best-effort parse of sheet.row_count from a getSheet payload. */
+export const sheetRowCountFromPayload = (
+  payload: SheetResponse | Sheet | null | undefined
+): number => {
+  const sheet =
+    payload &&
+    typeof payload === "object" &&
+    "sheet" in payload &&
+    (payload as SheetResponse).sheet
+      ? (payload as SheetResponse).sheet
+      : (payload as Sheet | null | undefined);
+  if (!sheet || typeof sheet !== "object") {
+    return 0;
+  }
+  const raw = sheet.row_count;
+  const value = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    return 0;
+  }
+  return Math.trunc(value);
+};
+
+/**
+ * Mark populate aborted after Ctrl+C / SIGTERM.
+ * Keep the original planned `expected_row_count` so the dashboard shows
+ * "3 of 10" (written of planned), not a snapped "3 of 3".
+ *
+ * Uses a one-shot fetch (no p-retry) so interrupt exit is not delayed by
+ * multi-second backoff, and so a flaky retry path cannot outlive SIGKILL.
+ */
+export const publishEvalRunAbort = async (args: {
+  apiKey: string;
+  baseURL: string;
+  tableId: ResourceId;
+  sheetId: ResourceId;
+  /** @deprecated Ignored — planned expected count is preserved on abort. */
+  knownWritten?: number;
+}): Promise<void> => {
+  const url = tableSheetEndpoint(args.baseURL, args.tableId, args.sheetId);
+  const body = buildUpdateSheetBody({ eval_run_status: "aborted" });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4_000);
+  try {
+    await fetch(url, {
+      method: "PATCH",
+      headers: {
+        ...getCommonHeaders(),
+        "X-API-KEY": args.apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch {
+    // Interrupt path must not mask the original signal / exit.
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+/** @deprecated Use publishEvalRunAbort — expected count is no longer snapped. */
+export const snapExpectedRowCountAfterInterrupt = publishEvalRunAbort;
+
+/**
+ * Register abort cleanup for the CLI SIGINT/SIGTERM handler.
+ * Do not attach process signal listeners here — the CLI owns exit so we avoid
+ * racing process.exit / clearing cleanup before the abort PATCH lands.
+ *
+ * On unexpected failure (runner throw, API error, network), also PATCH
+ * `eval_run_status: aborted` so the dashboard does not stay stuck on Running.
+ */
+export const withEvalInterruptSnap = async <T>(
+  args: {
+    apiKey: string;
+    baseURL: string;
+    tableId: ResourceId;
+    sheetId: ResourceId;
+    getKnownWritten?: () => number;
+  },
+  run: () => Promise<T>
+): Promise<T> => {
+  let terminalPublished = false;
+  const publishAbortOnce = async (): Promise<void> => {
+    if (terminalPublished) {
+      return;
+    }
+    terminalPublished = true;
+    await publishEvalRunAbort({
+      apiKey: args.apiKey,
+      baseURL: args.baseURL,
+      tableId: args.tableId,
+      sheetId: args.sheetId,
+    });
+  };
+  setEvalInterruptCleanup(() => publishAbortOnce());
+  try {
+    return await run();
+  } catch (error) {
+    await publishAbortOnce();
+    throw error;
+  } finally {
+    setEvalInterruptCleanup(null);
+  }
 };
 
 const runWithConcurrency = async <T, R>(
@@ -107,38 +216,17 @@ const runWithConcurrency = async <T, R>(
   return results;
 };
 
-const executeCases = async <TInput, TOutput>(args: {
-  name: string;
-  cases: NormalizedEvalCase<TInput>[];
-  runner: (input: TInput) => TOutput | Promise<TOutput>;
-  tracerProvider: NodeTracerProvider;
-  maxConcurrency: number;
-  tableId?: string | number | null;
-  sheetId?: string | number | null;
-}): Promise<CaseExecution<TInput, TOutput>[]> => {
-  return runWithConcurrency(
-    args.cases,
-    args.maxConcurrency,
-    async (caseItem) => {
-      const [outputValue, traceId, spanId] = await runCaseInSpan(
-        args.name,
-        args.runner,
-        caseItem.input,
-        args.tracerProvider.getTracer("promptlayer.evals"),
-        { tableId: args.tableId, sheetId: args.sheetId }
-      );
-      return {
-        input: caseItem.input,
-        expected: caseItem.expected,
-        expectedTrace: caseItem.expectedTrace,
-        customFields: caseItem.customFields,
-        output: outputValue,
-        traceId,
-        spanId,
-      };
-    },
-    (completed, total) => getTerminal().progress(completed, total)
-  );
+/** Serialize sheet writes when concurrency > 1 (same sheet, shared row indices). */
+const createPersistLock = () => {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(fn: () => Promise<T>): Promise<T> => {
+    const run = tail.then(fn, fn);
+    tail = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
+  };
 };
 
 const postprocessTraceImport = (
@@ -181,6 +269,7 @@ const persistTraceRows = async <TInput, TOutput>(args: {
   byTitle: Record<string, Column>;
   customFieldTitles: readonly string[];
   tracerProvider: NodeTracerProvider;
+  onRowPersisted?: () => void;
 }): Promise<
   [
     Array<number | null>,
@@ -259,8 +348,82 @@ const persistTraceRows = async <TInput, TOutput>(args: {
       ...execution,
       output: typedOutput,
     });
+    args.onRowPersisted?.();
   }
   return [rowIndices, rows, updated];
+};
+
+/**
+ * Run each case and persist its trace as soon as it finishes (Python parity).
+ * Keeps the dashboard filling during `runners N/M` instead of waiting until
+ * every case completes before importing traces.
+ */
+const executeAndPersistCases = async <TInput, TOutput>(args: {
+  name: string;
+  cases: NormalizedEvalCase<TInput>[];
+  runner: (input: TInput) => TOutput | Promise<TOutput>;
+  tracerProvider: NodeTracerProvider;
+  maxConcurrency: number;
+  apiKey: string;
+  baseURL: string;
+  throwOnError: boolean;
+  tableId: ResourceId;
+  sheetId: ResourceId;
+  evalName: string;
+  byTitle: Record<string, Column>;
+  customFieldTitles: readonly string[];
+  onRowPersisted?: () => void;
+}): Promise<{
+  executed: CaseExecution<TInput, TOutput>[];
+  rowIndices: Array<number | null>;
+}> => {
+  const withPersistLock = createPersistLock();
+  const results = await runWithConcurrency(
+    args.cases,
+    args.maxConcurrency,
+    async (caseItem) => {
+      const [outputValue, traceId, spanId] = await runCaseInSpan(
+        args.name,
+        args.runner,
+        caseItem.input,
+        args.tracerProvider.getTracer("promptlayer.evals"),
+        { tableId: args.tableId, sheetId: args.sheetId }
+      );
+      const executed: CaseExecution<TInput, TOutput> = {
+        input: caseItem.input,
+        expected: caseItem.expected,
+        expectedTrace: caseItem.expectedTrace,
+        customFields: caseItem.customFields,
+        output: outputValue,
+        traceId,
+        spanId,
+      };
+      const [indices, , updated] = await withPersistLock(() =>
+        persistTraceRows({
+          apiKey: args.apiKey,
+          baseURL: args.baseURL,
+          throwOnError: args.throwOnError,
+          tableId: args.tableId,
+          sheetId: args.sheetId,
+          evalName: args.evalName,
+          executed: [executed],
+          byTitle: args.byTitle,
+          customFieldTitles: args.customFieldTitles,
+          tracerProvider: args.tracerProvider,
+          onRowPersisted: args.onRowPersisted,
+        })
+      );
+      return {
+        executed: updated[0] ?? executed,
+        rowIndex: indices[0] ?? null,
+      };
+    },
+    (completed, total) => getTerminal().progress(completed, total)
+  );
+  return {
+    executed: results.map((item) => item.executed),
+    rowIndices: results.map((item) => item.rowIndex),
+  };
 };
 
 const buildResults = <TInput, TOutput>(
@@ -466,6 +629,16 @@ export const runEval = async <TInput, TOutput>(
     }
   );
 
+  // Print early so the dashboard can be opened while cases are still running
+  // (matches Python SDK prepare_eval behavior).
+  const dashboardUrl = buildTableDashboardUrl({
+    apiBaseUrl: args.baseURL,
+    workspaceId: table.workspace_id,
+    tableId: table.id,
+    sheetId: sheet.id,
+  });
+  if (dashboardUrl) getTerminal().link(dashboardUrl);
+
   getTerminal().step("Loading dataset");
   const resolvedCases = await resolveCases(
     args.apiKey,
@@ -526,34 +699,66 @@ export const runEval = async <TInput, TOutput>(
   );
 
   const byTitle = columnsByTitle(columns);
-  getTerminal().step(
-    `Running cases (${cases.length} case${cases.length === 1 ? "" : "s"}, concurrency=${maxConcurrency})`
-  );
-  getTerminal().runnersStart(cases.length);
-  let executed = await executeCases({
-    name: args.name,
-    cases,
-    runner: args.runner,
-    tracerProvider: args.tracerProvider,
-    maxConcurrency,
-    tableId: table.id,
-    sheetId: sheet.id,
-  });
 
-  getTerminal().step("Importing traces and writing rows");
-  let rowIndices: Array<number | null>;
-  [rowIndices, , executed] = await persistTraceRows({
-    apiKey: args.apiKey,
-    baseURL: args.baseURL,
-    throwOnError: args.throwOnError,
-    tableId: table.id,
-    sheetId: sheet.id,
-    evalName: args.name,
-    executed,
-    byTitle,
-    customFieldTitles: datasetFieldTitles,
-    tracerProvider: args.tracerProvider,
-  });
+  // Tell the open dashboard the planned case count + that populate is active.
+  await tablesApi.updateSheet(
+    args.apiKey,
+    args.baseURL,
+    args.throwOnError,
+    table.id,
+    sheet.id,
+    { expected_row_count: cases.length, eval_run_status: "running" }
+  );
+
+  const writtenCounter = [0];
+
+  // Only wrap populate (runners + persist). Scorecard/compute run after
+  // `eval_run_status: completed` so a later failure must not overwrite it with aborted.
+  const { executed, rowIndices } = await withEvalInterruptSnap(
+    {
+      apiKey: args.apiKey,
+      baseURL: args.baseURL,
+      tableId: table.id,
+      sheetId: sheet.id,
+      getKnownWritten: () => writtenCounter[0],
+    },
+    async () => {
+      getTerminal().step(
+        `Running cases (${cases.length} case${cases.length === 1 ? "" : "s"}, concurrency=${maxConcurrency})`
+      );
+      getTerminal().runnersStart(cases.length);
+      // Persist each case as it finishes so the open dashboard fills live during
+      // runners N/M (Python parity — not a separate "Importing traces" phase).
+      return executeAndPersistCases({
+        name: args.name,
+        cases,
+        runner: args.runner,
+        tracerProvider: args.tracerProvider,
+        maxConcurrency,
+        apiKey: args.apiKey,
+        baseURL: args.baseURL,
+        throwOnError: args.throwOnError,
+        tableId: table.id,
+        sheetId: sheet.id,
+        evalName: args.name,
+        byTitle,
+        customFieldTitles: datasetFieldTitles,
+        onRowPersisted: () => {
+          writtenCounter[0] += 1;
+        },
+      });
+    }
+  );
+
+  // Case writers finished — hand the Running banner off to scorecard/compute.
+  await tablesApi.updateSheet(
+    args.apiKey,
+    args.baseURL,
+    false,
+    table.id,
+    sheet.id,
+    { eval_run_status: "completed" }
+  );
 
   const processingIds = processingColumnIds(columns, processingColumns);
   if (processingIds.length) {
@@ -645,6 +850,6 @@ export const runEval = async <TInput, TOutput>(
     result,
     failingRowIndices: failedIndices,
   });
-  if (result.url) getTerminal().link(result.url);
+  // Link was already printed after sheet prep so the dashboard can be opened mid-run.
   return result;
 };

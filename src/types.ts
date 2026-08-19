@@ -487,6 +487,20 @@ export type CodeInterpreterToolConfig = {
 
 export type ImageGenerationToolConfig = {
   type: "image_generation";
+  action?: "generate" | "edit" | "auto";
+  background?: "transparent" | "opaque" | "auto";
+  input_fidelity?: "high" | "low" | null;
+  input_image_mask?: {
+    file_id?: string;
+    image_url?: string;
+  };
+  model?: string;
+  moderation?: "auto" | "low";
+  output_compression?: number;
+  output_format?: "png" | "webp" | "jpeg";
+  partial_images?: number;
+  quality?: "low" | "medium" | "high" | "auto";
+  size?: "1024x1024" | "1024x1536" | "1536x1024" | "auto";
 };
 
 export type ShellToolConfig = {
@@ -507,15 +521,38 @@ export type McpToolApproval = {
   always?: McpToolApprovalFilter;
 };
 
-export type McpToolConfig = {
+export type OpenAINativeMcpToolConfig = {
   type: "mcp";
   server_label: string;
   server_url?: string;
   server_description?: string;
   connector_id?: string;
   authorization?: string;
+  headers?: Record<string, string>;
   allowed_tools?: string[];
-  require_approval?: string | McpToolApproval;
+  require_approval?: "always" | "never" | McpToolApproval;
+};
+
+/** @deprecated Use OpenAINativeMcpToolConfig. */
+export type McpToolConfig = OpenAINativeMcpToolConfig;
+
+export type OpenRouterWebSearchToolConfig = {
+  id: "web";
+  engine?: "native" | "exa" | "firecrawl" | "parallel" | "perplexity";
+  max_results?: number;
+  search_prompt?: string;
+  include_domains?: string[];
+  exclude_domains?: string[];
+};
+
+export type OpenRouterServerToolConfig = {
+  openrouter_server_tool: string;
+  parameters?: Record<string, unknown>;
+};
+
+export type GenericBuiltInToolConfig = {
+  type?: string;
+  [key: string]: unknown;
 };
 
 export type BuiltInToolConfig =
@@ -523,9 +560,12 @@ export type BuiltInToolConfig =
   | FileSearchToolConfig
   | CodeInterpreterToolConfig
   | ImageGenerationToolConfig
-  | McpToolConfig
+  | OpenAINativeMcpToolConfig
   | ShellToolConfig
-  | ApplyPatchToolConfig;
+  | ApplyPatchToolConfig
+  | OpenRouterWebSearchToolConfig
+  | OpenRouterServerToolConfig
+  | GenericBuiltInToolConfig;
 
 export type FunctionTool = {
   type: "function";
@@ -544,12 +584,46 @@ export type BuiltInTool = {
     | "image_generation"
     | "google_maps"
     | "url_context"
+    | "openai_mcp"
+    /** @deprecated Legacy OpenAI-native MCP input. Use "openai_mcp". */
     | "mcp"
     | "bash"
     | "shell"
     | "apply_patch"
-    | "text_editor";
+    | "text_editor"
+    | "datetime"
+    | "web_fetch"
+    | "fusion"
+    | "advisor"
+    | "subagent"
+    | "search_models";
   config: BuiltInToolConfig;
+};
+
+export type PromptLayerMcpTool = {
+  type: "mcp";
+  mcp_server_id: number;
+};
+
+/**
+ * Legacy OpenAI-native MCP input accepted and normalized by the backend.
+ *
+ * @deprecated Use BuiltInTool with type "openai_mcp".
+ */
+export type LegacyOpenAINativeMcpTool = Omit<
+  BuiltInTool,
+  "provider" | "type" | "config"
+> & {
+  provider: "openai" | "openai.azure";
+  type: "mcp";
+  config: OpenAINativeMcpToolConfig & {
+    execution_mode?: "provider";
+  };
+};
+
+export type ToolVariable = {
+  type: "variable";
+  name: string;
 };
 
 export type RegistryTool = {
@@ -559,7 +633,13 @@ export type RegistryTool = {
   version_number?: number | null;
 };
 
-export type Tool = FunctionTool | BuiltInTool | RegistryTool;
+export type Tool =
+  | FunctionTool
+  | PromptLayerMcpTool
+  | BuiltInTool
+  | LegacyOpenAINativeMcpTool
+  | ToolVariable
+  | RegistryTool;
 
 export type SystemMessage = {
   role: "system";
@@ -693,7 +773,10 @@ export type PromptBlueprint = {
 };
 
 export type PublishPromptTemplate = BasePromptTemplate &
-  PromptBlueprint & { release_labels?: string[] };
+  PromptBlueprint & {
+    release_labels?: string[];
+    parent_version_id?: number;
+  };
 
 export interface ProviderBaseURL {
   id: number;
@@ -948,6 +1031,10 @@ export interface CreateSheet {
 
 export interface UpdateSheet {
   title?: string;
+  /** Planned row count (e.g. eval case count) for live progress denominators. */
+  expected_row_count?: number;
+  /** Explicit Eval SDK populate lifecycle for the dashboard Running banner. */
+  eval_run_status?: "running" | "completed" | "aborted";
 }
 
 export interface CreateColumn {

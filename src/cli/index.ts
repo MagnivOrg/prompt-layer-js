@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { runEvalInterruptCleanup } from "@/evaluations/interrupt";
 import { DefaultEvalTerminal } from "@/evaluations/terminal";
 import { runEvalCommand } from "./eval-run";
 import { runSetupCommand, type SetupTarget } from "./setup/run";
@@ -64,8 +65,9 @@ program
   .action(async (paths: string[]) => {
     const terminal = new DefaultEvalTerminal();
     // Registering SIGINT/SIGTERM disables Node's default exit behavior, so the
-    // handler must terminate the process. Previously this only stopped the
-    // spinner, which left scorecard polling running and made Ctrl+C appear stuck.
+    // handler must terminate the process. Await Eval SDK abort cleanup first so
+    // `eval_run_status: aborted` reaches the API before we exit (otherwise the
+    // dashboard stays stuck on Running).
     let exiting = false;
     const stop = (signal: NodeJS.Signals) => {
       if (exiting) return;
@@ -73,15 +75,17 @@ program
       terminal.stop();
       process.stderr.write(`\nInterrupted (${signal})\n`);
       const code = signal === "SIGINT" ? 130 : 143;
-      // If something keeps the event loop alive after exit(), force-kill shortly.
+      void runEvalInterruptCleanup().finally(() => {
+        process.exit(code);
+      });
+      // Give the abort PATCH time to land; then force-kill hung sockets.
       setTimeout(() => {
         try {
           process.kill(process.pid, "SIGKILL");
         } catch {
           // ignore
         }
-      }, 500).unref?.();
-      process.exit(code);
+      }, 5_000).unref?.();
     };
     process.on("SIGINT", stop);
     process.on("SIGTERM", stop);

@@ -161,6 +161,20 @@ describe("Eval runner", () => {
     expect(result.results[0].scores.exact).toBe(1);
     expect(result.results[0].price).toBeNull();
     expect(result.results[0].latency).toBe(178);
+    expect(result.url).toContain(
+      "https://dashboard.promptlayer.com/workspace/1/smart-tables/t1?sheet=s1"
+    );
+
+    const expectedRowCountPatch = fetchMock.mock.calls.find(
+      ([input, init]) =>
+        getUrlString(input).endsWith("/tables/t1/sheets/s1") &&
+        (init?.method || "GET").toUpperCase() === "PATCH" &&
+        String(init?.body || "").includes("expected_row_count")
+    );
+    expect(expectedRowCountPatch).toBeDefined();
+    expect(JSON.parse(String(expectedRowCountPatch?.[1]?.body))).toMatchObject({
+      expected_row_count: 1,
+    });
 
     const scorecardPatchIndex = fetchMock.mock.calls.findIndex(
       ([input, init]) =>
