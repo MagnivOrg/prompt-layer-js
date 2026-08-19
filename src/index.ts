@@ -730,7 +730,31 @@ export type {
   TrajectoryMode,
   TrajectoryScorerOptions,
 } from "@/evaluations";
-export type { ColumnTypeValue } from "@/types";
+export type {
+  ApplyPatchToolConfig,
+  BasePromptTemplate,
+  BuiltInTool,
+  BuiltInToolConfig,
+  ChatPromptTemplate,
+  CodeInterpreterToolConfig,
+  ColumnTypeValue,
+  FileSearchToolConfig,
+  FunctionTool,
+  ImageGenerationToolConfig,
+  LegacyOpenAINativeMcpTool,
+  McpToolConfig,
+  OpenAINativeMcpToolConfig,
+  OpenAIWebSearchToolConfig,
+  OpenRouterServerToolConfig,
+  OpenRouterWebSearchToolConfig,
+  PromptBlueprint,
+  PromptLayerMcpTool,
+  PromptTemplate,
+  PublishPromptTemplate,
+  RegistryTool,
+  Tool,
+  ToolVariable,
+} from "@/types";
 export type {
   ConfigureTracingOptions,
   FlushableTracerProvider,
