@@ -141,6 +141,9 @@ def merge_content_blocks(existing, incoming):
 
 
 def coalesce_assistant_message_fragments(records):
+    """Claude Code writes one API reply as several consecutive transcript records (one per content
+    block) that share message.id and repeat the same usage. Merge them back into one record so a
+    reply becomes one LLM span with its usage counted once."""
     coalesced = []
     for rec in records:
         if not coalesced:
@@ -197,11 +200,11 @@ def parse_transcript(transcript_path, turn_start_fallback, pending_payloads, exp
             except Exception:
                 continue
 
-    records = coalesce_assistant_message_fragments(records)
-
     if not records:
         now_ns = int(datetime.now(timezone.utc).timestamp() * 1_000_000_000)
         return {"turn": {"start_ns": now_ns, "end_ns": now_ns}, "tools": [], "llms": []}
+
+    records = coalesce_assistant_message_fragments(records)
 
     turn_start_idx = 0
     for i in range(len(records) - 1, -1, -1):
@@ -218,6 +221,7 @@ def parse_transcript(transcript_path, turn_start_fallback, pending_payloads, exp
     llms = []
     pending_tool_uses = []
     pending_payload_idx = 0
+    saw_human_input = False
 
     turn_start_ns = turn_start_fallback
     turn_end_ns = turn_start_fallback
@@ -240,6 +244,7 @@ def parse_transcript(transcript_path, turn_start_fallback, pending_payloads, exp
                 if content:
                     append_history_item(history, {"role": "user", "content": content})
                     last_input_ns = timestamp_ns or last_input_ns
+                    saw_human_input = True
             continue
 
         if rec_type == "user":
@@ -310,6 +315,7 @@ def parse_transcript(transcript_path, turn_start_fallback, pending_payloads, exp
             user_text = content_to_text(content)
             append_history_item(history, {"role": "user", "content": user_text})
             last_input_ns = timestamp_ns or last_input_ns
+            saw_human_input = True
             continue
 
         if rec_type != "assistant":
@@ -394,7 +400,7 @@ def parse_transcript(transcript_path, turn_start_fallback, pending_payloads, exp
             completion_item["tool_calls"] = tool_calls
         flatten_indexed("gen_ai.completion", [completion_item], attrs)
 
-        span_name = "LLM call"
+        span_name = "LLM Call (User)" if saw_human_input else "LLM call"
 
         if emit_for_turn:
             llms.append(
@@ -412,6 +418,7 @@ def parse_transcript(transcript_path, turn_start_fallback, pending_payloads, exp
         if tool_calls:
             assistant_history["tool_calls"] = tool_calls
         history.append(assistant_history)
+        saw_human_input = False
 
     if turn_start_ns is None:
         turn_start_ns = int(datetime.now(timezone.utc).timestamp() * 1_000_000_000)
@@ -425,6 +432,28 @@ def parse_transcript(transcript_path, turn_start_fallback, pending_payloads, exp
     }
 
 
+SESSION_INPUT_MAX_CHARS = 4000
+
+
+def session_input_from_parsed(parsed):
+    """First user prompt of a parsed turn, for the session root's input.value headline stamp.
+    Returns "" when absent."""
+    for llm in parsed.get("llms", []):
+        attrs = llm.get("attributes", {}) or {}
+        index = 0
+        while f"gen_ai.prompt.{index}.role" in attrs:
+            if attrs.get(f"gen_ai.prompt.{index}.role") == "user":
+                text = str(attrs.get(f"gen_ai.prompt.{index}.content") or "")
+                if text:
+                    return text[:SESSION_INPUT_MAX_CHARS]
+            index += 1
+    return ""
+
+
+def session_input_attrs(session_input):
+    return {"input.value": session_input} if session_input else {}
+
+
 def build_stop_hook_span_specs(
     *,
     parsed,
@@ -434,6 +463,7 @@ def build_stop_hook_span_specs(
     session_start_ns,
     session_init_source,
     generate_span_id,
+    session_input="",
 ):
     turn = parsed.get("turn", {})
     turn_start_ns = str(turn.get("start_ns", session_start_ns))
@@ -451,15 +481,16 @@ def build_stop_hook_span_specs(
             trace_id=trace_id,
             span_id=session_span_id,
             parent_span_id=session_parent_span_id,
-            name="LLM session",
+            name="Claude Code session",
             kind="1",
             start_ns=str(session_start_ns),
             end_ns=turn_end_ns,
             attrs={
                 "source": "claude-code",
                 "hook": session_hook_attr,
-                "node_type": "LLM_SESSION",
+                "node_type": "WORKFLOW",
                 "session.lifecycle": session_lifecycle_attr,
+                **session_input_attrs(session_input),
             },
         )
     ]
