@@ -477,7 +477,8 @@ export class PromptLayer {
           provider_type_config =
             api_type === "images" ||
             api_type === "video" ||
-            api_type === "speech"
+            api_type === "speech" ||
+            api_type === "decisions"
               ? `openrouter:${api_type}`
               : "openrouter:chat";
         }

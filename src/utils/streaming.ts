@@ -1467,6 +1467,16 @@ export const MAP_PROVIDER_TO_FUNCTION_NAME = {
       stream_function: openaiImagesStream,
     },
   },
+  "openai:decisions": {
+    chat: {
+      function_name: "openai.decisions.create",
+      stream_function: undefined,
+    },
+    completion: {
+      function_name: "openai.decisions.create",
+      stream_function: undefined,
+    },
+  },
   anthropic: {
     chat: {
       function_name: "anthropic.messages.create",
@@ -1571,6 +1581,16 @@ export const MAP_PROVIDER_TO_FUNCTION_NAME = {
     completion: {
       function_name: "openrouter.video_generation.generate",
       stream_function: null,
+    },
+  },
+  "openrouter:decisions": {
+    chat: {
+      function_name: "openrouter.decisions.create",
+      stream_function: undefined,
+    },
+    completion: {
+      function_name: "openrouter.decisions.create",
+      stream_function: undefined,
     },
   },
   "openrouter:speech": {
