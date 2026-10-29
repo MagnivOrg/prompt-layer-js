@@ -1003,21 +1003,33 @@ const OPENROUTER_DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions";
 // resource) under their own base path, so only the API key carries over
 // (matching the backend).
 const openrouterDecisionsRequest = async (kwargs: any) => {
-  const { apiKey, baseURL: _baseURL, stream: _stream, ...body } = kwargs;
+  const apiKey = kwargs.apiKey || process.env.OPENROUTER_API_KEY;
+  // run() logs these same kwargs to PromptLayer, so credentials must not stay on them.
+  delete kwargs.apiKey;
+  delete kwargs.baseURL;
+  if (!apiKey) {
+    throw new Error(
+      "OpenRouter API key missing: set OPENROUTER_API_KEY or configure an OpenRouter provider."
+    );
+  }
   const response = await fetch(OPENROUTER_DECISIONS_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey || process.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(kwargs),
     signal: AbortSignal.timeout(
       Number(process.env.OPENROUTER_TIMEOUT_MS) || 600_000
     ),
   });
   if (!response.ok) {
-    throw new Error(
-      `OpenRouter decisions request failed with status ${response.status}: ${await response.text()}`
+    // `status` lets error tracking categorize auth and rate-limit failures.
+    throw Object.assign(
+      new Error(
+        `OpenRouter decisions request failed with status ${response.status}: ${await response.text()}`
+      ),
+      { status: response.status }
     );
   }
   return await response.json();
@@ -1476,7 +1488,6 @@ export {
   googleRequest,
   mistralRequest,
   openaiRequest,
-  openrouterDecisionsRequest,
   openrouterRequest,
   promptlayerApiHandler,
   promptLayerApiRequest,

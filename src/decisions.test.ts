@@ -164,9 +164,9 @@ describe("OpenRouter decisions", () => {
     });
   });
 
-  it("throws on a non-2xx response", async () => {
+  it("throws with the status on a non-2xx response", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("bad request", { status: 400 })
+      new Response("rate limited", { status: 429 })
     );
 
     await expect(
@@ -174,6 +174,34 @@ describe("OpenRouter decisions", () => {
         ...openrouterDecisionKwargs,
         apiKey: "sk-or-test",
       })
-    ).rejects.toThrow("status 400");
+    ).rejects.toMatchObject({ status: 429, message: expect.stringContaining("rate limited") });
+  });
+
+  it("fails before sending when no API key is available", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "");
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    await expect(
+      openrouterRequest(openrouterBlueprint as never, { ...openrouterDecisionKwargs })
+    ).rejects.toThrow("OpenRouter API key missing");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("removes credentials from the kwargs that run() logs", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(openrouterDecisionResponse))
+    );
+    // A custom provider puts its key and base URL on the kwargs that run() later sends to trackRequest.
+    const { kwargs } = configureProviderSettings(openrouterBlueprint, {
+      client: "openrouter",
+      api_key: "sk-or-secret",
+      base_url: "https://proxy.example/api/v1",
+    });
+
+    expect(kwargs).toMatchObject({ apiKey: "sk-or-secret", baseURL: "https://proxy.example/api/v1" });
+
+    await openrouterRequest(openrouterBlueprint as never, kwargs);
+
+    expect(kwargs).toEqual(openrouterDecisionKwargs);
   });
 });
