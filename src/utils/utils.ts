@@ -816,6 +816,12 @@ const MAP_TYPE_TO_OPENAI_FUNCTION = {
   completion: openaiCompletionsRequest,
 };
 
+// Older openai-node releases have no `decisions` resource; fall back to a raw POST.
+const openaiDecisionsCreate = async (client: any, kwargs: any) =>
+  client.decisions
+    ? client.decisions.create(kwargs)
+    : client.post("/decisions", { body: kwargs });
+
 const openaiRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
@@ -836,6 +842,8 @@ const openaiRequest = async (
     return await requestToMake(client, kwargs);
   } else if (api_type === "images") {
     return await client.images.generate(kwargs);
+  } else if (api_type === "decisions") {
+    return await openaiDecisionsCreate(client, kwargs);
   } else {
     return await client.responses.create(kwargs);
   }
@@ -989,10 +997,40 @@ const enableOpenrouterUsageAccounting = async (
   }
 };
 
+const OPENROUTER_DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions";
+
+// OpenRouter decisions are a plain JSON POST (the SDK has no decisions
+// resource) under their own base path, so only the API key carries over
+// (matching the backend).
+const openrouterDecisionsRequest = async (kwargs: any) => {
+  const { apiKey, baseURL: _baseURL, stream: _stream, ...body } = kwargs;
+  const response = await fetch(OPENROUTER_DECISIONS_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey || process.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(
+      Number(process.env.OPENROUTER_TIMEOUT_MS) || 600_000
+    ),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `OpenRouter decisions request failed with status ${response.status}: ${await response.text()}`
+    );
+  }
+  return await response.json();
+};
+
 const openrouterRequest = async (
   promptBlueprint: GetPromptTemplateResponse,
   kwargs: any
 ) => {
+  if (promptBlueprint.metadata?.model?.api_type === "decisions") {
+    return await openrouterDecisionsRequest(kwargs);
+  }
+
   // @openrouter/sdk is ESM-only, so use dynamic import (matches the Mistral /
   // Gemini pattern) to stay correct in both the CJS and ESM builds.
   const { OpenRouter, HTTPClient } = await import("@openrouter/sdk");
@@ -1241,9 +1279,13 @@ const configureProviderSettings = (
     );
   }
 
+  if (api_type === "decisions" && stream) {
+    throw new Error("The Decisions API does not support streaming.");
+  }
+
   let kwargs = {
     ...(promptBlueprint.llm_kwargs || {}),
-    stream,
+    ...(api_type === "decisions" ? {} : { stream }),
   };
 
   if (
@@ -1434,6 +1476,7 @@ export {
   googleRequest,
   mistralRequest,
   openaiRequest,
+  openrouterDecisionsRequest,
   openrouterRequest,
   promptlayerApiHandler,
   promptLayerApiRequest,
